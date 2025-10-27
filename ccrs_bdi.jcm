@@ -15,11 +15,14 @@
 mas ccrs_bdi {
 
     agent bob: sample_agent.asl {
-      focus: w.c1 
+      debug: mindinspector(gui(cycle,html,history))
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
     }
 
     workspace w {
-      artifact c1: example.Counter(3) 
+      artifact h: org.hypermedea.HypermedeaArtifact() 
+      debug
     }
 
     
