@@ -13,6 +13,7 @@ is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
 knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI) already visited if any triple was retrieved from this URI
 
+
 /* Initial goals */
 
 !start.
@@ -36,6 +37,7 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
             get(Vocab) ;
         }
         +crawling ;
+        +at("Root") ;
         .print("Retrieving ", URI) ;
         get(URI) ;
   .
@@ -52,17 +54,18 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
 +rdf(Position, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Cell")[rdf_type_map(_, _, uri), source(Anchor)] :
     crawling & h.target(Position, Target)
     <-
-        -at(_) ; // remove previous position
+        ?at(PreviousCell) ;
+        -+at(Target) ; // update position. same as -at(_) ; +at(Target) ;
         .print("I'm now at: ", Target) ;
-        +at(Target) ;
+        +visited(Target)[parent(PreviousCell)] ; // mark current position as visited (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
     .
 
 // Map neighboring cells
 +rdf(CurrentCell, Dir, Option)[rdf_type_map(_, _, uri), source(Anchor)] :
     is_direction(Dir) // Filter for Predicates that are a direction
     <-
-        -transition(Dir, _)[source(_)] ; // remove previous transition of this direction
-        +transition(Dir, Option)[source(CurrentCell)] ; // add curently perceived transition of this direction
+        -transition(Dir, _) ; // remove previous transition of this direction
+        +transition(Dir, Option)[base(CurrentCell)] ; // add curently perceived transition of this direction.
         .print(Dir," is ", Option);
     .
 
@@ -72,10 +75,15 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
         for (transition(Dir, Option)) { // Loop through beliefs of form transtion/2
-            if (not (is_wall(Option))) { // Filter out Walls
+            if (not (is_wall(Option))) { // Filter out Walls -> TODO & CurrentCell \== Option
                 .print("Could go ", Option) ;
+                .add_annot(transition(Dir, Option), valid_transition("True"), T) ; // Returns T as the annotated belief transition(Dir,Option)[cell("True")]. BB is not updated.
+                .print("Create annotated belief: ", T) ;
+                -transition(Dir, Option) ; // Remove belief
+                +T ; // Add the transition belief with annotation
             }
         }
+        //.findall(Option, transition(Dir,Option), List) ;
     .
 
 
