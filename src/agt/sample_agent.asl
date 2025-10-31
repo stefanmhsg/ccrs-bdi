@@ -12,7 +12,7 @@ is_direction("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#west") .
 is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
 knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI) already visited if any triple was retrieved from this URI
-
+visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief is present
 
 /* Initial goals */
 
@@ -34,7 +34,7 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
     <-
         for (knownVocab(Vocab)) {
             .print("Retrieving OWL definitions of ", Vocab) ;
-            get(Vocab) ;
+        //    get(Vocab) ; TODO: uncomment if needed.
         }
         +crawling ;
         +at("Root") ;
@@ -57,13 +57,16 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
         ?at(PreviousCell) ;
         -+at(Target) ; // update position. same as -at(_) ; +at(Target) ;
         .print("I'm now at: ", Target) ;
-        +visited(Target)[parent(PreviousCell)] ; // mark current position as visited (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
+        if (not (visitedCell(Target))) { // Only add once on first visit.
+            +visited(Target)[parent(PreviousCell)] ; // mark current position as visited (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
+        }
     .
 
-// Map neighboring cells
+// Map neighboring cells (as soon as they get perceived)
 +rdf(CurrentCell, Dir, Option)[rdf_type_map(_, _, uri), source(Anchor)] :
     is_direction(Dir) // Filter for Predicates that are a direction
     <-
+        
         -transition(Dir, _) ; // remove previous transition of this direction
         +transition(Dir, Option)[base(CurrentCell)] ; // add curently perceived transition of this direction.
         .print(Dir," is ", Option);
@@ -74,27 +77,60 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
     true
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
+        
+        ?visited(CurrentCell)[parent(Parent)] ; // Get Parent Cell
+        .print("Parent cell is: ", Parent) ;
+
+        -transition(_,_)[base(Parent)] ; // Delete all transition beliefs from Parent Cell. If no Dir is present because is Locked -> should still remove the belief of this Dir!
+        
+        // Evaluate transition possibilities
         for (transition(Dir, Option)) { // Loop through beliefs of form transtion/2
-            if (not (is_wall(Option))) { // Filter out Walls -> TODO & CurrentCell \== Option
+            if (not (is_wall(Option)) & CurrentCell \== Option & Parent \== Option) { // Filter out Walls -> TODO & CurrentCell \== Option
                 .print("Could go ", Option) ;
                 .add_annot(transition(Dir, Option), valid_transition("True"), T) ; // Returns T as the annotated belief transition(Dir,Option)[cell("True")]. BB is not updated.
                 .print("Create annotated belief: ", T) ;
                 -transition(Dir, Option) ; // Remove belief
-                +T ; // Add the transition belief with annotation
+                +T[base(CurrentCell)] ; // Add the transition belief with new annotation and append base annotation.
             }
         }
-        //.findall(Option, transition(Dir,Option), List) ;
+
+        // Create DFS structure if not existing
+        if (not remaining(CurrentCell, _)) { // Ensure this is only added once to keep track of explored paths
+            .findall(X, transition(_,X)[valid_transition("True")], List) ; // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
+            .print("Valid transitions are: ", List) ;
+            +remaining(CurrentCell, List) ; // Add belief of unexplored options based from current cell.
+        }
+
+        // Select next move
+        !select_next(CurrentCell) ;
     .
 
++!select_next(CurrentCell) :
+    remaining(CurrentCell, []) // check if list is empty = cell fully explored
+    <-
+        .print("Cell fully explored, lets backtrack") ;
+        !backtrack_from(CurrentCell) ; // Dead-end.. Go to parent cell
+    .
+
++!select_next(CurrentCell) :
+    remaining(CurrentCell, [Next | Tail]) // check if list has next item
+    <-
+        .print("Selected next option: ", Next) ;
+        -remaining(CurrentCell, [Next|Tail]) ; // Delete item
+        +remaining(CurrentCell, Tail) ; // Add item minus next option
+        .print("remaining options: ", Tail) ;
+        +crawling ;
+        !get(Next) ;
+    .
 
 
 +!get(URI) :
     crawling
     <-
-        if (not (knownResource(URI))) {
+    //    if (not (knownResource(URI))) { // TODO: prevents backtracking.
             get(URI) ;
             !!checkEndCrawl ;
-        }
+    //    }
   .
 
 +!checkEndCrawl :
