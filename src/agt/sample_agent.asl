@@ -8,6 +8,7 @@ is_direction("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#north") .
 is_direction("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#south") .
 is_direction("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#east") .
 is_direction("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#west") .
+is_exit("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#exit") .
 
 is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
@@ -25,6 +26,7 @@ visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief
     <-
     .date(Y,M,D); .time(H,Min,Sec,MilSec); // get current date & time
     +started(Y,M,D,H,Min,Sec);             // add a new belief
+    +at("Root") ;
     !crawl("http://127.0.1.1:8080/maze");
   .
 
@@ -32,14 +34,13 @@ visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief
 +!crawl(URI) :
     true
     <-
-        for (knownVocab(Vocab)) {
-            .print("Retrieving OWL definitions of ", Vocab) ;
-        //    get(Vocab) ; TODO: uncomment if needed.
-        }
+    //    for (knownVocab(Vocab)) {
+    //        .print("Retrieving OWL definitions of ", Vocab) ;
+    //        get(Vocab) ; // TODO: uncomment if needed.
+    //    }
         +crawling ;
-        +at("Root") ;
         .print("Retrieving ", URI) ;
-        get(URI) ;
+        !get(URI) ;
   .
 
 /*******************
@@ -79,8 +80,32 @@ REACTING TO EVENTS
 +rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#state", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#locked")[rdf_type_map(uri, _, _), source(Anchor)] :
     crawling & h.target(CurrentCell, Target)
     <-
-        .print(Target, " is locked!") ;
-        +isLocked(Target) ;
+        if (not rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#state", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#unlocked")) {
+            .print(Target, " is locked!") ;
+            +isLocked(Target) ;
+        }
+    .
+
+// Detect open action
++rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action)[rdf_type_map(uri, _, _), source(Anchor)] :
+    crawling & h.target(CurrentCell, Target)
+    <-
+        if (not rdf(Action, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#hasStatus", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#done")) {
+            +requires_action(Target) ;
+            .print("Action required: ", Action) ;
+        } else {
+            -requires_action(Target) ;
+            .print("Action completed: ", Action) ;
+        }
+    .
+
+// Detect exit
++rdf(CurrentCell, Dir, ExitCell)[rdf_type_map(_, _, uri), source(Anchor)] :
+    is_exit(Dir)
+    <-
+        -transition(Dir, _) ; // remove previous transition of this direction. Ensure that transitions of e.g. (north, wall) get deleted and re-added and dont get base[] added only.
+        +transition(Dir, ExitCell)[base(CurrentCell)] ; // add curently perceived transition of this direction.
+        .print("Found Exit! It's at: ", ExitCell);
     .
 
 /*******************
@@ -92,11 +117,15 @@ DELIBERATION STEPS
     true
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
-        // TODO: check if cell requires action
-        !evaluate_actions(CurrentCell) ; // Check for necessary actions
-        !evaluate_transitions(CurrentCell) ; // Annotate valid transitions
-        !track_unexplored_transitions(CurrentCell) ; // Tracking which valid dirs have (not) been explored from current cell
-        !select_next(CurrentCell) ; // Select next move
+        if (requires_action(CurrentCell)) { //check if cell requires action
+            .print("Evaluating actions in: ", CurrentCell) ;
+            !evaluate_actions(CurrentCell) ; // Check for necessary actions
+        } else {
+            .print("No open actions. Deciding next step from: ", CurrentCell) ;
+            !evaluate_transitions(CurrentCell) ; // Annotate valid transitions
+            !track_unexplored_transitions(CurrentCell) ; // Tracking which valid dirs have (not) been explored from current cell
+            !select_next(CurrentCell) ; // Select next move
+        }
     .
 
 +!evaluate_actions(CurrentCell) :
@@ -113,56 +142,77 @@ DELIBERATION STEPS
         ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
 
         .print(CurrentCell, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
+
+        !post(CurrentCell, [rdf(CurrentCell, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
+        -isLocked(Target) ;
+        .wait(10000) ;
+        !crawl(CurrentCell) ; // TODO: potential loop
     .
 
 +!evaluate_actions(CurrentCell) :
     not isLocked(CurrentCell)
     <-
-        .print("No action required for ", CurrentCell) ;
+        .print("Unable to cope with actions in: ", CurrentCell) ;
     .
 
 // Annotate valid transitions
 +!evaluate_transitions(CurrentCell) :
     visited(CurrentCell)[parent(Parent)]
     <-
-        .print("Evaluate transitions from: ", CurrentCell) ;
-        -transition(_,_)[base(Parent)] ; // Delete all remaining transition beliefs from Parent Cell. If no Dir is present because is Locked -> should still remove the previous belief of this Dir!
-        // Evaluate transition possibilities
-        for (transition(Dir, Option)) { // Loop through beliefs of form transtion/2
-            if (not (is_wall(Option)) & CurrentCell \== Option & Parent \== Option) { // Filter out Walls / going to self / going back
-                .print("Could go ", Option) ;
-                +transition(Dir, Option)[valid_transition("True")] ; // Append an annotation to the existing belief
-            }
+        if (not crawling) {
+             .print("Evaluate transitions from: ", CurrentCell) ;
+            -transition(_,_)[base(Parent)] ; // Delete all remaining transition beliefs from Parent Cell. If no Dir is present because is Locked -> should still remove the previous belief of this Dir!
+            // Evaluate transition possibilities
+            for (transition(Dir, Option)) { // Loop through beliefs of form transtion/2
+                if (not (is_wall(Option)) & CurrentCell \== Option & Parent \== Option) { // Filter out Walls / going to self / going back
+                    .print("Could go ", Option) ;
+                    +transition(Dir, Option)[valid_transition("True")] ; // Append an annotation to the existing belief
+                }
+            }       
         }
     .
 
 // Create DFS structure if not existing (for tracking which dirs have been explored from current cell).
 +!track_unexplored_transitions(CurrentCell) :
-    not remaining(CurrentCell, _) // Ensure this is only added once to keep track of explored paths
+    true 
     <-
-        .findall(X, transition(_,X)[valid_transition("True")], List) ; // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
-        .print("Tracking unexplored transitions: ", List) ;
-        +remaining(CurrentCell, List) ; // Add belief of unexplored options based from current cell.
-    .
-
-// Next move if current cell has no options left
-+!select_next(CurrentCell) :
-    remaining(CurrentCell, []) // check if list is empty = cell fully explored
-    <-
-        .print("Cell fully explored, lets backtrack") ;
-        !backtrack_from(CurrentCell) ; // Dead-end.. Go to parent cell
+        if (not remaining(CurrentCell, _)) { // Ensure this is only added once to keep track of explored paths
+            .findall(X, transition(_,X)[valid_transition("True")], List) ; // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
+            .print("Tracking unexplored transitions: ", List) ;
+            +remaining(CurrentCell, List) ; // Add belief of unexplored options based from current cell.
+        } else {
+            .print("Tracking list of unexplored transitions already available.") ;
+        }
     .
 
 // Next move if current cell has unexplored options left
 +!select_next(CurrentCell) :
     remaining(CurrentCell, [Next | Tail]) // check if list has next item
     <-
-        .print("Selected next option: ", Next) ;
-        -remaining(CurrentCell, [Next|Tail]) ; // Delete item
-        +remaining(CurrentCell, Tail) ; // Add item minus next option
-        .print("remaining options: ", Tail) ;
-        +crawling ;
-        !get(Next) ;
+        if (not crawling) {
+            .print("Selected next option: ", Next) ;
+            -remaining(CurrentCell, [Next|Tail]) ; // Delete item
+            +remaining(CurrentCell, Tail) ; // Add item minus next option
+            .print("remaining options: ", Tail) ;
+            !crawl(Next) ;        
+        }
+    .
+
+// Next move if current cell has no options left
++!select_next(CurrentCell) :
+    remaining(CurrentCell, []) // check if list is empty = cell fully explored
+    <-
+        if (not crawling) {
+            .print("Cell fully explored, lets backtrack") ;
+            !backtrack_from(CurrentCell) ; // Dead-end.. Go to parent cell        
+        }
+    .
+
++!backtrack_from(CurrentCell) :
+    visited(CurrentCell)[parent (Parent)]
+    <-
+        .print("Going back to parent cell: ", Parent) ;
+        !crawl(Parent) ;
     .
 
 /*******************
@@ -177,6 +227,20 @@ HELPER PLANS
             !!checkEndCrawl ;
     //    }
   .
+
+  +!post(URI, Body) :
+    true
+    <-
+        h.target(URI, TargetURI) ;
+        .print("POST to: ", URI, " with body: ", Body) ;
+        post(URI, Body);
+
+       // ?(rdf(TargetURI, "related", CreatedResourceURI)) ;
+       // .print("Created resource: ", CreatedResourceURI) ;
+       // h.target(CreatedResourceURI, CreatedTargetURI) ;
+        //get(CreatedResourceURI) ;
+        //?(json(Val)[source(CreatedTargetURI)]) ;
+    .
 
 +!checkEndCrawl :
     crawling
