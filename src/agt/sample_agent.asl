@@ -24,10 +24,10 @@ visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief
 +!start :
     true
     <-
-    .date(Y,M,D); .time(H,Min,Sec,MilSec); // get current date & time
-    +started(Y,M,D,H,Min,Sec);             // add a new belief
+    .date(Y,M,D); .time(H,Min,Sec,MilSec) ; // get current date & time
+    +started(Y,M,D,H,Min,Sec) ;             // add a new belief
     +at("Root") ;
-    !crawl("http://127.0.1.1:8080/maze");
+    !crawl("http://127.0.1.1:8080/maze") ;
   .
 
 
@@ -103,8 +103,9 @@ REACTING TO EVENTS
 +rdf(CurrentCell, Dir, ExitCell)[rdf_type_map(_, _, uri), source(Anchor)] :
     is_exit(Dir)
     <-
-        -transition(Dir, _) ; // remove previous transition of this direction. Ensure that transitions of e.g. (north, wall) get deleted and re-added and dont get base[] added only.
+        -transition(Dir, _) ;
         +transition(Dir, ExitCell)[base(CurrentCell)] ; // add curently perceived transition of this direction.
+        +exit(ExitCell) ;
         .print("Found Exit! It's at: ", ExitCell);
     .
 
@@ -114,13 +115,13 @@ DELIBERATION STEPS
 
 // Plan next move
 -crawling :
-    true
+    not finished(_,_,_,_,_,_)
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
         if (requires_action(CurrentCell)) { //check if cell requires action
             .print("Evaluating actions in: ", CurrentCell) ;
             !evaluate_actions(CurrentCell) ; // Check for necessary actions
-        } else {
+        } elif (not exit(CurrentCell)) {
             .print("No open actions. Deciding next step from: ", CurrentCell) ;
             !evaluate_transitions(CurrentCell) ; // Annotate valid transitions
             !track_unexplored_transitions(CurrentCell) ; // Tracking which valid dirs have (not) been explored from current cell
@@ -145,7 +146,7 @@ DELIBERATION STEPS
 
         !post(CurrentCell, [rdf(CurrentCell, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
         -isLocked(Target) ;
-        .wait(10000) ;
+        //.wait(10000) ;
         !crawl(CurrentCell) ; // TODO: potential loop
     .
 
@@ -189,7 +190,10 @@ DELIBERATION STEPS
 +!select_next(CurrentCell) :
     remaining(CurrentCell, [Next | Tail]) // check if list has next item
     <-
-        if (not crawling) {
+        if (exit(ExitCell)) {
+            !crawl(ExitCell) ;
+        }
+        elif (not crawling) {
             .print("Selected next option: ", Next) ;
             -remaining(CurrentCell, [Next|Tail]) ; // Delete item
             +remaining(CurrentCell, Tail) ; // Add item minus next option
@@ -222,11 +226,9 @@ HELPER PLANS
 +!get(URI) :
     crawling
     <-
-    //    if (not (knownResource(URI))) { // TODO: prevents backtracking.
             get(URI) ;
             !!checkEndCrawl ;
-    //    }
-  .
+    .
 
   +!post(URI, Body) :
     true
@@ -246,23 +248,49 @@ HELPER PLANS
     crawling
     <-
         if (not .intend(get(_))) { !endCrawl }
-  .
+    .
 
 +!endCrawl :
     crawling
     <-
         -crawling ; // remove crawling belief
         .print("End crawling...") ;
-        //!countTriples ;
-  .  
+        ?at(CurrentCell) ;
+        if (exit(CurrentCell)) {
+            .print("Sucessfully exited") ;
+            .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
+            +finished(Y,M,D,H,Min,Sec) ;    
+            !!stop ;         
+        }
+    .  
 
-+!countTriples :
++!stop :
     true
     <-
+        !report_time ;
         // all crawled triples are exposed to the agent as rdf/3 terms
         .count(rdf(S, P, O), Count) ;
         .print("found ", Count, " triples in the KG.") ;
-  .
+
+    .
+
++!report_time :
+    true
+    <-
+        ?started(Y1, M1, D1, H1, Min1, S1) ;
+        ?finished(Y2, M2, D2, H2, Min2, S2) ;
+
+        // convert both to seconds
+        T1 = ((H1 * 3600) + (Min1 * 60) + S1) ;
+        T2 = ((H2 * 3600) + (Min2 * 60) + S2) ;
+
+        Diff = T2 - T1 ;
+
+        //Min = Diff / 60;
+        //Sec = Diff mod 60;
+
+        .print("It took ", Diff, " seconds");
+    .
 
 
 
