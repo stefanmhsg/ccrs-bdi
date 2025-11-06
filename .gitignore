@@ -1,6 +1,9 @@
 # Ignore Gradle project-specific cache directory
 .gradle
 
+# Ignore Copilot instructions
+.github
+
 # Ignore Gradle build output directory
 build
 
@@ -30,3 +33,4 @@ hs_err_pid*
 replay_pid*
 .vscode/settings.json
 .vscode/tasks.json
+

@@ -1,4 +1,4 @@
-// Agent sample_agent in project ccrs_bdi
+// Agent with signifier CCRS
 
 /* Initial beliefs and rules */
 knownVocab("https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze") .
@@ -15,7 +15,7 @@ is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI) already visited if any triple was retrieved from this URI
 visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief is present
 
-is_affordance("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green") .
+is_signifier("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green") .
 
 /* Initial goals */
 
@@ -111,10 +111,11 @@ REACTING TO EVENTS
         .print("Found Exit! It's at: ", ExitCell);
     .
 
+// Signifier CCRS
 +rdf(S, P, O) :
-    is_affordance(P)
+    is_signifier(P)
     <-
-        +ccrs(O)[source(S), ccrs_type("Affordance")] ;
+        +ccrs(O)[source(S), ccrs_type("Signifier")] ;
     .
 
 /*******************
@@ -190,13 +191,13 @@ DELIBERATION STEPS
             .findall(X, transition(_,X)[valid_transition("True")], List) ; // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
             .print("Tracking unexplored transitions: ", List) ;
             
-            // CCRS: Separate affordance-based options
-            .findall(A, (transition(_, A)[valid_transition("True")] & ccrs(A)[ccrs_type("Affordance")]), AffList) ;
-            .print("************ CCRS ****************   ", AffList) ;
-            .difference(List, AffList, NonAffList) ; // Compute non-affordance options
-            .print("NonAffList", NonAffList) ;
-            .concat(AffList, NonAffList, PrioritizedList) ; // Prepend affordance ones to create prioritized order
-            .print("Affordance-based prioritization: ", PrioritizedList) ;
+            // CCRS: Separate Signifier-based options
+            .findall(A, (transition(_, A)[valid_transition("True")] & ccrs(A)[ccrs_type("Signifier")]), SigList) ;
+            .print("************ CCRS ****************   ", SigList) ;
+            .difference(List, SigList, NonSigList) ; // Compute non-signifier options
+            .print("NonSigList", NonSigList) ;
+            .concat(SigList, NonSigList, PrioritizedList) ; // Prepend signifier ones to create prioritized order
+            .print("Signifier-based prioritization: ", PrioritizedList) ;
 
             +remaining(CurrentCell, PrioritizedList) ; // Add belief of unexplored options based from current cell.
         } else {
