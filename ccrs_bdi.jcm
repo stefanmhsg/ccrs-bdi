@@ -20,13 +20,21 @@ mas ccrs_bdi {
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }
-*/
 
     agent bob: affordance_agent.asl {
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }
+
+*/
+
+    agent bob: baseline_agent.asl {
+      debug: mindinspector(gui(cycle,html,history))
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
+    }
+
 
     workspace w {
       artifact h: org.hypermedea.HypermedeaArtifact() 

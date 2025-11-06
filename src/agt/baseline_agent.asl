@@ -226,7 +226,8 @@ HELPER PLANS
 +!get(URI) :
     crawling
     <-
-            get(URI) ;
+            .my_name(Me) ; // Name of the agent as defined in .jcm
+            get(URI, [header("urn:hypermedea:http:authorization", Me)]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
             !!checkEndCrawl ;
     .
 
