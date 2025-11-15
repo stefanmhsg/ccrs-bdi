@@ -21,7 +21,13 @@ mas ccrs_bdi {
       focus: w.h 
     }
 
-    agent bob: affordance_agent.asl {
+    agent bob: signifier_agent.asl {
+    //  debug: mindinspector(gui(cycle,html,history))
+      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
+    }
+
+    agent bob: stigmergy_agent.asl {
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
@@ -29,9 +35,9 @@ mas ccrs_bdi {
 
 */
 
-    agent bob: baseline_agent.asl {
+    agent bob_dev: baseline_agent.asl {
     //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }
 

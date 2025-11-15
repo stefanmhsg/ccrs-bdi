@@ -12,6 +12,8 @@ is_exit("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#exit") .
 
 is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
+move_endpoint("http://127.0.1.1:8080/move") .
+
 knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI) already visited if any triple was retrieved from this URI
 visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief is present
 
@@ -30,6 +32,14 @@ visitedCell(URI) :- visited(URI)[parent(_)] . // consider cell visited if belief
     !crawl("http://127.0.1.1:8080/maze") ;
   .
 
++!move(URI) :
+    true
+    <-
+        +moving ;
+        .print("Attempting move to: ", URI) ;
+        !post_move(URI) ;
+        !crawl(URI) ;
+  .
 
 +!crawl(URI) :
     true
@@ -49,10 +59,10 @@ REACTING TO EVENTS
 
 // Go to Maze Start
 +rdf(S, "http://www.w3.org/1999/xhtml/vocab#start", Start)[rdf_type_map(_, _, uri), source(Anchor)] :
-    crawling & h.target(Start, Target)
+    h.target(Start, Target)
     <-
         .print("Discovered start: ", Target) ;
-        !!get(Target) ;
+        !move(Target) ;
     .
 
 // Update position
@@ -105,7 +115,7 @@ DELIBERATION STEPS
 
 // Plan next move
 -crawling :
-    not finished(_,_,_,_,_,_)
+    not finished(_,_,_,_,_,_) & not at("Root")
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
         .print("Crawl complete, starting navigation from: ", CurrentCell) ;
@@ -153,7 +163,6 @@ DELIBERATION STEPS
         .print(CurrentCell, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
 
         !post(CurrentCell, [rdf(CurrentCell, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
-        //.wait(10000) ;
         !crawl(CurrentCell) ; // TODO: potential loop
     .
 
@@ -196,7 +205,7 @@ DELIBERATION STEPS
 +!select_next(CurrentCell) :
     exit(ExitCell)
     <-
-        !crawl(ExitCell) ;
+        !move(ExitCell) ;
     .
 
 // Next move if current cell has unexplored options left
@@ -207,7 +216,7 @@ DELIBERATION STEPS
         -remaining(CurrentCell, [Next|Tail]) ; // Delete item
         +remaining(CurrentCell, Tail) ; // Add item minus next option
         .print("remaining options: ", Tail) ;
-        !crawl(Next) ;   
+        !move(Next) ;   
     .
 
 // Next move if current cell has no options left
@@ -232,12 +241,46 @@ DELIBERATION STEPS
     visited(CurrentCell)[parent (Parent)] & Parent \== "Root"
     <-
         .print("Going back to parent cell: ", Parent) ;
-        !crawl(Parent) ;
+        !move(Parent) ;
     .
 
 /*******************
 HELPER PLANS
 *******************/
++!post_move(URI) :
+    moving & move_endpoint(MoveURI)
+    <-
+        .my_name(Me) ; // Name of the agent as defined in .jcm
+        .print("POST to: /move with body: ", URI) ;
+        post(MoveURI, [text(URI)], [header("urn:hypermedea:http:authorization", Me)]) ;
+        ?(rdf(MoveURI, related, CreatedResourceURI)) ;
+        .print("Created resource: ", CreatedResourceURI) ;
+        !!checkEndMove ;
+    .
+
++!checkEndMove :
+    moving
+    <-
+        if (not .intend(post(_))) { !endMove }
+    .
+
++!endMove :
+    moving
+    <-
+        -moving ;
+        .print("End move...") ;
+    .
+
+  +!post(URI, Body) :
+    true
+    <-
+        h.target(URI, TargetURI) ;
+        .my_name(Me) ; // Name of the agent as defined in .jcm
+        .print("POST to: ", URI, " with body: ", Body) ;
+        post(URI, Body, [header("urn:hypermedea:http:authorization", Me)]);
+        ?(rdf(URI, related, CreatedResourceURI)) ;
+        .print("Created resource: ", CreatedResourceURI) ;
+    .
 
 +!get(URI) :
     crawling
@@ -245,20 +288,6 @@ HELPER PLANS
             .my_name(Me) ; // Name of the agent as defined in .jcm
             get(URI, [header("urn:hypermedea:http:authorization", Me)]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
             !!checkEndCrawl ;
-    .
-
-  +!post(URI, Body) :
-    true
-    <-
-        h.target(URI, TargetURI) ;
-        .print("POST to: ", URI, " with body: ", Body) ;
-        post(URI, Body);
-
-       // ?(rdf(TargetURI, "related", CreatedResourceURI)) ;
-       // .print("Created resource: ", CreatedResourceURI) ;
-       // h.target(CreatedResourceURI, CreatedTargetURI) ;
-        //get(CreatedResourceURI) ;
-        //?(json(Val)[source(CreatedTargetURI)]) ;
     .
 
 +!checkEndCrawl :
@@ -284,11 +313,10 @@ HELPER PLANS
 +!stop :
     true
     <-
-        !report_time ;
+        !!report_time ;
         // all crawled triples are exposed to the agent as rdf/3 terms
         .count(rdf(S, P, O), Count) ;
         .print("found ", Count, " triples in the KG.") ;
-
     .
 
 +!report_time :
@@ -303,10 +331,7 @@ HELPER PLANS
 
         Diff = T2 - T1 ;
 
-        //Min = Diff / 60;
-        //Sec = Diff mod 60;
-
-        .print("It took ", Diff, " seconds");
+        .print("It took ", Diff, " seconds") ;
     .
 
 
