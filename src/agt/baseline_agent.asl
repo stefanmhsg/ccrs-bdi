@@ -252,7 +252,7 @@ HELPER PLANS
     <-
         .my_name(Me) ; // Name of the agent as defined in .jcm
         .print("POST to: /move with body: ", URI) ;
-        post(MoveURI, [text(URI)], [header("urn:hypermedea:http:authorization", Me)]) ;
+        post(MoveURI, [text(URI)], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
         ?(rdf(MoveURI, related, CreatedResourceURI)) ;
         .print("Created resource: ", CreatedResourceURI) ;
         !!checkEndMove ;
@@ -277,7 +277,7 @@ HELPER PLANS
         h.target(URI, TargetURI) ;
         .my_name(Me) ; // Name of the agent as defined in .jcm
         .print("POST to: ", URI, " with body: ", Body) ;
-        post(URI, Body, [header("urn:hypermedea:http:authorization", Me)]);
+        post(URI, Body, [header("urn:hypermedea:http:authorization", Me)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
         ?(rdf(URI, related, CreatedResourceURI)) ;
         .print("Created resource: ", CreatedResourceURI) ;
     .
