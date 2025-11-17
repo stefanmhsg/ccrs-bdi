@@ -35,3 +35,4 @@ replay_pid*
 .vscode/tasks.json
 
 log/mas-0.log.lck
+bin/

@@ -33,11 +33,17 @@ mas ccrs_bdi {
       focus: w.h 
     }
 
+    agent random_1: random_agent.asl {
+    //  debug: mindinspector(gui(cycle,html,history))
+      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
+    }
+
 */
 
-    agent bob_dev: baseline_agent.asl {
+    agent random_1: random_agent.asl {
     //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }
 
