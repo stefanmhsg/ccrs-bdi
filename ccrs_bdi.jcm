@@ -47,7 +47,7 @@ mas ccrs_bdi {
 
 */
 
-    agent minimal_1: minimal_agent.asl {
+    agent minimal_ccrs_1: minimal_ccrs.asl {
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 

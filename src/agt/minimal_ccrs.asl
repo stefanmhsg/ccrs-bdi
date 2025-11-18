@@ -276,6 +276,8 @@ HELPER PLANS
 /* Include common templates */
 { include("$jacamo/templates/common-cartago.asl") }
 { include("$jacamo/templates/common-moise.asl") }
+{ include("src/agt/ccrs.asl") }
+
 
 // uncomment the include below to have an agent compliant with its organisation
 //{ include("$moise/asl/org-obedient.asl") }

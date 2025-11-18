@@ -13,6 +13,8 @@ http://127.0.1.1:8080/maze
 
 * [Jason Docs](https://jason-lang.github.io/)
 * [Jason API](https://jason-lang.github.io/api/jason/stdlib/package-summary.html#package.description)
+* [Unification of Annotations](https://jason-lang.github.io/jason/tech/annotations.html)
+* [Plan patterns](https://jason-lang.github.io/jason/tech/patterns.html)
 
 * [Hypermedea Github](https://github.com/Hypermedea/hypermedea)
     * [Artifact](https://github.com/Hypermedea/hypermedea/blob/master/hypermedea-lib/src/main/java/org/hypermedea/HypermedeaArtifact.java)
