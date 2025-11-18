@@ -14,6 +14,8 @@ is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
 move_endpoint("http://127.0.1.1:8080/move") .
 
+maze_agent_name_prefix("http://127.0.1.1:8080/agents/") .
+
 knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI) already visited if any triple was retrieved from this URI
 
 /* Initial goals */
@@ -28,6 +30,7 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
     .date(Y,M,D); .time(H,Min,Sec,MilSec) ; // get current date & time
     +started(Y,M,D,H,Min,Sec) ;             // add a new belief
     +at("Root") ;
+    !construct_maze_agent_name ;
     !crawl("http://127.0.1.1:8080/maze") ;
   .
 
@@ -52,6 +55,15 @@ knownResource(URI) :- rdf(_, _, _)[source(URI)] . // consider this resource (URI
         .abolish(transition(_, _)) ; // Forget previous transitions
         !get(URI) ;
   .
+
++!construct_maze_agent_name :
+    maze_agent_name_prefix(Prefix)
+    <-
+        .my_name(Me) ;
+        .concat(Prefix, Me, MazeAgentName) ;
+        +maze_agent_name(MazeAgentName) ;
+        .print("Agent name in the Maze is: ", MazeAgentName) ;
+    .
 
 /*******************
 REACTING TO EVENTS
@@ -191,9 +203,10 @@ HELPER PLANS
     .
 
 +!endMove :
-    moving
+    moving & maze_agent_name(MazeAgentName)
     <-
         -moving ;
+        .abolish(rdf(_,"https://kaefer3000.github.io/2021-02-dagstuhl/vocab#contains", MazeAgentName)) ;
         .print("End move...") ;
     .
 
