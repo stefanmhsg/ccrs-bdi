@@ -12,8 +12,6 @@ is_exit("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#exit") .
 
 is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
-move_endpoint("http://127.0.1.1:8080/move") .
-
 maze_agent_name_prefix("http://127.0.1.1:8080/agents/") .
 
 /* Initial goals */
@@ -27,31 +25,9 @@ maze_agent_name_prefix("http://127.0.1.1:8080/agents/") .
     <-
     .date(Y,M,D); .time(H,Min,Sec,MilSec) ; // get current date & time
     +started(Y,M,D,H,Min,Sec) ;             // add a new belief
-    +at("Root") ;
+    +at("http://127.0.1.1:8080/maze") ;
     !construct_maze_agent_name ;
     !crawl("http://127.0.1.1:8080/maze") ;
-  .
-
-+!move(URI) :
-    true
-    <-
-        +moving ;
-        .print("Attempting move to: ", URI) ;
-        !post_move(URI) ;
-        !crawl(URI) ;
-  .
-
-+!crawl(URI) :
-    true
-    <-
-    //    for (knownVocab(Vocab)) {
-    //        .print("Retrieving OWL definitions of ", Vocab) ;
-    //        get(Vocab) ; // TODO: uncomment if needed.
-    //    }
-        +crawling ;
-        .print("Retrieving ", URI) ;
-        .abolish(transition(_, _)) ; // Forget previous transitions
-        !get(URI) ;
   .
 
 +!construct_maze_agent_name :
@@ -92,19 +68,6 @@ REACTING TO EVENTS
         .print(Dir," is ", Option);
     .
 
-// Detect open action
-+rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action)[rdf_type_map(uri, _, _), source(Anchor)] :
-    crawling & h.target(CurrentCell, Target)
-    <-
-        if (not rdf(Action, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#hasStatus", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#done")) {
-            +requires_action(Target) ;
-            .print("Action required: ", Action) ;
-        } else {
-            -requires_action(Target) ;
-            .print("Action completed: ", Action) ;
-        }
-    .
-
 // Detect exit
 +rdf(CurrentCell, Dir, ExitCell)[rdf_type_map(_, _, uri), source(Anchor)] :
     is_exit(Dir)
@@ -121,7 +84,7 @@ DELIBERATION STEPS
 
 // Plan next move
 -crawling :
-    not finished(_,_,_,_,_,_) & not at("Root")
+    not finished(_,_,_,_,_,_) & not at("http://127.0.1.1:8080/maze")
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
         .print("Crawl complete, starting navigation from: ", CurrentCell) ;
@@ -136,6 +99,7 @@ DELIBERATION STEPS
         .succeed_goal(naviagte(CurrentCell)) ;
     .
 
+// TODO: not expected any actions..
 // Must perform action
 +!naviagte(CurrentCell) : 
     requires_action(CurrentCell)
@@ -171,24 +135,33 @@ DELIBERATION STEPS
     true
     <-
         // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
-        .findall(X, transition(_,X), List) ; 
+        .findall(X, transition(_,X), List) ;
+        !ccrs(CurrentCell, List) ;
+
+        ?ccrs(CurrentCell, List, Output)[ccrs_type(Type),source(Source)] ;
         
-        // randomly choose from valid transitions
-        jia.pick(List, Result) ;
-        .print("Random IA resultet in: ", Result) ;
-        !move(Result) ;   
+        !move(Output) ;   
     .
 
-
 /*******************
-HELPER PLANS
+ABILITIES
 *******************/
+
++!move(URI) :
+    true
+    <-
+        +moving ;
+        .print("Attempting move to: ", URI) ;
+        !post_move(URI) ;
+        !crawl(URI) ;
+  .
+
 +!post_move(URI) :
-    moving & move_endpoint(MoveURI)
+    moving & at(CurrentCell) & maze_agent_name(MazeAgentName)
     <-
         .my_name(Me) ; // Name of the agent as defined in .jcm
-        .print("POST to: /move with body: ", URI) ;
-        post(MoveURI, [text(URI)], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        .print("POST to target cell URI - requesting MOVE to: ", URI) ;
+        post(URI, [rdf(MazeAgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", CurrentCell)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
         ?(rdf(MoveURI, related, CreatedResourceURI)) ; 
         .print("Created resource: ", CreatedResourceURI) ;
         !!checkEndMove ;
@@ -219,11 +192,24 @@ HELPER PLANS
         .print("Created resource: ", CreatedResourceURI) ;
     .
 
++!crawl(URI) :
+    true
+    <-
+    //    for (knownVocab(Vocab)) {
+    //        .print("Retrieving OWL definitions of ", Vocab) ;
+    //        get(Vocab) ; // uncomment if needed.
+    //    }
+        +crawling ;
+        .print("Retrieving ", URI) ;
+        .abolish(transition(_, _)) ; // Forget previous transitions
+        !get(URI) ;
+  .
+
 +!get(URI) :
     crawling
     <-
             .my_name(Me) ; // Name of the agent as defined in .jcm
-            get(URI, [header("urn:hypermedea:http:authorization", Me)]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
+            get(URI, [header("urn:hypermedea:http:authorization", Me), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
             !!checkEndCrawl ;
     .
 
@@ -277,7 +263,6 @@ HELPER PLANS
 { include("$jacamo/templates/common-cartago.asl") }
 { include("$jacamo/templates/common-moise.asl") }
 { include("src/agt/ccrs.asl") }
-
 
 // uncomment the include below to have an agent compliant with its organisation
 //{ include("$moise/asl/org-obedient.asl") }

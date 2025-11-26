@@ -12,8 +12,6 @@ is_exit("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#exit") .
 
 is_wall("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Wall") .
 
-move_endpoint("http://127.0.1.1:8080/move") .
-
 maze_agent_name_prefix("http://127.0.1.1:8080/agents/") .
 
 /* Initial goals */
@@ -27,7 +25,7 @@ maze_agent_name_prefix("http://127.0.1.1:8080/agents/") .
     <-
     .date(Y,M,D); .time(H,Min,Sec,MilSec) ; // get current date & time
     +started(Y,M,D,H,Min,Sec) ;             // add a new belief
-    +at("Root") ;
+    +at("http://127.0.1.1:8080/maze") ;
     !construct_maze_agent_name ;
     !crawl("http://127.0.1.1:8080/maze") ;
   .
@@ -121,7 +119,7 @@ DELIBERATION STEPS
 
 // Plan next move
 -crawling :
-    not finished(_,_,_,_,_,_) & not at("Root")
+    not finished(_,_,_,_,_,_) & not at("http://127.0.1.1:8080/maze")
     <-  
         ?at(CurrentCell) ; // using a test-goal to bind logical variable "CurrentCell" to the value from the belief at()
         .print("Crawl complete, starting navigation from: ", CurrentCell) ;
@@ -184,12 +182,13 @@ DELIBERATION STEPS
 HELPER PLANS
 *******************/
 +!post_move(URI) :
-    moving & move_endpoint(MoveURI)
+    moving & at(CurrentCell) & maze_agent_name(MazeAgentName)
     <-
         .my_name(Me) ; // Name of the agent as defined in .jcm
-        .print("POST to: /move with body: ", URI) ;
-        post(MoveURI, [text(URI)], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
-        ?(rdf(MoveURI, related, CreatedResourceURI)) ; 
+        .print("POST to target cell URI - requesting MOVE to: ", URI) ;
+    //    post(URI, [text(MazeAgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", CurrentCell)], [header("urn:hypermedea:http:authorization", Me), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        post(URI, [rdf(MazeAgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", CurrentCell)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        ?(rdf(URI, related, CreatedResourceURI)) ; 
         .print("Created resource: ", CreatedResourceURI) ;
         !!checkEndMove ;
     .
@@ -223,7 +222,7 @@ HELPER PLANS
     crawling
     <-
             .my_name(Me) ; // Name of the agent as defined in .jcm
-            get(URI, [header("urn:hypermedea:http:authorization", Me)]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
+            get(URI, [header("urn:hypermedea:http:authorization", Me), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
             !!checkEndCrawl ;
     .
 
