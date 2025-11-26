@@ -112,7 +112,7 @@ META CCRS
     <-
         !signifier_ccrs(CurrentCell, OptionsList) ;
         // !stigmergy_ccrs(CurrentCell, OptionsList) ;
-        !random_ccrs(OptionsList) ;
+        !random_ccrs(CurrentCell, OptionsList) ;
     .
 
 
@@ -123,14 +123,21 @@ SIGNIFIER CCRS
 +!signifier_ccrs(CurrentCell, List) :
     true
     <-
-        .findall(ccrs(Target, _)[ccrs_type("Signifier"),source(CurrentCell)]), SigList) ; // Union of currently valid transition Options and CCRS Signifier Objects
+        .findall(Target, ccrs(Target, _)[ccrs_type("Signifier"),source(CurrentCell)], SigList) ; // Union of currently valid transition Options and CCRS Signifier Objects
         .difference(List, SigList, NonSigList) ; // Compute non-signifier options
         .concat(SigList, NonSigList, PrioritizedList) ; // Prepend CCRS Signifier Objects to remaining Options to create prioritized order
 
-        .abolish(ccrs(_, _, _)[ccrs_type("Signifier"),type("PrioritizedList"),source(CurrentCell)) ;
-        +ccrs(CurrentCell, List, PrioritizedList)[ccrs_type("Signifier"),type("PrioritizedList"),source(CurrentCell)] ;
-        .print("[CCRS] Signifier resulted in: ", PrioritizedList) ;
-        .succeed_goal(ccrs(CurrentCell, OptionsList) ;
+        .abolish(ccrs(_, _, _)[ccrs_type("Signifier"),type("PrioritizedList"),source(CurrentCell)]) ;
+
+        // Only succeed if this ccrs provided some benefit - else, passing to next ccrs
+        if (SigList \== []) {
+            +ccrs(CurrentCell, List, PrioritizedList)[ccrs_type("Signifier"),type("PrioritizedList"),source(CurrentCell)] ;
+            .print("[CCRS] Signifier resulted in SUCCESS: ", PrioritizedList) ;
+            .succeed_goal(ccrs(CurrentCell, OptionsList)) ;        
+        } else {
+            .print("[CCRS] Signifier resulted in NOTHING: no signifiers detected: ", SigList) ;
+        }
+
     .
 
 
@@ -152,6 +159,6 @@ RANDOM CCRS
         .abolish(ccrs(_,_,_)[ccrs_type("Random")]) ;
         +ccrs(CurrentCell, List, Result)[ccrs_type("Random")] ;
         .print("[CCRS] Random resultet in: ", Result) ;
-        .succeed_goal(ccrs(CurrentCell, OptionsList) ;
+        .succeed_goal(ccrs(CurrentCell, OptionsList)) ;
     .
 

@@ -147,6 +147,12 @@ DELIBERATION STEPS
 ABILITIES
 *******************/
 
++!move([URI | Tail]) :
+    true 
+    <-
+        !move(URI) ;
+    .
+
 +!move(URI) :
     true
     <-
