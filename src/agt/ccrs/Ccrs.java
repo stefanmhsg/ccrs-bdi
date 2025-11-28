@@ -18,7 +18,7 @@ public class Ccrs extends Agent {
         return brf(add, del, i, false);
     }
 
-    @Override
+
     /**
      * This function should revise the belief base with the given literal to
      * add, to remove, and the current intention that triggered the operation.
@@ -28,6 +28,7 @@ public class Ccrs extends Agent {
      * this is used to generate the appropriate internal events. If
      * nothing change, returns null.
      */
+    @Override
     @SuppressWarnings("unchecked")
     public List<Literal>[] brf(Literal beliefToAdd, Literal beliefToDel,  Intention i, boolean addEnd) throws RevisionFailedException {
         // This class does not implement belief revision! It
