@@ -68,6 +68,19 @@ REACTING TO EVENTS
         .print(Dir," is ", Option);
     .
 
+// Detect open action
++rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action)[rdf_type_map(uri, _, _), source(Anchor)] :
+    crawling & h.target(CurrentCell, Target)
+    <-
+        if (not rdf(Action, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#hasStatus", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#done")) {
+            +requires_action(Target) ;
+            .print("Action required: ", Action) ;
+        } else {
+            -requires_action(Target) ;
+            .print("Action completed: ", Action) ;
+        }
+    .
+
 // Detect exit
 +rdf(CurrentCell, Dir, ExitCell)[rdf_type_map(_, _, uri), source(Anchor)] :
     is_exit(Dir)
@@ -116,12 +129,33 @@ DELIBERATION STEPS
         !select_next(CurrentCell) ; // Select next move
     .
 
-// Unspecified or Unknown Action
+// Unlock Action if Cell is of type Lock
 +!evaluate_actions(CurrentCell) :
-    true // DT assumption no actions required
+    //isLocked(CurrentCell)
+    rdf(CurrentCell, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
     <-
-        .print("Unable to cope with actions in: ", CurrentCell) ;
+        ?rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
+        
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
+        
+        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
+        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
+
+        .print(CurrentCell, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
+
+        !post(CurrentCell, [rdf(CurrentCell, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
+        !crawl(CurrentCell) ; 
     .
+
+// Unspecified or Unknown Action
+//+!evaluate_actions(CurrentCell) :
+//    true // DT assumption no actions required
+//    <-
+//        .print("Unable to cope with actions in: ", CurrentCell) ;
+//    .
 
 // Next move if Exit in sight
 +!select_next(CurrentCell) :
@@ -137,9 +171,7 @@ DELIBERATION STEPS
         // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
         .findall(X, transition(_,X), List) ;
         !ccrs(CurrentCell, List) ;
-
         ?ccrs(CurrentCell, List, Output)[ccrs_type(Type),source(Source)] ;
-        
         !move(Output) ;   
     .
 

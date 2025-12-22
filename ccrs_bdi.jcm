@@ -15,57 +15,36 @@
 mas ccrs_bdi {
 
 /*
+
     agent baseline_1: baseline_agent.asl {
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }
 
-    agent signifier_1: signifier_agent.asl {
+    agent minimal_ccrs: minimal_ccrs.asl {
+    //  ag-class: ccrs.Ccrs
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
-    }
-
-    agent stigmergy_1: stigmergy_agent.asl {
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
-      focus: w.h 
-    }
-
-    agent random_1: random_agent.asl {
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
-      focus: w.h 
-    }
-
-    agent minimal_1: minimal_agent.asl {
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
-      focus: w.h 
-    }
-
-    agent minimal_ccrs_1: minimal_ccrs.asl {
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
-      focus: w.h 
-    }
+    }    
 
 */
 
-    agent minimal_ccrs_1: minimal_ccrs.asl {
-      ag-class: ccrs.Ccrs
+    agent minimal_ccrs: minimal_ccrs.asl {
+    //  ag-class: ccrs.Ccrs
     //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
-    }
-
+    }    
 
     workspace w {
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
     }
 
-    
+ 
+
+
 
 }
