@@ -61,7 +61,11 @@ task run (type: JavaExec, dependsOn: 'classes') {
         mkdir 'log'
     }
     mainClass = 'jacamo.infra.JaCaMoLauncher'
-    args 'ccrs_bdi.jcm'
+    if (project.hasProperty('jcm')) {
+        args project.jcm
+    } else {
+        args 'ccrs_bdi.jcm'
+    }
     // jvmArgs '-Xss15m'
     classpath sourceSets.main.runtimeClasspath
 }
@@ -88,7 +92,6 @@ jar {
     from (project.buildDir.absolutePath + '/classes') {
         include '**/*'
     }
-
     manifest {
         attributes 'Main-Class': 'jacamo.infra.JaCaMoLauncher'
     }

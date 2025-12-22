@@ -1,7 +1,13 @@
 ### Run
 
+Defaults to [ccrs_bdi.jcm](ccrs_bdi.jcm):
 ```powershell
 gradle run
+```
+
+To run a specific JaCaMo configuration file, use:
+```powershell
+gradle run "-Pjcm=test.jcm"
 ```
 
 ### Agents
