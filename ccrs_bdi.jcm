@@ -23,7 +23,7 @@ mas ccrs_bdi {
     }
 
     agent minimal_ccrs: minimal_ccrs.asl {
-    //  ag-class: ccrs.Ccrs
+    //  ag-class: ccrs.AgCcrs
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
@@ -32,7 +32,7 @@ mas ccrs_bdi {
 */
 
     agent minimal_ccrs: minimal_ccrs.asl {
-    //  ag-class: ccrs.Ccrs
+    //  ag-class: ccrs.AgCcrs
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 

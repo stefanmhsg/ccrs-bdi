@@ -26,7 +26,7 @@ gradle run "-Pjcm=test.jcm"
 * [stigmergy_agent.asl](src\agt\stigmergy_agent.asl) adapts the baseline agent to prioritize options based on stigmergy (i.e., previous visits by other agents).
 
 #### Customizations
-* [BRF in Ccrs.java](src\agt\ccrs\Ccrs.java) customizes the belief revision function to handle CCRS-specific beliefs. (currently not implemented)
+* [BRF in AgCcrs.java](src\agt\ccrs\AgCcrs.java) customizes the belief revision function to handle CCRS-specific beliefs.
 
 ### Mindinspector URL:
 http://192.168.50.48:3272/agent-mind/minimal_ccrs_1
