@@ -75,7 +75,7 @@ stigmark:Marker
 # Example Structural Pattern: Stigmergy Marker with Pheromones
 # ============================================
 
-:stigmergyMarkerPattern
+stigmark:stigmergyMarkerPattern
     a ccrs:StructuralPattern ;
     ccrs:patternType "stigmergy" ;
     ccrs:priority 100 ;

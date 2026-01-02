@@ -31,7 +31,7 @@ mas ccrs_bdi {
 
 */
 
-    agent dfs_ccrs: dfs_ccrs.asl {
+    agent dfs_ccrs_1: dfs_ccrs.asl {
 
       // Jason Agent Class
       ag-class: ccrs.jason.CcrsAgent
