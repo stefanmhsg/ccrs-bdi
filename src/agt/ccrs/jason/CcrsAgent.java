@@ -1,5 +1,6 @@
 package ccrs.jason;
 
+import jason.JasonException;
 import jason.RevisionFailedException;
 import jason.asSemantics.*;
 import jason.asSyntax.*;
@@ -7,19 +8,63 @@ import jason.asSyntax.Trigger.TEOperator;
 import jason.asSyntax.Trigger.TEType;
 import jason.bb.BeliefBase;
 import jason.bb.StructureWrapperForLiteral;
-import jason.functions.log;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
-import java.util.Iterator;
 
+import ccrs.core.opportunistic.CcrsScannerFactory;
+import ccrs.core.opportunistic.OpportunisticCcrs;
+import ccrs.core.opportunistic.OpportunisticResult;
+import ccrs.core.opportunistic.VocabularyMatcher;
+import ccrs.core.rdf.CcrsVocabulary;
+import ccrs.core.rdf.CcrsVocabularyLoader;
+import ccrs.core.rdf.RdfTriple;
+
+/**
+ * Jason agent with opportunistic CCRS scanning at the BRF level.
+ * Scans incoming percepts for CCRS patterns and generates derived beliefs.
+ */
 public class CcrsAgent extends Agent {
-
+    
+    private OpportunisticCcrs ccrsScanner;
+    private CcrsScannerFactory scannerFactory;
+    private CcrsVocabulary vocabulary;
+    
+    public CcrsAgent() {
+        super();
+        this.scannerFactory = new VocabularyMatcher.Factory();
+        this.vocabulary = CcrsVocabularyLoader.loadDefault();
+        this.ccrsScanner = scannerFactory.createScanner(vocabulary);
+    }
+    
+    /**
+     * Set a custom scanner factory.
+     * 
+     * @param factory The factory to use for creating scanners
+     */
+    public void setScannerFactory(CcrsScannerFactory factory) {
+        this.scannerFactory = factory;
+        this.ccrsScanner = factory.createScanner(vocabulary);
+    }
+    
+    /**
+     * Set a custom vocabulary.
+     * 
+     * @param vocabulary The vocabulary to use
+     */
+    public void setVocabulary(CcrsVocabulary vocabulary) {
+        this.vocabulary = vocabulary;
+        this.ccrsScanner = scannerFactory.createScanner(vocabulary);
+    }
+    
+    /**
+     * Directly set a scanner implementation.
+     * 
+     * @param scanner The scanner to use
+     */
+    public void setCcrsScanner(OpportunisticCcrs scanner) {
+        this.ccrsScanner = scanner;
+    }
 
     /** Belief Update Function: adds/removes percepts into belief base.
      *
@@ -172,25 +217,31 @@ public class CcrsAgent extends Agent {
         bb.getLock().lock();
         try {
             try {
-                if (beliefToAdd != null && beliefToAdd.hasAnnot(BeliefBase.TPercept)) { // For percepts stemming from the environment, being passed by BUF
-                    // Opportunistic-CCRS
-                    if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add-env-percept) brf for " + beliefToAdd);
-                    // Call CCRS-method for detecting and handling opportunistic beliefs -> either retuns a second CCRS-related belief to add, or null
-                    // Add to the BB the percept-belief and possibly the opportunistic belief
-                    // The standrd behaviour will use the result list to generate the appropriate internal events -> make sure to include both beliefs if two are added
-                }
-                // Default brf behavior
-                else if (beliefToAdd != null) {
-                    if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add) brf for " + beliefToAdd);
 
-                    if (getBB().add(position, beliefToAdd)) {
-                        result = new List[2];
-                        result[0] = Collections.singletonList(beliefToAdd);
-                        result[1] = Collections.emptyList();
-                        if (logger.isLoggable(Level.FINE)) logger.fine("brf added " + beliefToAdd);
+                // Add belief
+                if (beliefToAdd != null) {
+
+                    // If percept stems from the environment (annotated as 'source(percept)'), being passed by BUF.
+                    if (beliefToAdd.hasAnnot(BeliefBase.TPercept)) {
+                        if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add-percept) brf for " + beliefToAdd);
+                        // Opportunistic-CCRS:
+                        // 1. Adds the percept-belief to the BB
+                        // 2. Scans the percept for opportunistic CCRS patterns
+                        // 3. If an opportunity is detected, creates the derived CCRS belief and adds it to the BB as well
+                        result = handlePerceptWithCcrs(beliefToAdd, position);
+                    } else {
+                        if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add) brf for " + beliefToAdd);
+                        // Default brf behavior
+                        if (getBB().add(position, beliefToAdd)) {
+                            result = new List[2];
+                            result[0] = Collections.singletonList(beliefToAdd);
+                            result[1] = Collections.emptyList();
+                            if (logger.isLoggable(Level.FINE)) logger.fine("brf added " + beliefToAdd);
+                        }
                     }
                 }
 
+                // Delete belief
                 if (beliefToDel != null) {
                     Unifier u;
                     try {
@@ -198,9 +249,9 @@ public class CcrsAgent extends Agent {
                     } catch (Exception e) {
                         u = new Unifier();
                     }
-
+                
                     if (logger.isLoggable(Level.FINE)) logger.fine("Doing (del) brf for " + beliefToDel + " in BB=" + believes(beliefToDel, u));
-
+                
                     boolean removed = getBB().remove(beliefToDel);
                     if (!removed && !beliefToDel.isGround()) { // then try to unify the parameter with a belief in BB
                         Iterator<Literal> il = getBB().getCandidateBeliefs(beliefToDel.getPredicateIndicator());
@@ -219,7 +270,7 @@ public class CcrsAgent extends Agent {
                             }
                         }
                     }
-
+                
                     if (removed) {
                         if (logger.isLoggable(Level.FINE)) logger.fine("Removed:" + beliefToDel);
                         if (result == null) {
@@ -237,5 +288,62 @@ public class CcrsAgent extends Agent {
         }
         return result;
     }
+
+    @SuppressWarnings("unchecked")
+    private List<Literal>[] handlePerceptWithCcrs(Literal percept, int position) throws JasonException {
+        List<Literal> added = new ArrayList<>();
+        
+        // Add original percept
+        if (getBB().add(position, percept)) {
+            added.add(percept);
+        }
+        
+        // Extract source anchor
+        String sourceAnchor = extractSourceAnchor(percept);
+        
+        // Scan for CCRS opportunities
+        RdfTriple triple = JasonRdfAdapter.toRdfTriple(percept);
+        if (triple != null) {
+            Map<String, Object> context = new HashMap<>();
+            context. put("source", sourceAnchor);
+            
+            Optional<OpportunisticResult> result = ccrsScanner.scan(triple, context);
+            
+            if (result.isPresent()) {
+                OpportunisticResult r = result.get();
+                
+                Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(
+                    r.subject, r.value, r.type, sourceAnchor
+                );
+                
+                if (getBB().add(position, ccrsBelief)) {
+                    added.add(ccrsBelief);
+                    logger.info("[Opportunistic-CCRS]: Type: " + r.type + " detected:  " + r.subject);
+                }
+            }
+        }
+        
+        if (! added.isEmpty()) {
+            List<Literal>[] resultArray = new List[2];
+            resultArray[0] = added;
+            resultArray[1] = Collections.emptyList();
+            return resultArray;
+        }
+        
+        return null;
+    }
+    
+    private String extractSourceAnchor(Literal lit) {
+        Term sourceAnnot = lit.getAnnot("source");
+        if (sourceAnnot != null && sourceAnnot.isStructure()) {
+            Structure source = (Structure) sourceAnnot;
+            if (source.getArity() > 0) {
+                return source.getTerm(0).toString();
+            }
+        }
+        return "unknown";
+    }
+
+
 
 }
