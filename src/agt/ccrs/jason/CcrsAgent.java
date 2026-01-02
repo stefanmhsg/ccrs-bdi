@@ -1,4 +1,4 @@
-package ccrs;
+package ccrs.jason;
 
 import jason.RevisionFailedException;
 import jason.asSemantics.*;
@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.Iterator;
 
-public class AgCcrs extends Agent {
+public class CcrsAgent extends Agent {
 
 
     /** Belief Update Function: adds/removes percepts into belief base.
@@ -44,8 +44,6 @@ public class AgCcrs extends Agent {
         if (percepts == null) {
             return 0;
         }
-
-        logger.info("BUF called with percepts: " + percepts);
 
         // stat
         int adds = 0;
@@ -128,7 +126,7 @@ public class AgCcrs extends Agent {
                     logger.log(Level.WARNING, "BRF failed while adding percept " + lp, e);
                 }
 
-                /* 
+                /* // Original version without BRF
                 if (getBB().add(lp)) {
                     adds++;
                     ts.updateEvents(new Event(new Trigger(TEOperator.add, TEType.belief, lp)));
@@ -174,9 +172,12 @@ public class AgCcrs extends Agent {
         bb.getLock().lock();
         try {
             try {
-                if (beliefToAdd != null && beliefToAdd.hasAnnot(BeliefBase.TPercept)) {
+                if (beliefToAdd != null && beliefToAdd.hasAnnot(BeliefBase.TPercept)) { // For percepts stemming from the environment, being passed by BUF
                     // Opportunistic-CCRS
-                    if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add-percept) brf for " + beliefToAdd);
+                    if (logger.isLoggable(Level.FINE)) logger.fine("Doing (add-env-percept) brf for " + beliefToAdd);
+                    // Call CCRS-method for detecting and handling opportunistic beliefs -> either retuns a second CCRS-related belief to add, or null
+                    // Add to the BB the percept-belief and possibly the opportunistic belief
+                    // The standrd behaviour will use the result list to generate the appropriate internal events -> make sure to include both beliefs if two are added
                 }
                 // Default brf behavior
                 else if (beliefToAdd != null) {
