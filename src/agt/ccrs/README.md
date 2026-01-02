@@ -74,3 +74,69 @@ Structural patterns (e.g., Stigmergy Markers) span multiple triples.
 ### 4. Zero-Touch Integration
 *   **Hypermedea:** The architecture works without modifying the Hypermedea artifact. It purely observes the standard `rdf/3` properties flowing into the agent.
 *   **Visibility:** We use `super` calls and internal helpers to bypass visibility restrictions in the sealed CArtAgO library.
+
+---
+Here is the visual representation of the execution flow, highlighting how the **CCRS Architecture** intercepts the standard CArtAgO flow to inject semantic interpretations alongside raw perceptions.
+
+```mermaid
+graph_flow
+ ┌─────────────────────────────┐
+ │  Environment (Artifact)     │
+ └─────────────┬───────────────┘
+               │ 1. commitObsStateChanges()
+               │    (e.g., Hypermedea updates RDF state)
+               ▼
+ ┌─────────────────────────────┐
+ │  CArtAgO Infrastructure     │
+ └─────────────┬───────────────┘
+               │ 2. notifyObsEvent()
+               ▼
+ ┌───────────────────────────────────────────────┐
+ │  CcrsAgentArch (ccrs.jaca)                    │ ◄── INTERCEPTION POINT
+ │  (Extends CAgentArch)                         │
+ └──────┬───────────────────────────────┬────────┘
+        │                               │
+        │ 3A. STANDARD PATH             │ 3B. CCRS PATH (Opportunistic)
+        │ (via super.add...)            │
+        │                               │ a. Convert ObsProperty → Literal
+        ▼                               │ b. Check if isRdfObservable()
+ ┌──────────────────────┐               │ c. Buffer into 'perceptionBatch'
+ │  CAgentArch (Legacy) │               │    (Groups triples by Source URI)
+ └──────┬───────────────┘               │
+        │                               │ 4. FLUSH (End of Perception Phase)
+        │ obsPropToLiteral()            │    getTS().runAtBeginOfNextCycle()
+        │                               │
+        │                               ▼
+        │                     ┌─────────────────────────────────┐
+        │                     │  VocabularyMatcher (ccrs.core)  │ ◄── AGENT AGNOSTIC CORE
+        │                     └─────────┬───────────────────────┘
+        │                               │ 5. scanAll(Batch)
+        │                               │    (Hybrid: HashSets + Java Graph Matcher)
+        │                               │
+        │                               │ Returns List<OpportunisticResult>
+        │                               ▼
+        │                     ┌─────────────────────────────────┐
+        │                     │  JasonRdfAdapter (ccrs.jason)   │
+        │                     └─────────┬───────────────────────┘
+        │                               │ 6. createCcrsBelief()
+        │                               │    (Result → Literal)
+        │                               ▼
+        │                     ┌─────────────────────────────────┐
+        │                     │  Agent.getBB().add()            │ ◄── DIRECT INJECTION
+        │                     └─────────┬───────────────────────┘
+        │                               │
+        ▼                               ▼
+ ┌──────────────────────────────────────────────────────────────┐
+ │  Agent Belief Base (Mental Model)                            │
+ │                                                              │
+ │  +rdf(S,P,O)[source(H)]        +ccrs(Sub,Val)[type(stig)]    │
+ │  (Raw Perception)              (Derived Opportunity)         │
+ └──────────────────────────────────────────────────────────────┘
+```
+
+### Key Flow Characteristics:
+
+1.  **Non-Blocking Interception:** `CcrsAgentArch` allows the standard flow (Path 3A) to proceed immediately, ensuring the agent always receives the raw `rdf` perception.
+2.  **Architecture-Level Batching:** Step 3B collects individual RDF triples into a batch. This is critical for **Structural Pattern Matching** (e.g., detecting a Stigmergy marker composed of 4 distinct triples).
+3.  **Core Isolation:** The actual intelligence logic happens in Step 5 within `ccrs.core`. This layer knows nothing about Jason or CArtAgO, operating purely on `RdfTriple` objects.
+4.  **Same-Cycle Awareness:** By using `runAtBeginOfNextCycle` (Step 4), the system flushes the batch and injects the `ccrs` belief *before* the agent begins its reasoning/plan selection phase for the current event. The agent "wakes up" seeing both the raw RDF and the detected Opportunity simultaneously.
