@@ -78,7 +78,7 @@ Structural patterns (e.g., Stigmergy Markers) span multiple triples.
 ---
 Here is the visual representation of the execution flow, highlighting how the **CCRS Architecture** intercepts the standard CArtAgO flow to inject semantic interpretations alongside raw perceptions.
 
-```mermaid
+```text
 graph_flow
  ┌─────────────────────────────┐
  │  Environment (Artifact)     │

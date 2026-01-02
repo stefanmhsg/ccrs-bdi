@@ -31,9 +31,14 @@ mas ccrs_bdi {
 
 */
 
-    agent minimal_ccrs_2: minimal_ccrs.asl {
-    //  ag-class: ccrs.jason.CcrsAgent
-    //  ag-arch: ccrs.jaca.CcrsAgentArch
+    agent dfs_ccrs: dfs_ccrs.asl {
+
+      // Jason Agent Class
+      ag-class: ccrs.jason.CcrsAgent
+
+      // JaCaMo Agent Architecture
+      ag-arch: ccrs.jaca.CcrsAgentArch
+
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
