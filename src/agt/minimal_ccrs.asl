@@ -170,9 +170,10 @@ DELIBERATION STEPS
     <-
         // Retruns List as list of all X = Options from transition beliefs that are annotated as valid.
         .findall(X, transition(_,X), List) ;
-        !ccrs(CurrentCell, List) ;
-        ?ccrs(CurrentCell, List, Output)[ccrs_type(Type),source(Source)] ;
-        !move(Output) ;   
+        //!ccrs(CurrentCell, List) ;
+        //?ccrs(CurrentCell, List, Output)[ccrs_type(Type),source(Source)] ;
+        ccrs.jason.prioritize(List, [Best|_]) ;
+        !move(Best) ;
     .
 
 /*******************

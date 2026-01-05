@@ -23,13 +23,16 @@ mas ccrs_bdi {
     }
 
     agent minimal_ccrs: minimal_ccrs.asl {
-    //  ag-class: ccrs.CcrsAgent
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
-      focus: w.h 
-    }    
+      // Jason Agent Class
+      ag-class: ccrs.jason.CcrsAgent
 
-*/
+      // JaCaMo Agent Architecture
+      ag-arch: ccrs.jaca.CcrsAgentArch
+
+    //  debug: mindinspector(gui(cycle,html,history))
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
+    }     
 
     agent dfs_ccrs_1: dfs_ccrs.asl {
 
@@ -42,15 +45,26 @@ mas ccrs_bdi {
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
+    }      
+
+*/
+ 
+    agent minimal_ccrs_1: minimal_ccrs.asl {
+      // Jason Agent Class
+      ag-class: ccrs.jason.CcrsAgent
+
+      // JaCaMo Agent Architecture
+      ag-arch: ccrs.jaca.CcrsAgentArch
+
+    //  debug: mindinspector(gui(cycle,html,history))
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+      focus: w.h 
     }    
+
 
     workspace w {
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
-    }
-
- 
-
-
+    }  
 
 }
