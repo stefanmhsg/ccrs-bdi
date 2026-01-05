@@ -1,5 +1,6 @@
 package ccrs.jason;
 
+import ccrs.core.opportunistic.OpportunisticResult;
 import ccrs.core.rdf.RdfTriple;
 import jason.asSyntax.*;
 
@@ -32,25 +33,33 @@ public class JasonRdfAdapter {
     
     /**
      * Create a CCRS belief in Jason format.
-     * Format: ccrs(Subject, Value)[ccrs_type(Type), source(Anchor)]
+     * Format: ccrs(Target, PatternType, Utility)[source(Source), metadata(Key, Value), ...]
      * 
-     * @param subject The subject of the opportunity
-     * @param value The detected value
-     * @param type The type of opportunity
+     * @param result The opportunistic result
      * @param sourceAnchor The source where it was detected
      * @return Jason literal representing the CCRS belief
      */
-    public static Literal createCcrsBelief(String subject, String value, String type, String sourceAnchor) {
+    public static Literal createCcrsBelief(OpportunisticResult result, String sourceAnchor) {
         try {
             Literal ccrs = ASSyntax.createLiteral("ccrs",
-                ASSyntax.createString(subject),
-                ASSyntax.createString(value)
+                ASSyntax.createString(result.target),
+                ASSyntax.createString(result.type),
+                ASSyntax.createNumber(result.utility)
             );
             
-            ccrs.addAnnot(ASSyntax.createStructure("ccrs_type", 
-                ASSyntax.createString(type)));
             ccrs.addAnnot(ASSyntax.createStructure("source", 
                 ASSyntax.createString(sourceAnchor)));
+            
+            // Add pattern ID as metadata
+            if (result.patternId != null) {
+                 ccrs.addAnnot(ASSyntax.createStructure("pattern_id", 
+                    ASSyntax.createString(result.patternId)));
+            }
+            
+            // Add other metadata
+            result.getMetadataMap().forEach((k, v) -> {
+                ccrs.addAnnot(ASSyntax.createStructure(k, ASSyntax.createString(v)));
+            });
             
             return ccrs;
         } catch (Exception e) {

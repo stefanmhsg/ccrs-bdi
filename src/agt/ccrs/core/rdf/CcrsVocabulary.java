@@ -36,10 +36,11 @@ public class CcrsVocabulary {
     private static final Property MATCHES_POSITION = ResourceFactory.createProperty(CCRS_NS + "matchesPosition");
     private static final Property PRIORITY = ResourceFactory.createProperty(CCRS_NS + "priority");
     private static final Property SPARQL_PATTERN = ResourceFactory.createProperty(CCRS_NS + "sparqlPattern");
-    private static final Property EXTRACT_VARIABLE = ResourceFactory.createProperty(CCRS_NS + "extractVariable");
+    private static final Property EXTRACT_TARGET_VARIABLE = ResourceFactory.createProperty(CCRS_NS + "extractTargetVariable");
+    private static final Property EXTRACT_RELEVANCE_VARIABLE = ResourceFactory.createProperty(CCRS_NS + "extractedRelevanceVariable");
 
     // Runtime Structures
-    private final Map<String, Set<String>> simplePatternIndex = new ConcurrentHashMap<>();
+    private final Map<String, Set<SimplePatternDefinition>> simplePatternIndex = new ConcurrentHashMap<>();
     private final List<StructuralPatternDefinition> structuralPatterns = new ArrayList<>();
     private final Set<String> discoveredTypes = ConcurrentHashMap.newKeySet();
     private final Model model;
@@ -54,6 +55,9 @@ public class CcrsVocabulary {
         compileStructuralPatterns();
     }
 
+    /**
+     * Compiles simple patterns into a hash-based index for O(1) lookups.
+     */
     private void compileSimplePatterns() {
         ResIterator iter = model.listSubjectsWithProperty(RDF.type, SIMPLE_PATTERN);
         while (iter.hasNext()) {
@@ -62,15 +66,21 @@ public class CcrsVocabulary {
 
             String type = getString(r, PATTERN_TYPE);
             String pos = getString(r, MATCHES_POSITION);
+            int priority = getInt(r, PRIORITY, 0);
             
             if (type != null && pos != null) {
                 discoveredTypes.add(type);
+                SimplePatternDefinition def = new SimplePatternDefinition(r.getURI(), type, priority, pos);
                 simplePatternIndex.computeIfAbsent(type + ":" + pos, k -> ConcurrentHashMap.newKeySet())
-                                  .add(r.getURI());
+                                  .add(def);
             }
         }
     }
 
+    /**
+     * Compiles structural patterns from SPARQL definitions.
+     * Uses a hybrid strategy to optimize structural patterns either to Java objects or Jena queries.
+     */
     private void compileStructuralPatterns() {
         ResIterator iter = model.listSubjectsWithProperty(RDF.type, STRUCTURAL_PATTERN);
         while (iter.hasNext()) {
@@ -79,20 +89,22 @@ public class CcrsVocabulary {
             String id = getPatternId(r);
             String type = getString(r, PATTERN_TYPE);
             int priority = getInt(r, PRIORITY, 0);
-            String rawVar = getString(r, EXTRACT_VARIABLE);
+            String targetVar = getString(r, EXTRACT_TARGET_VARIABLE);            
             String sparql = getString(r, SPARQL_PATTERN);
+            String relVar = getString(r, EXTRACT_RELEVANCE_VARIABLE);
 
             if (type == null || sparql == null) {
                 logger.warning("Skipping invalid structural pattern: " + id);
                 continue;
             }
+            final String target = (targetVar != null) ? targetVar : "subject"; // Default target var
+
 
             discoveredTypes.add(type);
-            final String var = (rawVar != null) ? rawVar : "subject"; // Default extraction var
 
             // Hybrid Compilation Strategy
-            StructuralPatternDefinition def = tryCompileFastPath(id, type, priority, var, sparql)
-                    .orElseGet(() -> compileSlowPath(id, type, priority, var, sparql));
+            StructuralPatternDefinition def = tryCompileFastPath(id, type, priority, target, relVar, sparql)
+                    .orElseGet(() -> compileSlowPath(id, type, priority, target, relVar, sparql));
 
             structuralPatterns.add(def);
         }
@@ -104,7 +116,8 @@ public class CcrsVocabulary {
     /**
      * Attempts to compile SPARQL into a lightweight Java object.
      */
-    private Optional<StructuralPatternDefinition> tryCompileFastPath(String id, String type, int prio, String var, String sparql) {
+    private Optional<StructuralPatternDefinition> tryCompileFastPath(String id, String type, int prio, 
+            String targetVar, String relVar, String sparql) {
         try {
             Query query = QueryFactory.create(sparql);
             
@@ -118,7 +131,7 @@ public class CcrsVocabulary {
                     new StructuralPatternMatcher.CompiledPattern(constraints);
                 
                 logger.fine("Compiled to FAST PATH: " + id);
-                return Optional.of(new StructuralPatternDefinition(id, type, prio, var, null, fastPattern));
+                return Optional.of(new StructuralPatternDefinition(id, type, prio, targetVar, relVar, null, fastPattern));
             }
         } catch (Exception e) {
             logger.warning("SPARQL parse error for " + id + ": " + e.getMessage());
@@ -129,10 +142,11 @@ public class CcrsVocabulary {
     /**
      * Fallback to Jena Query object.
      */
-    private StructuralPatternDefinition compileSlowPath(String id, String type, int prio, String var, String sparql) {
+    private StructuralPatternDefinition compileSlowPath(String id, String type, int prio, 
+            String targetVar, String relVar, String sparql) {
         Query query = QueryFactory.create(sparql);
         logger.fine("Compiled to SLOW PATH (Jena): " + id);
-        return new StructuralPatternDefinition(id, type, prio, var, query, null);
+        return new StructuralPatternDefinition(id, type, prio, targetVar, relVar, query, null);
     }
 
     private boolean extractConstraints(Element el, List<StructuralPatternMatcher.TripleConstraint> list) {
@@ -179,8 +193,16 @@ public class CcrsVocabulary {
 
     // Accessors
     public boolean matchesSimple(String uri, String type, String pos) {
-        Set<String> s = simplePatternIndex.get(type + ":" + pos);
-        return s != null && s.contains(uri);
+        return getSimpleDefinition(uri, type, pos).isPresent();
+    }
+
+    public Optional<SimplePatternDefinition> getSimpleDefinition(String uri, String type, String pos) {
+        Set<SimplePatternDefinition> s = simplePatternIndex.get(type + ":" + pos);
+        if (s == null) return Optional.empty();
+        for (SimplePatternDefinition def : s) {
+            if (def.id.equals(uri)) return Optional.of(def);
+        }
+        return Optional.empty();
     }
 
     public List<StructuralPatternDefinition> getAllStructuralPatterns() {
@@ -191,6 +213,25 @@ public class CcrsVocabulary {
         return Collections.unmodifiableSet(discoveredTypes);
     }
 
+
+    /**
+     * Definition wrapper for simple patterns.
+     */
+    public static class SimplePatternDefinition {
+        public final String id;
+        public final String type;
+        public final int priority;
+        public final String position;
+
+        public SimplePatternDefinition(String id, String type, int priority, String position) {
+            this.id = id;
+            this.type = type;
+            this.priority = priority;
+            this.position = position;
+        }
+    }
+
+
     /**
      * Definition wrapper holding either a Fast Path pattern or a Slow Path query.
      */
@@ -198,14 +239,18 @@ public class CcrsVocabulary {
         public final String id;
         public final String type;
         public final int priority;
-        public final String extractVar;
-        
+        public final String extractTargetVar;
+        public final String extractRelevanceVar;
+
         public final Query slowQuery; 
         public final StructuralPatternMatcher.CompiledPattern fastPattern;
 
-        public StructuralPatternDefinition(String id, String type, int priority, String extractVar, 
-                                           Query slowQuery, StructuralPatternMatcher.CompiledPattern fastPattern) {
-            this.id = id; this.type = type; this.priority = priority; this.extractVar = extractVar;
+        public StructuralPatternDefinition(String id, String type, int priority, 
+                String extractTargetVar, String extractRelevanceVar,
+                Query slowQuery, StructuralPatternMatcher.CompiledPattern fastPattern) {
+            this.id = id; this.type = type; this.priority = priority; 
+            this.extractTargetVar = extractTargetVar;
+            this.extractRelevanceVar = extractRelevanceVar;
             this.slowQuery = slowQuery; this.fastPattern = fastPattern;
         }
 

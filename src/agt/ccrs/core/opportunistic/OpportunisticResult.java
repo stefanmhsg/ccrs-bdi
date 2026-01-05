@@ -8,22 +8,25 @@ import java.util.*;
  */
 public class OpportunisticResult {
     
-    public final String type;
-    public final String subject;
-    public final String value;
+    public final String type;      // High-level type (e.g. "signifier", "stigmergy")
+    public final String target;    // The actionable target URI or value
+    public final String patternId; // The specific pattern definition URI or ID
+    public final double utility;   // Calculated utility (0.0 to 1.0+)
     public final Map<String, String> metadata;
     
     /**
      * Create an opportunistic result. 
      * 
-     * @param type The CCRS type (discovered from vocabulary, e.g., "signifier", "stigmergy")
-     * @param subject The subject of the opportunity
-     * @param value The detected value
+     * @param type The CCRS type
+     * @param target The target of the opportunity
+     * @param patternId The specific pattern ID
+     * @param utility The calculated utility
      */
-    public OpportunisticResult(String type, String subject, String value) {
+    public OpportunisticResult(String type, String target, String patternId, double utility) {
         this.type = type;
-        this.subject = subject;
-        this.value = value;
+        this.target = target;
+        this.patternId = patternId;
+        this.utility = utility;
         this.metadata = new HashMap<>();
     }
     
@@ -62,8 +65,8 @@ public class OpportunisticResult {
     
     @Override
     public String toString() {
-        return String.format("OpportunisticResult[type=%s, subject=%s, value=%s]",
-            type, subject, value);
+        return String.format("OpportunisticResult[target=%s, type=%s, utility=%.2f]", 
+            target, type, utility);
     }
 
 }

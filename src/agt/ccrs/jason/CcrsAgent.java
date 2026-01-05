@@ -312,13 +312,11 @@ public class CcrsAgent extends Agent {
             if (result.isPresent()) {
                 OpportunisticResult r = result.get();
                 
-                Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(
-                    r.subject, r.value, r.type, sourceAnchor
-                );
+                Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(r, sourceAnchor);
                 
                 if (getBB().add(position, ccrsBelief)) {
                     added.add(ccrsBelief);
-                    logger.info("[Opportunistic-CCRS]: Type: " + r.type + " detected:  " + r.subject);
+                    logger.info("[Opportunistic-CCRS]: Type: " + r.type + " detected:  " + r.target);
                 }
             }
         }

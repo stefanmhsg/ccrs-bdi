@@ -27,17 +27,23 @@ ccrs:matchesPosition a owl:DatatypeProperty ;
     rdfs:label "matches position" ;
     rdfs:comment "Triple position for simple patterns (subject, predicate, or object)" .
 
-ccrs:priority a owl:DatatypeProperty ;
-    rdfs:label "priority" ;
-    rdfs:comment "Pattern priority (higher = matched first)" .
-
 ccrs:sparqlPattern a owl:DatatypeProperty ;
     rdfs:label "SPARQL pattern" ;
     rdfs:comment "SPARQL query defining the structural pattern" .
 
-ccrs:extractVariable a owl:DatatypeProperty ;
+ccrs:extractTargetVariable a owl:DatatypeProperty ;
     rdfs:label "extract variable" ;
     rdfs:comment "SPARQL variable to extract as the subject of the result" .
+
+ccrs:priority a owl:DatatypeProperty ;
+    rdfs:label "priority" ;
+    rdfs:comment "Designer assigned relative strength expressing how strongly this pattern should influence CCRS ranking when detected" .
+
+ccrs:extractedRelevanceVariable a owl:DatatypeProperty ;
+    rdfs:label "extracted relevance variable" ;
+    rdfs:comment
+        "Name of a runtime variable extracted from pattern matching that contributes to relevance scoring" .
+
 
 # ============================================
 # Example Simple Pattern:  Signifier
@@ -47,29 +53,9 @@ ccrs:extractVariable a owl:DatatypeProperty ;
     a ccrs:SimplePattern ;
     ccrs:patternType "signifier" ;
     ccrs:matchesPosition "predicate" ;
-    ccrs:priority 10 ;
+    ccrs:priority 100 ;
     rdfs:label "Green Signifier" ;
     rdfs:comment "Visual signifier indicating preferred direction or state" .
-
-# ============================================
-# Example Simple Patterns: Stigmergy
-# ============================================
-
-stigmark:hasMarker
-    a ccrs:SimplePattern ;
-    ccrs:patternType "stigmergy" ;
-    ccrs:matchesPosition "predicate" ;
-    ccrs:priority 5 ;
-    rdfs:label "Has Marker Predicate" ;
-    rdfs:comment "Predicate linking an entity to its stigmergy marker" .
-
-stigmark:Marker
-    a ccrs:SimplePattern ;
-    ccrs:patternType "stigmergy" ;
-    ccrs:matchesPosition "object" ;
-    ccrs:priority 5 ;
-    rdfs:label "Marker Type" ;
-    rdfs:comment "Type of stigmergy markers" .
 
 # ============================================
 # Example Structural Pattern: Stigmergy Marker with Pheromones
@@ -78,8 +64,9 @@ stigmark:Marker
 stigmark:stigmergyMarkerPattern
     a ccrs:StructuralPattern ;
     ccrs:patternType "stigmergy" ;
-    ccrs:priority 100 ;
-    ccrs:extractVariable "marker" ;
+    ccrs:priority 20 ;
+    ccrs:extractTargetVariable "target" ;
+    ccrs:extractedRelevanceVariable "value" ;
     rdfs:label "Stigmergy Marker with Pheromones" ;
     rdfs:comment "Detects stigmergy markers containing pheromones that refer to targets" ;
     ccrs:sparqlPattern """

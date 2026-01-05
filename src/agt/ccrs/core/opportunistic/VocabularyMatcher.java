@@ -59,10 +59,14 @@ public class VocabularyMatcher implements OpportunisticCcrs {
         List<Map<String, String>> matches = StructuralPatternMatcher.match(def.fastPattern, triples);
         
         for (Map<String, String> binding : matches) {
-            String subject = binding.get("?" + def.extractVar); // Matcher variables have '?'
+            String target = binding.get("?" + def.extractTargetVar); // Matcher variables have '?'
             
-            if (subject != null) {
-                OpportunisticResult res = new OpportunisticResult(def.type, subject, def.id);
+            if (target != null) {
+
+                // Calculate Utility
+                double utility = calculateUtility(def.priority, getRelevance(def.extractRelevanceVar, binding));
+                
+                OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
                 binding.forEach((k, v) -> res.withMetadata("var_" + k.replace("?", ""), v));
                 addContext(res, context);
                 results.add(res);
@@ -91,11 +95,15 @@ public class VocabularyMatcher implements OpportunisticCcrs {
             ResultSet rs = qexec.execSelect();
             while (rs.hasNext()) {
                 QuerySolution sol = rs.nextSolution();
-                RDFNode node = sol.get(def.extractVar);
+                RDFNode node = sol.get(def.extractTargetVar);
                 
                 if (node != null) {
-                    String sub = node.isResource() ? node.asResource().getURI() : node.toString();
-                    OpportunisticResult res = new OpportunisticResult(def.type, sub, def.id);
+                    String target = node.isResource() ? node.asResource().getURI() : node.toString();
+                    
+                    // Calculate Utility
+                    double utility = calculateUtility(def.priority, getRelevance(def.extractRelevanceVar, sol));
+
+                    OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
                     
                     sol.varNames().forEachRemaining(v -> {
                         RDFNode val = sol.get(v);
@@ -115,30 +123,80 @@ public class VocabularyMatcher implements OpportunisticCcrs {
      */
     private Optional<OpportunisticResult> scanSimple(RdfTriple t, Map<String, Object> ctx) {
         for (String type : vocabulary.getDiscoveredTypes()) {
-            if (vocabulary.matchesSimple(t.predicate, type, "predicate")) 
-                return Optional.of(createSimpleRes(type, t.object, t.predicate, "predicate", ctx));
+            Optional<CcrsVocabulary.SimplePatternDefinition> def;
+
+            def = vocabulary.getSimpleDefinition(t.predicate, type, "predicate");
+            if (def.isPresent()) return Optional.of(createSimpleRes(def.get(), t.object, ctx));
             
-            if (vocabulary.matchesSimple(t.subject, type, "subject")) 
-                return Optional.of(createSimpleRes(type, t.subject, t.predicate, "subject", ctx));
+            def = vocabulary.getSimpleDefinition(t.subject, type, "subject");
+            if (def.isPresent()) return Optional.of(createSimpleRes(def.get(), t.subject, ctx));
             
-            if (vocabulary.matchesSimple(t.object, type, "object")) 
-                return Optional.of(createSimpleRes(type, t.object, t.predicate, "object", ctx));
+            def = vocabulary.getSimpleDefinition(t.object, type, "object");
+            if (def.isPresent()) return Optional.of(createSimpleRes(def.get(), t.object, ctx));
         }
         return Optional.empty();
     }
 
-    private OpportunisticResult createSimpleRes(String type, String sub, String val, String pos, Map<String, Object> ctx) {
-        OpportunisticResult res = new OpportunisticResult(type, sub, val);
-        res.withMetadata("match_position", pos);
+    private OpportunisticResult createSimpleRes(CcrsVocabulary.SimplePatternDefinition def, String target, Map<String, Object> ctx) {
+        double utility = calculateUtility(def.priority, 1.0); // Simple patterns don't extract relevance variables. Setting relevance to 1.0 keeping utility = priority.
+        
+        OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
+        res.withMetadata("match_position", def.position);
         addContext(res, ctx);
         return res;
     }
-
+    
     private void addContext(OpportunisticResult res, Map<String, Object> ctx) {
         if (ctx != null) ctx.forEach((k, v) -> res.withMetadata("ctx_" + k, v.toString()));
     }
 
-        public static class Factory implements CcrsScannerFactory {
+    // Utility Calculation Helpers
+
+    private double calculateUtility(int priority, double relevance) {
+        return priority * relevance;
+    }
+
+    private double getRelevance(String varName, Map<String, String> bindings) {
+        if (varName == null) return 1.0;
+        return normalize(bindings.get("?" + varName));
+    }
+
+    private double getRelevance(String varName, QuerySolution sol) {
+        if (varName == null) return 1.0;
+        return normalize(sol.get(varName));
+    }
+    
+    // Normalization Helpers
+
+    private double normalize(String val) {
+        if (val == null) return 1.0;
+        try {
+            return normalize(Double.parseDouble(val));
+        } catch (NumberFormatException e) {
+            return 1.0;
+        }
+    }
+    
+    private double normalize(RDFNode node) {
+        if (node == null) return 1.0;
+        if (node.isLiteral()) {
+            try {
+                return normalize(node.asLiteral().getDouble());
+            } catch (Exception e) {
+                return 1.0;
+            }
+        }
+        return 1.0;
+    }
+    
+    private double normalize(double val) {
+        if (val > 1.0) return val / 100.0; // Assume 0-100 scale
+        if (val < 0.0) return 0.0;
+        return val;
+    }
+
+
+    public static class Factory implements CcrsScannerFactory {
         @Override
         public OpportunisticCcrs createScanner(CcrsVocabulary vocabulary) {
             // Uses the loader if no vocab is provided, matching CcrsAgent usage

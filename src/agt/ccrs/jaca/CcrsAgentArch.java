@@ -206,9 +206,9 @@ public class CcrsAgentArch extends CAgentArch {
         List<OpportunisticResult> results = ccrsScanner.scanAll(triples, context);
 
         for (OpportunisticResult r : results) {
-            // Create the CCRS belief: ccrs(Subject, Value, Type)[source(SourceKey)]
+            // Create the CCRS belief: ccrs(Target, PatternType, Utility)[source(Source), metadata(Key, Value), ...]
             Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(
-                r.subject, r.value, r.type, sourceKey
+               r, sourceKey
             );
 
             // Inject into Belief Base
