@@ -24,7 +24,8 @@ ccrs/
 │   ├── CcrsAgent.java                      # Custom Agent class; intercepts perceptions via BRF override.
 │   ├── JasonRdfAdapter.java                # Converts between Jason Literals and RdfTriples.
 │   ├── CcrsConfiguration.java              # Helper for configuring agent vocabularies.
-│   └── JasonCcrsContext.java               # Context implementation using Jason's Belief Base.
+│   ├── JasonCcrsContext.java               # Context implementation using Jason's Belief Base.
+│   └── prioritize.java                     # Internal action for prioritizing options by CCRS utilities.
 │
 ├── jaca/                                   # CArtAgO ARCHITECTURE ADAPTERS
 │   └── CcrsAgentArch.java                  # Intercepts artifact observables; batches triples per cycle.
@@ -47,6 +48,7 @@ ccrs/
 ### Jason Adapters
 *   **`CcrsAgent.java`**: Extends standard `Agent`. Intercepts incoming perceptions in the Belief Revision Function (`brf`). Detected opportunities are added as beliefs immediately.
 *   **`JasonRdfAdapter.java`**: Bridges the gap between Jason's `rdf(S,P,O)` literals and the Core's `RdfTriple`.
+*   **`prioritize.java`**: Internal action (`ccrs.prioritize/2`) that reorders hypermedia options based on CCRS utilities. Accesses the belief base to match options with `ccrs(Target, PatternType, Utility)` beliefs, preserving complete literals with annotations for rich decision-making.
 
 ### JaCa Adapters
 *   **`CcrsAgentArch.java`**: Extends `CAgentArch`. Intercepts `addObsPropertiesBel`. Since artifacts emit properties sequentially, this buffers them and processes them as a batch at the end of the perception cycle to allow structural matching.
@@ -74,6 +76,14 @@ Structural patterns (e.g., Stigmergy Markers) span multiple triples.
 ### 4. Zero-Touch Integration
 *   **Hypermedea:** The architecture works without modifying the Hypermedea artifact. It purely observes the standard `rdf/3` properties flowing into the agent.
 *   **Visibility:** We use `super` calls and internal helpers to bypass visibility restrictions in the sealed CArtAgO library.
+
+### 5. Action Prioritization
+The `ccrs.prioritize/2` internal action bridges perception and deliberation:
+*   **Categorization Logic:** Options are grouped into three categories:
+    *   **Positive utilities** (≥0): Sorted descending (highest first) — affordances
+    *   **Unmatched**: Kept in original order (middle) — neutral options
+    *   **Negative utilities** (<0): Sorted descending (least negative first) — dis-affordances deprioritized
+*   **Usage Pattern:** Agents call `ccrs.prioritize(OptionsIn, OptionsOut)` in plans after receiving hypermedia options, enabling utility-guided navigation without explicit reasoning overhead.
 
 ---
 Here is the visual representation of the execution flow, highlighting how the **CCRS Architecture** intercepts the standard CArtAgO flow to inject semantic interpretations alongside raw perceptions.
