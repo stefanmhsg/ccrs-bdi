@@ -176,6 +176,13 @@ public class CcrsAgentArch extends CAgentArch {
             perceptionBatch.clear();
             flushScheduled = false;
         }
+
+        logger.fine("Abolishing previous CCRS beliefs before processing new batches.");
+
+        // Remove all previous ccrs/3 beliefs to start fresh each cycle
+        getTS().getAg().getBB().abolish(new PredicateIndicator("ccrs", 3));
+        
+        logger.fine("Processing new batch of properties.");
         
         if (batchesToProcess.isEmpty()) return;
 
