@@ -9,7 +9,7 @@ ccrs/
 ├── core/                                   # AGENT-AGNOSTIC CORE
 │   ├── opportunistic/
 │   │   ├── OpportunisticCcrs.java          # Core interface for scanning logic.
-│   │   ├── OpportunisticResult.java        # DTO for detected patterns (type, subject, value).
+│   │   ├── OpportunisticResult.java        # DTO for detected patterns (target, type, utility).
 │   │   ├── VocabularyMatcher.java          # Runtime engine orchestrating Fast/Slow pattern matching.
 │   │   ├── StructuralPatternMatcher.java   # "Fast Path" engine: Matches graph patterns using pure Java.
 │   │   └── CcrsScannerFactory.java         # Factory interface for instantiating scanners.
@@ -139,8 +139,8 @@ graph_flow
  ┌──────────────────────────────────────────────────────────────┐
  │  Agent Belief Base (Mental Model)                            │
  │                                                              │
- │  +rdf(S,P,O)[source(H)]        +ccrs(Sub,Val)[type(stig)]    │
- │  (Raw Perception)              (Derived Opportunity)         │
+ │  +rdf(S,P,O)[source(H)]       +ccrs(Target,Type,Util)[Annots]│
+ │  (Raw Perception)             (Derived Opportunity)          │
  └──────────────────────────────────────────────────────────────┘
 ```
 

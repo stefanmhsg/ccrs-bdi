@@ -11,6 +11,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * <p>
  * Internal action for prioritizing hypermedia options based on CCRS utilities.
  * 
  * Usage: ccrs.prioritize(OptionsIn, OptionsOut)
@@ -30,6 +31,7 @@ import java.util.logging.Logger;
  *   <- ccrs.prioritize(Options, PrioritizedOptions);
  *      . print("Prioritized options:  ", PrioritizedOptions);
  *      ! execute(.nth(0, PrioritizedOptions, BestOption)).
+ * </p>
  */
 public class prioritize extends DefaultInternalAction {
 
