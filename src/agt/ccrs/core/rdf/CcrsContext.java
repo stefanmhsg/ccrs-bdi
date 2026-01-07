@@ -18,6 +18,14 @@ import ccrs.core.contingency.StateSnapshot;
  */
 public interface CcrsContext {
     
+    // ========== Defaults ==========
+    
+    /** Default limit for outgoing links in neighborhood queries */
+    int DEFAULT_MAX_OUTGOING = 30;
+    
+    /** Default limit for incoming links in neighborhood queries */
+    int DEFAULT_MAX_INCOMING = 20;
+    
     // ========== RDF Query (required) ==========
     
     /**
@@ -40,12 +48,69 @@ public interface CcrsContext {
     
     /**
      * Get all triples in the context.
-     * Useful for LLM-based strategies that need full context.
+     * WARNING: May be expensive on large graphs. Prefer getNeighborhood() for bounded queries.
      * 
      * @return All triples, or empty list if not supported
      */
     default List<RdfTriple> queryAll() {
         return query(null, null, null);
+    }
+    
+    // ========== Neighborhood Query (optional) ==========
+    
+    /**
+     * Result of a neighborhood query around a resource.
+     * Contains bounded outgoing and incoming links.
+     */
+    record Neighborhood(
+        String resource,
+        List<RdfTriple> outgoing,
+        List<RdfTriple> incoming
+    ) {
+        public int size() {
+            return outgoing.size() + incoming.size();
+        }
+    }
+    
+    /**
+     * Get the bounded neighborhood around a resource.
+     * Returns outgoing links (where resource is subject) and
+     * incoming links (where resource is object), capped at limits.
+     * 
+     * This is the preferred method for LLM/consultation contexts
+     * as it avoids exploding on large graphs.
+     * 
+     * @param resource The resource URI to get neighborhood for
+     * @param maxOutgoing Maximum outgoing links to return
+     * @param maxIncoming Maximum incoming links to return
+     * @return Neighborhood containing bounded link sets
+     */
+    default Neighborhood getNeighborhood(String resource, int maxOutgoing, int maxIncoming) {
+        if (resource == null) {
+            return new Neighborhood(null, Collections.emptyList(), Collections.emptyList());
+        }
+        
+        List<RdfTriple> outgoing = query(resource, null, null);
+        if (outgoing.size() > maxOutgoing) {
+            outgoing = outgoing.subList(0, maxOutgoing);
+        }
+        
+        List<RdfTriple> incoming = query(null, null, resource);
+        if (incoming.size() > maxIncoming) {
+            incoming = incoming.subList(0, maxIncoming);
+        }
+        
+        return new Neighborhood(resource, outgoing, incoming);
+    }
+    
+    /**
+     * Get neighborhood with default limits.
+     * 
+     * @param resource The resource URI
+     * @return Neighborhood with DEFAULT_MAX_OUTGOING and DEFAULT_MAX_INCOMING limits
+     */
+    default Neighborhood getNeighborhood(String resource) {
+        return getNeighborhood(resource, DEFAULT_MAX_OUTGOING, DEFAULT_MAX_INCOMING);
     }
     
     // ========== History (optional) ==========

@@ -267,13 +267,15 @@ public class ConsultationStrategy implements CcrsStrategy {
                 .collect(Collectors.toList()));
         }
         
-        // Add RDF knowledge (limited)
-        List<RdfTriple> triples = context.queryAll();
-        ctx.put("knowledgeTripleCount", triples.size());
-        ctx.put("knowledgeSample", triples.stream()
-            .limit(20)
-            .map(RdfTriple::toString)
-            .collect(Collectors.toList()));
+        // Add RDF knowledge - bounded neighborhood around current resource
+        String currentResource = situation.getCurrentResource() != null ?
+            situation.getCurrentResource() :
+            context.getCurrentResource().orElse(null);
+        
+        // Get structured neighborhood from context (lets channel decide serialization)
+        CcrsContext.Neighborhood neighborhood = context.getNeighborhood(currentResource);
+        ctx.put("neighborhood", neighborhood);
+        ctx.put("neighborhoodSize", neighborhood.size());
         
         return ctx;
     }
