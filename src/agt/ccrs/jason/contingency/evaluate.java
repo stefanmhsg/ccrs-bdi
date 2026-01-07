@@ -4,6 +4,7 @@ import ccrs.core.contingency.ContingencyCcrs;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.jason.JasonRdfAdapter;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
@@ -97,7 +98,7 @@ public class evaluate extends DefaultInternalAction {
         }
         
         // Parse situation type
-        String typeStr = termToString(args[0]).toLowerCase();
+        String typeStr = JasonRdfAdapter.termToString(args[0]).toLowerCase();
         Situation.Type type = switch (typeStr) {
             case "failure" -> Situation.Type.FAILURE;
             case "stuck" -> Situation.Type.STUCK;
@@ -107,7 +108,7 @@ public class evaluate extends DefaultInternalAction {
         };
         
         // Parse trigger
-        String trigger = termToString(args[1]);
+        String trigger = JasonRdfAdapter.termToString(args[1]);
         
         Situation.Builder builder = Situation.builder(type).trigger(trigger);
         
@@ -148,7 +149,7 @@ public class evaluate extends DefaultInternalAction {
                 Structure s = (Structure) item;
                 String key = s.getFunctor();
                 if (s.getArity() > 0) {
-                    String value = termToString(s.getTerm(0));
+                    String value = JasonRdfAdapter.termToString(s.getTerm(0));
                     builder.errorInfo(key, value);
                 }
             }
@@ -160,7 +161,7 @@ public class evaluate extends DefaultInternalAction {
         
         ListTerm list = (ListTerm) term;
         for (Term item : list) {
-            builder.attemptedStrategy(termToString(item));
+            builder.attemptedStrategy(JasonRdfAdapter.termToString(item));
         }
     }
     
@@ -230,21 +231,11 @@ public class evaluate extends DefaultInternalAction {
         return ASSyntax.createString(value.toString());
     }
     
-    private String termToString(Term term) {
-        if (term.isString()) {
-            return ((StringTerm) term).getString();
-        }
-        if (term.isAtom()) {
-            return ((Atom) term).getFunctor();
-        }
-        return term.toString();
-    }
-    
     private String termToStringOrNull(Term term) {
         if (term.isAtom() && "null".equals(((Atom) term).getFunctor())) {
             return null;
         }
-        String s = termToString(term);
+        String s = JasonRdfAdapter.termToString(term);
         return s.isEmpty() ? null : s;
     }
     

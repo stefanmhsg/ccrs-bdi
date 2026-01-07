@@ -2,6 +2,7 @@ package ccrs.jason.contingency;
 
 import ccrs.core.contingency.dto.ActionRecord;
 import ccrs.core.contingency.dto.StateSnapshot;
+import ccrs.jason.JasonRdfAdapter;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
@@ -41,7 +42,7 @@ public class track extends DefaultInternalAction {
                 "ccrs.contingency.track requires at least 2 arguments");
         }
         
-        String trackType = termToString(args[0]);
+        String trackType = JasonRdfAdapter.termToString(args[0]);
         JasonCcrsContext context = getOrCreateContext(ts);
         
         switch (trackType.toLowerCase()) {
@@ -62,9 +63,9 @@ public class track extends DefaultInternalAction {
                 "track(action, ActionType, Target, Outcome, Details)");
         }
         
-        String actionType = termToString(args[1]);
-        String target = termToString(args[2]);
-        String outcomeStr = termToString(args[3]).toUpperCase();
+        String actionType = JasonRdfAdapter.termToString(args[1]);
+        String target = JasonRdfAdapter.termToString(args[2]);
+        String outcomeStr = JasonRdfAdapter.termToString(args[3]).toUpperCase();
         
         ActionRecord.Outcome outcome;
         try {
@@ -83,7 +84,7 @@ public class track extends DefaultInternalAction {
                 if (item.isStructure()) {
                     Structure s = (Structure) item;
                     if (s.getArity() > 0) {
-                        builder.detail(s.getFunctor(), termToString(s.getTerm(0)));
+                        builder.detail(s.getFunctor(), JasonRdfAdapter.termToString(s.getTerm(0)));
                     }
                 }
             }
@@ -102,7 +103,7 @@ public class track extends DefaultInternalAction {
                 "track(state, Resource, Summary)");
         }
         
-        String resource = termToString(args[1]);
+        String resource = JasonRdfAdapter.termToString(args[1]);
         
         StateSnapshot.Builder builder = StateSnapshot.builder(resource);
         
@@ -113,7 +114,7 @@ public class track extends DefaultInternalAction {
                 if (item.isStructure()) {
                     Structure s = (Structure) item;
                     if (s.getArity() > 0) {
-                        builder.summary(s.getFunctor(), termToString(s.getTerm(0)));
+                        builder.summary(s.getFunctor(), JasonRdfAdapter.termToString(s.getTerm(0)));
                     }
                 }
             }
@@ -124,16 +125,6 @@ public class track extends DefaultInternalAction {
         logger.fine("[CCRS-Track] State: " + resource);
         
         return true;
-    }
-    
-    private String termToString(Term term) {
-        if (term.isString()) {
-            return ((StringTerm) term).getString();
-        }
-        if (term.isAtom()) {
-            return ((Atom) term).getFunctor();
-        }
-        return term.toString();
     }
     
     private synchronized JasonCcrsContext getOrCreateContext(TransitionSystem ts) {

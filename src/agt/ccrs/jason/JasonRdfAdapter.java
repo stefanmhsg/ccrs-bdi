@@ -68,14 +68,21 @@ public class JasonRdfAdapter {
     }
     
     /**
-     * Convert Jason Term to string, handling quotes.
+     * Convert Jason Term to string, handling quotes and atoms uniformly.
+     * Public utility for use by internal actions.
      * 
      * @param term Jason term
-     * @return String value
+     * @return String value, or empty string if null
      */
-    private static String termToString(Term term) {
-        if (term. isString()) {
+    public static String termToString(Term term) {
+        if (term == null) {
+            return "";
+        }
+        if (term.isString()) {
             return ((StringTerm) term).getString();
+        }
+        if (term instanceof Atom) {
+            return ((Atom) term).getFunctor();
         }
         String str = term.toString();
         if (str.startsWith("\"") && str.endsWith("\"") && str.length() > 1) {

@@ -1,5 +1,7 @@
 package ccrs.jason.contingency;
 
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.jason.JasonRdfAdapter;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
@@ -7,8 +9,6 @@ import jason.asSyntax.*;
 import jason.JasonException;
 
 import java.util.logging.Logger;
-
-import ccrs.core.contingency.dto.CcrsTrace;
 
 /**
  * Internal action for reporting the outcome of a CCRS suggestion.
@@ -43,8 +43,8 @@ public class report_outcome extends DefaultInternalAction {
                 "ccrs.contingency.report_outcome requires at least 1 argument: (Outcome) or (Outcome, Details)");
         }
         
-        String outcomeStr = termToString(args[0]).toUpperCase();
-        final String details = args.length >= 2 ? termToString(args[1]) : null;
+        String outcomeStr = JasonRdfAdapter.termToString(args[0]).toUpperCase();
+        final String details = args.length >= 2 ? JasonRdfAdapter.termToString(args[1]) : null;
         
         CcrsTrace.Outcome parsedOutcome;
         try {
@@ -67,15 +67,5 @@ public class report_outcome extends DefaultInternalAction {
         }
         
         return true;
-    }
-    
-    private String termToString(Term term) {
-        if (term.isString()) {
-            return ((StringTerm) term).getString();
-        }
-        if (term.isAtom()) {
-            return ((Atom) term).getFunctor();
-        }
-        return term.toString();
     }
 }
