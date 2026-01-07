@@ -1,4 +1,4 @@
-package ccrs.core.contingency.strategies;
+package ccrs.core.contingency.strategies.internal;
 
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.Situation;

@@ -184,9 +184,9 @@ public class ContingencyCcrs {
      */
     public static void registerDefaultStrategies(StrategyRegistry registry) {
         // Import strategies from strategies package
-        registry.register(new ccrs.core.contingency.strategies.RetryStrategy());
-        registry.register(new ccrs.core.contingency.strategies.BacktrackStrategy());
-        registry.register(new ccrs.core.contingency.strategies.StopStrategy());
+        registry.register(new ccrs.core.contingency.strategies.internal.RetryStrategy());
+        registry.register(new ccrs.core.contingency.strategies.internal.BacktrackStrategy());
+        registry.register(new ccrs.core.contingency.strategies.internal.StopStrategy());
         // LLM strategies registered separately as they need configuration
     }
 }

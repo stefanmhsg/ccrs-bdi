@@ -1,4 +1,4 @@
-package ccrs.core.contingency.strategies;
+package ccrs.core.contingency.strategies.internal;
 
 import java.util.List;
 import java.util.Optional;

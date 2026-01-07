@@ -1,4 +1,4 @@
-package ccrs.core.contingency.strategies;
+package ccrs.core.contingency.strategies.internal;
 
 import java.util.HashSet;
 import java.util.Set;
