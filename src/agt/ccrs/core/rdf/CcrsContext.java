@@ -45,17 +45,7 @@ public interface CcrsContext {
      * @return True if the triple exists
      */
     boolean contains(RdfTriple triple);
-    
-    /**
-     * Get all triples in the context.
-     * WARNING: May be expensive on large graphs. Prefer getNeighborhood() for bounded queries.
-     * 
-     * @return All triples, or empty list if not supported
-     */
-    default List<RdfTriple> queryAll() {
-        return query(null, null, null);
-    }
-    
+       
     // ========== Neighborhood Query (optional) ==========
     
     /**

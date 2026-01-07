@@ -100,11 +100,7 @@ public class JasonCcrsContext implements CcrsContext {
             return false;
         }
     }
-    
-    @Override
-    public List<RdfTriple> queryAll() {
-        return query(null, null, null);
-    }
+
     
     // ========== History Implementation ==========
     

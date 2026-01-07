@@ -1,5 +1,6 @@
 package ccrs.core.contingency.strategies.internal;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -7,6 +8,7 @@ import java.util.stream.Collectors;
 import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.LlmClient;
+import ccrs.core.contingency.PromptBuilder;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
@@ -42,16 +44,15 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     // Configuration
     private LlmClient llmClient;
-    private String promptTemplate;
+    private PromptBuilder promptBuilder;
     private double baseConfidence = 0.6;
-    
-    public PredictionLlmStrategy() {
-        this.promptTemplate = buildDefaultPromptTemplate();
-    }
-    
-    public PredictionLlmStrategy(LlmClient llmClient) {
-        this();
+    private int maxHistoryActions = 5;
+    private int maxKnowledgeTriples = 50;
+
+        
+    public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder) {
         this.llmClient = llmClient;
+        this.promptBuilder = promptBuilder;
     }
     
     @Override
@@ -104,8 +105,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
         
         try {
-            // Build prompt
-            String prompt = buildPrompt(situation, context);
+            // Prepare context map (strategy responsibility, not prompt builder's)
+            Map<String, Object> contextMap = prepareContextMap(situation, context);
+            
+            // Build prompt using configured builder
+            String prompt = promptBuilder.buildPredictionPrompt(contextMap);
             
             // Call LLM
             String response = llmClient.complete(prompt);
@@ -141,25 +145,33 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
     }
     
-    private String buildPrompt(Situation situation, CcrsContext context) {
+    // Context preparation (strategy's responsibility)
+    
+    /**
+     * Prepare context map from situation and bounded context.
+     * This is where we extract relevant data - NOT in the prompt builder.
+     */
+    private Map<String, Object> prepareContextMap(Situation situation, CcrsContext context) {
+        Map<String, Object> ctx = new HashMap<>();
+        
+        // Core situation data
         String currentResource = situation.getCurrentResource();
         if (currentResource == null) {
             currentResource = context.getCurrentResource().orElse("unknown");
         }
+        ctx.put("currentResource", currentResource);
+        ctx.put("targetResource", nullSafe(situation.getTargetResource()));
+        ctx.put("failedAction", nullSafe(situation.getFailedAction()));
+        ctx.put("errorInfo", formatError(situation));
+        ctx.put("attemptedStrategies", situation.getAttemptedStrategies().toString());
         
-        // Gather context
-        String historyStr = formatHistory(context);
-        String triplesStr = formatTriples(context);
-        String errorStr = formatError(situation);
+        // Format history (bounded)
+        ctx.put("recentActions", formatHistory(context));
         
-        return promptTemplate
-            .replace("{currentResource}", currentResource)
-            .replace("{targetResource}", nullSafe(situation.getTargetResource()))
-            .replace("{failedAction}", nullSafe(situation.getFailedAction()))
-            .replace("{errorInfo}", errorStr)
-            .replace("{recentActions}", historyStr)
-            .replace("{knowledgeBase}", triplesStr)
-            .replace("{attemptedStrategies}", situation.getAttemptedStrategies().toString());
+        // Get bounded neighborhood knowledge (NOT queryAll!)
+        ctx.put("knowledge", formatKnowledge(context, currentResource));
+        
+        return ctx;
     }
     
     private String formatHistory(CcrsContext context) {
@@ -167,7 +179,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             return "(no history available)";
         }
         
-        List<ActionRecord> actions = context.getRecentActions(5);
+        List<ActionRecord> actions = context.getRecentActions(maxHistoryActions);
         if (actions.isEmpty()) {
             return "(no recent actions)";
         }
@@ -177,17 +189,32 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             .collect(Collectors.joining("\n"));
     }
     
-    private String formatTriples(CcrsContext context) {
-        List<RdfTriple> triples = context.queryAll();
-        if (triples.isEmpty()) {
-            return "(no triples available)";
+    private String formatKnowledge(CcrsContext context, String currentResource) {
+        // Use bounded neighborhood, not queryAll!
+        CcrsContext.Neighborhood neighborhood = context.getNeighborhood(currentResource);
+        if (neighborhood.size() == 0) {
+            return "(no knowledge available)";
         }
         
-        // Limit to avoid prompt explosion
-        return triples.stream()
-            .limit(50)
+        // Combine outgoing and incoming triples from neighborhood (already bounded)
+        List<RdfTriple> allTriples = new java.util.ArrayList<>();
+        allTriples.addAll(neighborhood.outgoing());
+        allTriples.addAll(neighborhood.incoming());
+        
+        if (allTriples.isEmpty()) {
+            return "(no triples in neighborhood)";
+        }
+        
+        String result = allTriples.stream()
+            .limit(maxKnowledgeTriples)
             .map(RdfTriple::toString)
             .collect(Collectors.joining("\n"));
+        
+        if (allTriples.size() > maxKnowledgeTriples) {
+            result += String.format("\n... (%d more triples not shown)", allTriples.size() - maxKnowledgeTriples);
+        }
+        
+        return result;
     }
     
     private String formatError(Situation situation) {
@@ -200,6 +227,12 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             .map(e -> e.getKey() + ": " + e.getValue())
             .collect(Collectors.joining(", "));
     }
+    
+    private String nullSafe(String value) {
+        return value != null ? value : "unknown";
+    }
+    
+    // Configuration methods
     
     private LlmSuggestion parseResponse(String response) {
         LlmSuggestion suggestion = new LlmSuggestion();
@@ -288,47 +321,23 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return sb.toString();
     }
     
-    private String buildDefaultPromptTemplate() {
-        return """
-            You are assisting a navigation agent in a hypermedia environment.
-            The agent has encountered a problem and needs guidance on how to recover.
-            
-            ## Current Situation
-            - Current location: {currentResource}
-            - Failed action: {failedAction} on {targetResource}
-            - Error: {errorInfo}
-            - Already tried: {attemptedStrategies}
-            
-            ## Recent Actions
-            {recentActions}
-            
-            ## Available Knowledge (RDF triples)
-            {knowledgeBase}
-            
-            ## Task
-            Analyze the situation and suggest a recovery action.
-            Consider what resources are available and what the agent might do next.
-            
-            Respond with JSON in this exact format:
-            {"action": "<action_type>", "target": "<uri_or_null>", "reasoning": "<brief_explanation>"}
-            
-            Where action_type is one of: navigate, get, post, retry, stop
-            """;
-    }
-    
-    private String nullSafe(String value) {
-        return value != null ? value : "unknown";
-    }
-    
-    // Configuration
-    
     public PredictionLlmStrategy withClient(LlmClient client) {
         this.llmClient = client;
         return this;
     }
     
-    public PredictionLlmStrategy withPromptTemplate(String template) {
-        this.promptTemplate = template;
+    public PredictionLlmStrategy withPromptBuilder(PromptBuilder builder) {
+        this.promptBuilder = builder;
+        return this;
+    }
+    
+    public PredictionLlmStrategy maxHistoryActions(int max) {
+        this.maxHistoryActions = max;
+        return this;
+    }
+    
+    public PredictionLlmStrategy maxKnowledgeTriples(int max) {
+        this.maxKnowledgeTriples = max;
         return this;
     }
         

@@ -8,9 +8,11 @@ import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.CcrsTrace;
 import ccrs.core.contingency.LlmClient;
+import ccrs.core.contingency.PromptBuilder;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.capabilities.llm.TemplatePromptBuilder;
 
 /**
  * L4: Consultation Strategy (Social)
@@ -317,44 +319,29 @@ public class ConsultationStrategy implements CcrsStrategy {
      * Create an LLM-based consultation channel (mock for POC).
      */
     public static ConsultationChannel llmChannel(LlmClient llmClient) {
+        return llmChannel(llmClient, TemplatePromptBuilder.create());
+    }
+    
+    /**
+     * Create an LLM-based consultation channel with custom prompt builder.
+     */
+    public static ConsultationChannel llmChannel(LlmClient llmClient, PromptBuilder promptBuilder) {
         return new ConsultationChannel() {
             @Override
             public boolean isAvailable() {
-                return llmClient != null;
+                return llmClient != null && promptBuilder != null;
             }
             
             @Override
             public ConsultationResponse query(String question, Map<String, Object> context) throws Exception {
-                String prompt = buildLlmConsultationPrompt(question, context);
+                String prompt = promptBuilder.buildConsultationPrompt(question, context);
                 String response = llmClient.complete(prompt);
                 return parseLlmResponse(response);
             }
             
             @Override
             public String getChannelType() {
-                return "llm";
-            }
-            
-            private String buildLlmConsultationPrompt(String question, Map<String, Object> ctx) {
-                return """
-                    You are an expert advisor helping an autonomous navigation agent.
-                    The agent is asking for help with a problem it cannot solve on its own.
-                    
-                    ## Agent's Question
-                    %s
-                    
-                    ## Additional Context
-                    %s
-                    
-                    ## Your Task
-                    Provide concrete, actionable advice. Consider what the agent knows
-                    and what actions are available in a hypermedia navigation environment.
-                    
-                    Respond with JSON:
-                    {"action": "<action_type>", "target": "<uri_or_null>", "advice": "<detailed_advice>"}
-                    
-                    Where action_type is one of: navigate, get, post, retry, backtrack, stop
-                    """.formatted(question, ctx.toString());
+                return "llm(" + promptBuilder.getDescription() + ")";
             }
             
             // TODO: Use a proper JSON parser
