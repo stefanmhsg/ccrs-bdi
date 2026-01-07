@@ -1,7 +1,6 @@
 package ccrs.capabilities.llm.langchain4j;
 
 import java.time.Duration;
-import java.util.Objects;
 
 /**
  * Configuration for Langchain4j-based LLM clients.

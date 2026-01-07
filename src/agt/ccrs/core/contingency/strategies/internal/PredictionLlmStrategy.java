@@ -7,7 +7,9 @@ import java.util.stream.Collectors;
 
 import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.LlmActionResponse;
 import ccrs.core.contingency.LlmClient;
+import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
@@ -28,31 +30,19 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     public static final String ID = "prediction_llm";
     
-    /**
-     * Parsed LLM response for recovery suggestion.
-     */
-    public static class LlmSuggestion {
-        public String action;
-        public String target;
-        public String reasoning;
-        public Map<String, Object> params;
-        
-        public boolean isValid() {
-            return action != null && !action.isEmpty();
-        }
-    }
-    
     // Configuration
     private LlmClient llmClient;
     private PromptBuilder promptBuilder;
+    private LlmResponseParser responseParser;
     private double baseConfidence = 0.6;
     private int maxHistoryActions = 5;
     private int maxKnowledgeTriples = 50;
 
         
-    public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder) {
+    public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {
         this.llmClient = llmClient;
         this.promptBuilder = promptBuilder;
+        this.responseParser = responseParser;
     }
     
     @Override
@@ -104,6 +94,12 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 "LLM client not configured");
         }
         
+        if (responseParser == null) {
+            return StrategyResult.noHelp(ID,
+                StrategyResult.NoHelpReason.PRECONDITION_MISSING,
+                "Response parser not configured");
+        }
+        
         try {
             // Prepare context map (strategy responsibility, not prompt builder's)
             Map<String, Object> contextMap = prepareContextMap(situation, context);
@@ -112,31 +108,30 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             String prompt = promptBuilder.buildPredictionPrompt(contextMap);
             
             // Call LLM
-            String response = llmClient.complete(prompt);
+            String rawResponse = llmClient.complete(prompt);
             
-            // Parse response
-            LlmSuggestion suggestion = parseResponse(response);
+            // Parse response using centralized parser
+            LlmActionResponse response = responseParser.parse(rawResponse);
             
-            if (!suggestion.isValid()) {
+            if (!response.isValid()) {
                 return StrategyResult.noHelp(ID,
                     StrategyResult.NoHelpReason.EVALUATION_FAILED,
-                    "Could not parse valid suggestion from LLM response");
+                    "Could not parse valid action from LLM: " + response.getParseError());
             }
+            
+            // Determine confidence (use parser's if available, otherwise base)
+            double confidence = response.hasConfidence() ? response.getConfidence() : baseConfidence;
             
             // Build result
-            StrategyResult.Suggestion.Builder builder = StrategyResult.suggest(ID, suggestion.action)
-                .target(suggestion.target)
+            return StrategyResult.suggest(ID, response.getAction())
+                .target(response.getTarget())
                 .param("llmGenerated", true)
-                .param("originalReasoning", suggestion.reasoning)
-                .confidence(baseConfidence)
+                .param("originalReasoning", response.getExplanation())
+                .param("parseMethod", response.getMetadata().get("parseMethod"))
+                .confidence(confidence)
                 .cost(0.4)  // Moderate cost - LLM call + uncertainty
-                .rationale(buildRationale(suggestion));
-            
-            if (suggestion.params != null) {
-                builder.params(suggestion.params);
-            }
-            
-            return builder.build();
+                .rationale(buildRationale(response))
+                .build();
             
         } catch (Exception e) {
             return StrategyResult.noHelp(ID,
@@ -232,94 +227,27 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return value != null ? value : "unknown";
     }
     
-    // Configuration methods
+    // Rationale building
     
-    private LlmSuggestion parseResponse(String response) {
-        LlmSuggestion suggestion = new LlmSuggestion();
-        
-        // Try to parse JSON-like response
-        // Expected format: {"action": "...", "target": "...", "reasoning": "..."}
-        
-        // Simple parsing - could use a JSON library for robustness
-        suggestion.action = extractJsonValue(response, "action");
-        suggestion.target = extractJsonValue(response, "target");
-        suggestion.reasoning = extractJsonValue(response, "reasoning");
-        
-        // Fallback: try to extract action from plain text
-        if (suggestion.action == null) {
-            suggestion.action = extractActionFromText(response);
-            suggestion.reasoning = response;
-        }
-        
-        return suggestion;
-    }
-    
-    // TODO: Replace with proper JSON parsing
-    private String extractJsonValue(String json, String key) {
-        // Simple regex-free extraction for "key": "value"
-        String pattern = "\"" + key + "\"";
-        int keyIndex = json.indexOf(pattern);
-        if (keyIndex < 0) {
-            // Try without quotes on key
-            pattern = key + ":";
-            keyIndex = json.indexOf(pattern);
-        }
-        if (keyIndex < 0) return null;
-        
-        int colonIndex = json.indexOf(":", keyIndex);
-        if (colonIndex < 0) return null;
-        
-        int valueStart = json.indexOf("\"", colonIndex);
-        if (valueStart < 0) return null;
-        
-        int valueEnd = json.indexOf("\"", valueStart + 1);
-        if (valueEnd < 0) return null;
-        
-        return json.substring(valueStart + 1, valueEnd);
-    }
-    
-    private String extractActionFromText(String text) {
-        String lower = text.toLowerCase();
-        
-        if (lower.contains("navigate") || lower.contains("go to") || lower.contains("move to")) {
-            return "navigate";
-        }
-        if (lower.contains("retry") || lower.contains("try again")) {
-            return "retry";
-        }
-        if (lower.contains("post") || lower.contains("submit")) {
-            return "post";
-        }
-        if (lower.contains("get") || lower.contains("fetch")) {
-            return "get";
-        }
-        if (lower.contains("stop") || lower.contains("give up") || lower.contains("abort")) {
-            return "stop";
-        }
-        if (lower.contains("backtrack") || lower.contains("go back")) {
-            return "navigate";  // Backtrack is a navigation
-        }
-        
-        return null;
-    }
-    
-    private String buildRationale(LlmSuggestion suggestion) {
+    private String buildRationale(LlmActionResponse response) {
         StringBuilder sb = new StringBuilder();
-        sb.append("LLM suggests: ").append(suggestion.action);
-        if (suggestion.target != null) {
-            sb.append(" to ").append(suggestion.target);
+        sb.append("LLM suggests: ").append(response.getAction());
+        if (response.hasTarget()) {
+            sb.append(" to ").append(response.getTarget());
         }
         sb.append(". ");
-        if (suggestion.reasoning != null && !suggestion.reasoning.isEmpty()) {
-            // Truncate long reasoning
-            String reasoning = suggestion.reasoning;
-            if (reasoning.length() > 200) {
-                reasoning = reasoning.substring(0, 197) + "...";
+        if (response.hasExplanation()) {
+            // Truncate long explanation
+            String explanation = response.getExplanation();
+            if (explanation.length() > 200) {
+                explanation = explanation.substring(0, 197) + "...";
             }
-            sb.append("Reasoning: ").append(reasoning);
+            sb.append("Reasoning: ").append(explanation);
         }
         return sb.toString();
     }
+    
+    // Configuration methods
     
     public PredictionLlmStrategy withClient(LlmClient client) {
         this.llmClient = client;
@@ -328,6 +256,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     public PredictionLlmStrategy withPromptBuilder(PromptBuilder builder) {
         this.promptBuilder = builder;
+        return this;
+    }
+    
+    public PredictionLlmStrategy withResponseParser(LlmResponseParser parser) {
+        this.responseParser = parser;
         return this;
     }
     

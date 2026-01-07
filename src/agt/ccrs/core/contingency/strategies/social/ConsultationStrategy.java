@@ -7,7 +7,9 @@ import java.util.stream.Collectors;
 import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.CcrsTrace;
+import ccrs.core.contingency.LlmActionResponse;
 import ccrs.core.contingency.LlmClient;
+import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
@@ -318,66 +320,48 @@ public class ConsultationStrategy implements CcrsStrategy {
     /**
      * Create an LLM-based consultation channel (mock for POC).
      */
-    public static ConsultationChannel llmChannel(LlmClient llmClient) {
-        return llmChannel(llmClient, TemplatePromptBuilder.create());
+    public static ConsultationChannel llmChannel(LlmClient llmClient, LlmResponseParser parser) {
+        return llmChannel(llmClient, TemplatePromptBuilder.create(), parser);
     }
     
     /**
-     * Create an LLM-based consultation channel with custom prompt builder.
+     * Create an LLM-based consultation channel with custom prompt builder and parser.
      */
-    public static ConsultationChannel llmChannel(LlmClient llmClient, PromptBuilder promptBuilder) {
+    public static ConsultationChannel llmChannel(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser parser) {
         return new ConsultationChannel() {
             @Override
             public boolean isAvailable() {
-                return llmClient != null && promptBuilder != null;
+                return llmClient != null && promptBuilder != null && parser != null;
             }
             
             @Override
             public ConsultationResponse query(String question, Map<String, Object> context) throws Exception {
                 String prompt = promptBuilder.buildConsultationPrompt(question, context);
-                String response = llmClient.complete(prompt);
-                return parseLlmResponse(response);
+                String rawResponse = llmClient.complete(prompt);
+                
+                // Use centralized parser
+                LlmActionResponse parsed = parser.parse(rawResponse);
+                
+                // Convert to ConsultationResponse
+                if (!parsed.isValid()) {
+                    return ConsultationResponse.failure("Parse error: " + parsed.getParseError());
+                }
+                
+                ConsultationResponse r = ConsultationResponse.success(
+                    parsed.getAction(),
+                    parsed.getTarget(),
+                    parsed.getExplanation()
+                );
+                r.source = "llm-advisor";
+                r.confidence = parsed.hasConfidence() ? parsed.getConfidence() : 0.5;
+                r.metadata = parsed.getMetadata();
+                
+                return r;
             }
             
             @Override
             public String getChannelType() {
-                return "llm(" + promptBuilder.getDescription() + ")";
-            }
-            
-            // TODO: Use a proper JSON parser
-            private ConsultationResponse parseLlmResponse(String response) {
-                ConsultationResponse r = new ConsultationResponse();
-                r.success = true;
-                r.source = "llm-advisor";
-                
-                // Simple JSON parsing
-                r.action = extractValue(response, "action");
-                r.target = extractValue(response, "target");
-                r.suggestion = extractValue(response, "advice");
-                if (r.suggestion == null) {
-                    r.suggestion = extractValue(response, "reasoning");
-                }
-                
-                r.confidence = 0.5;
-                return r;
-            }
-            
-            private String extractValue(String json, String key) {
-                String pattern = "\"" + key + "\"";
-                int keyIndex = json.indexOf(pattern);
-                if (keyIndex < 0) return null;
-                
-                int colonIndex = json.indexOf(":", keyIndex);
-                if (colonIndex < 0) return null;
-                
-                int valueStart = json.indexOf("\"", colonIndex);
-                if (valueStart < 0) return null;
-                
-                int valueEnd = json.indexOf("\"", valueStart + 1);
-                if (valueEnd < 0) return null;
-                
-                String value = json.substring(valueStart + 1, valueEnd);
-                return "null".equalsIgnoreCase(value) ? null : value;
+                return "llm(" + promptBuilder.getDescription() + ", " + parser.getDescription() + ")";
             }
         };
     }

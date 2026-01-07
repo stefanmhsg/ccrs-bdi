@@ -1,8 +1,9 @@
 # CCRS LLM Integration
 
-This module provides LLM integration for CCRS contingency strategies through two main abstractions:
+This module provides LLM integration for CCRS contingency strategies through three main abstractions:
 - **LlmClient**: Interface for executing LLM completions
 - **PromptBuilder**: Interface for constructing prompts
+- **LlmResponseParser**: Interface for parsing LLM responses
 
 ## Architecture
 
@@ -11,27 +12,26 @@ This module provides LLM integration for CCRS contingency strategies through two
 │   Contingency Strategies            │
 │   - PredictionLlmStrategy           │
 │   - ConsultationStrategy            │
-└─────────────┬───────────────────────┘
-              │ uses
-              ▼
-┌─────────────────────────────────────┐
-│   PromptBuilder (interface)         │
-│   - buildPredictionPrompt()         │
-│   - buildConsultationPrompt()       │
-└─────────────┬───────────────────────┘
-              │
-              │
-              ▼           
-      ┌──────────────┐ 
-      │ Template     │ 
-      │ PromptBuilder│ 
-      │ (standard)   │ 
-      └──────────────┘ 
+└─────┬────────────────┬──────────────┘
+      │ uses           │ uses
+      ▼                ▼
+┌──────────────┐ ┌────────────────────┐
+│PromptBuilder │ │LlmResponseParser   │
+│ (interface)  │ │(interface)         │
+└──────┬───────┘ └────────┬───────────┘
+       │                  │
+       │                  │
+       ▼                  ▼
+┌──────────────┐ ┌────────────────────┐
+│Template      │ │JsonActionParser    │
+│PromptBuilder │ │(standard)          │
+│(standard)    │ │                    │
+└──────────────┘ └────────────────────┘
 ```
 
 ## Usage Examples
 
-### Recommended Setup (TemplatePromptBuilder)
+### Recommended Setup
 
 ```java
 import ccrs.core.contingency.*;
@@ -41,17 +41,12 @@ import ccrs.capabilities.llm.langchain4j.*;
 // Create LLM client
 LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
 
-// Use standard template-based prompt builder (recommended)
+// Use standard implementations (recommended)
 PromptBuilder promptBuilder = TemplatePromptBuilder.create();
-PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuilder);
-```
+LlmResponseParser parser = JsonActionParser.create();
 
-### Minimal Setup (DefaultPromptBuilder)
-
-```java
-// Use minimal default prompts (falls back if nothing else specified)
-PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient);
-// Uses DefaultPromptBuilder internally
+// Create strategy with all components
+PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuilder, parser);
 ```
 
 ### Custom Templates
@@ -73,20 +68,22 @@ PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuil
 ### Consultation Strategy
 
 ```java
-// Default consultation
+// Create consultation channel with LLM backend
+LlmResponseParser parser = JsonActionParser.create();
 ConsultationStrategy.ConsultationChannel channel = 
-    ConsultationStrategy.llmChannel(llmClient);
+    ConsultationStrategy.llmChannel(llmClient, parser);
 
 // With custom prompts
 PromptBuilder customPrompts = TemplatePromptBuilder.create()
     .withConsultationTemplate("...");
 ConsultationStrategy.ConsultationChannel channel = 
-    ConsultationStrategy.llmChannel(llmClient, customPrompts);
+    ConsultationStrategy.llmChannel(llmClient, customPrompts, parser);
 
 ConsultationStrategy strategy = new ConsultationStrategy(channel);
 ```
+Components
 
-## Creating Custom Prompt Builders
+### Custom Prompt Builders
 
 Implement the `PromptBuilder` interface for experiment-specific or domain-specific prompts:
 
@@ -112,11 +109,39 @@ public class ExperimentPromptBuilder implements PromptBuilder {
 }
 ```
 
+### Custom Response Parsers
+
+Implement the `LlmResponseParser` interface for specialized parsing logic:
+
+```java
+public class CustomParser implements LlmResponseParser {
+    
+    @Override
+    public LlmActionResponse parse(String rawResponse) {
+        // Custom parsing logic
+        // - Handle your specific response format
+        // - Extract action, target, explanation
+        // - Return LlmActionResponse.valid() or .invalid()
+        return LlmActionResponse.valid(action, target, explanation)
+            .withConfidence(0.8)
+            .withMetadata("parseMethod", "custom");
+    }
+    
+    @Override
+    public String getDescription() {
+        return "CustomParser[v1]";
+    }
+}
+```
+
 ## Benefits
 
-1. **Separation of Concerns**: Strategy logic separate from prompt engineering
-2. **Testability**: Easy to mock prompts for testing
-3. **Experimentation**: Swap prompt builders without changing strategy code
+1. **Separation of Concerns**: Strategy logic separate from prompt engineering and parsing
+2. **Centralized Parsing**: Single source of truth for response schemas
+3. **Testability**: Easy to mock prompts and responses for testing
+4. **Experimentation**: Swap components without changing strategy code
+5. **Error Handling**: Robust parsing with clear error reporting
+6. **Experimentation**: Swap prompt builders without changing strategy code
 4. **Backend Agnostic**: Works with any LLM provider
 5. **Versioning**: Track prompt versions independently from code
 
