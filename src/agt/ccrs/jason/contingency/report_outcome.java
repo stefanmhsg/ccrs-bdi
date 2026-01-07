@@ -1,6 +1,5 @@
 package ccrs.jason.contingency;
 
-import ccrs.core.contingency.CcrsTrace;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
@@ -8,6 +7,8 @@ import jason.asSyntax.*;
 import jason.JasonException;
 
 import java.util.logging.Logger;
+
+import ccrs.core.contingency.dto.CcrsTrace;
 
 /**
  * Internal action for reporting the outcome of a CCRS suggestion.

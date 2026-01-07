@@ -1,4 +1,4 @@
-package ccrs.core.contingency;
+package ccrs.core.contingency.dto;
 
 import java.util.ArrayList;
 import java.util.Collections;

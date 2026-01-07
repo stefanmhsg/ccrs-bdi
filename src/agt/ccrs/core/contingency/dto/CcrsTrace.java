@@ -1,4 +1,4 @@
-package ccrs.core.contingency;
+package ccrs.core.contingency.dto;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -6,6 +6,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+
+import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.CcrsStrategy.Applicability;
+import ccrs.core.contingency.dto.StrategyResult.Suggestion;
 
 /**
  * Trace of a CCRS contingency evaluation.

@@ -1,8 +1,8 @@
 package ccrs.jason.contingency;
 
-import ccrs.core.contingency.ActionRecord;
-import ccrs.core.contingency.CcrsTrace;
-import ccrs.core.contingency.StateSnapshot;
+import ccrs.core.contingency.dto.ActionRecord;
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.StateSnapshot;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
 import ccrs.jason.JasonRdfAdapter;

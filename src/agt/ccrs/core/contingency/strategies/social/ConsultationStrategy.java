@@ -4,15 +4,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.CcrsTrace;
-import ccrs.core.contingency.LlmActionResponse;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
-import ccrs.core.contingency.Situation;
-import ccrs.core.contingency.StrategyResult;
+import ccrs.core.contingency.dto.ActionRecord;
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.LlmActionResponse;
+import ccrs.core.contingency.dto.Situation;
+import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.capabilities.llm.TemplatePromptBuilder;
 
@@ -162,7 +162,7 @@ public class ConsultationStrategy implements CcrsStrategy {
         
         try {
             // Build consultation request
-            String question = buildQuestion(situation, context);
+            String question = buildQuestion(situation, context); //TODO: remove llm-mock channel and query building.
             Map<String, Object> consultContext = buildContext(situation, context);
             
             // Query the channel

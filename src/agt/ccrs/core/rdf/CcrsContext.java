@@ -4,9 +4,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import ccrs.core.contingency.ActionRecord;
-import ccrs.core.contingency.CcrsTrace;
-import ccrs.core.contingency.StateSnapshot;
+import ccrs.core.contingency.dto.ActionRecord;
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.StateSnapshot;
 
 /**
  * Context interface for CCRS operations.

@@ -1,7 +1,7 @@
 package ccrs.capabilities.llm;
 
-import ccrs.core.contingency.LlmActionResponse;
 import ccrs.core.contingency.LlmResponseParser;
+import ccrs.core.contingency.dto.LlmActionResponse;
 
 /**
  * JSON shaped response parser for LLM action responses.

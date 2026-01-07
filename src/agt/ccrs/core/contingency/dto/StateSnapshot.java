@@ -1,4 +1,4 @@
-package ccrs.core.contingency;
+package ccrs.core.contingency.dto;
 
 import java.time.Instant;
 import java.util.Collections;

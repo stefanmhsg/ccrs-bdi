@@ -1,5 +1,7 @@
 package ccrs.core.contingency;
 
+import ccrs.core.contingency.dto.Situation;
+import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 
 /**

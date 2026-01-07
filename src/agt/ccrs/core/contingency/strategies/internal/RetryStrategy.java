@@ -4,8 +4,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.Situation;
-import ccrs.core.contingency.StrategyResult;
+import ccrs.core.contingency.dto.Situation;
+import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 
 /**

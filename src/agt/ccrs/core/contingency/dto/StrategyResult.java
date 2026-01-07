@@ -1,4 +1,4 @@
-package ccrs.core.contingency;
+package ccrs.core.contingency.dto;
 
 import java.util.Collections;
 import java.util.HashMap;

@@ -1,9 +1,9 @@
 package ccrs.jason.contingency;
 
 import ccrs.core.contingency.ContingencyCcrs;
-import ccrs.core.contingency.CcrsTrace;
-import ccrs.core.contingency.Situation;
-import ccrs.core.contingency.StrategyResult;
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.Situation;
+import ccrs.core.contingency.dto.StrategyResult;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;

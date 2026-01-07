@@ -1,5 +1,7 @@
 package ccrs.core.contingency;
 
+import ccrs.core.contingency.dto.LlmActionResponse;
+
 /**
  * Parser for LLM responses in CCRS recovery scenarios.
  * 

@@ -5,6 +5,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.Situation;
+import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 
 /**
