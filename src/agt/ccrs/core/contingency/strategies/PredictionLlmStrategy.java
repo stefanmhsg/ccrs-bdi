@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
@@ -26,21 +27,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     public static final String ID = "prediction_llm";
     
     /**
-     * Interface for LLM calls - allows mocking and different implementations.
-     */
-    @FunctionalInterface
-    public interface LlmClient {
-        /**
-         * Send a prompt to the LLM and get a response.
-         * 
-         * @param prompt The prompt to send
-         * @return LLM response text
-         * @throws Exception if LLM call fails
-         */
-        String complete(String prompt) throws Exception;
-    }
-    
-    /**
      * Parsed LLM response for recovery suggestion.
      */
     public static class LlmSuggestion {
@@ -57,7 +43,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     // Configuration
     private LlmClient llmClient;
     private String promptTemplate;
-    private long timeoutMs = 10000;
     private double baseConfidence = 0.6;
     
     public PredictionLlmStrategy() {
@@ -236,6 +221,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return suggestion;
     }
     
+    // TODO: Replace with proper JSON parsing
     private String extractJsonValue(String json, String key) {
         // Simple regex-free extraction for "key": "value"
         String pattern = "\"" + key + "\"";
@@ -345,12 +331,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         this.promptTemplate = template;
         return this;
     }
-    
-    public PredictionLlmStrategy withTimeout(long timeoutMs) {
-        this.timeoutMs = timeoutMs;
-        return this;
-    }
-    
+        
     public PredictionLlmStrategy withConfidence(double confidence) {
         this.baseConfidence = confidence;
         return this;

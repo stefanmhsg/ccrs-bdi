@@ -1,4 +1,4 @@
-package ccrs.core.contingency.strategies;
+package ccrs.core.contingency.strategies.social;
 
 import java.util.List;
 import java.util.Map;
@@ -7,10 +7,10 @@ import java.util.stream.Collectors;
 import ccrs.core.contingency.ActionRecord;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.CcrsTrace;
+import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.Situation;
 import ccrs.core.contingency.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
-import ccrs.core.rdf.RdfTriple;
 
 /**
  * L4: Consultation Strategy (Social)
@@ -87,7 +87,6 @@ public class ConsultationStrategy implements CcrsStrategy {
     // Configuration
     private ConsultationChannel channel;
     private int maxConsultationsPerSituation = 1;
-    private long timeoutMs = 15000;
     
     public ConsultationStrategy() {
     }
@@ -119,7 +118,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     @Override
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         // Need a consultation channel
-        if (channel == null && !context.hasConsultationChannel()) {
+        if (channel == null) {
             return Applicability.NOT_APPLICABLE;
         }
         
@@ -272,7 +271,8 @@ public class ConsultationStrategy implements CcrsStrategy {
             situation.getCurrentResource() :
             context.getCurrentResource().orElse(null);
         
-        // Get structured neighborhood from context (lets channel decide serialization)
+        // Get structured neighborhood from context
+        // TODO: The strategy should still decide how to serialize/send this info
         CcrsContext.Neighborhood neighborhood = context.getNeighborhood(currentResource);
         ctx.put("neighborhood", neighborhood);
         ctx.put("neighborhoodSize", neighborhood.size());
@@ -313,15 +313,10 @@ public class ConsultationStrategy implements CcrsStrategy {
         return this;
     }
     
-    public ConsultationStrategy timeout(long timeoutMs) {
-        this.timeoutMs = timeoutMs;
-        return this;
-    }
-    
     /**
      * Create an LLM-based consultation channel (mock for POC).
      */
-    public static ConsultationChannel llmChannel(PredictionLlmStrategy.LlmClient llmClient) {
+    public static ConsultationChannel llmChannel(LlmClient llmClient) {
         return new ConsultationChannel() {
             @Override
             public boolean isAvailable() {
@@ -362,6 +357,7 @@ public class ConsultationStrategy implements CcrsStrategy {
                     """.formatted(question, ctx.toString());
             }
             
+            // TODO: Use a proper JSON parser
             private ConsultationResponse parseLlmResponse(String response) {
                 ConsultationResponse r = new ConsultationResponse();
                 r.success = true;
