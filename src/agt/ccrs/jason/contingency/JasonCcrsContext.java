@@ -8,38 +8,31 @@ import ccrs.core.rdf.RdfTriple;
 import ccrs.jason.JasonRdfAdapter;
 import jason.asSemantics.Agent;
 import jason.asSemantics.Unifier;
-import jason.asSyntax.ASSyntax;
-import jason.asSyntax.Literal;
-import jason.asSyntax.Term;
+import jason.asSyntax.*;
 import jason.bb.BeliefBase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.time.Instant;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Jason-specific implementation of CcrsContext.
- * Provides access to the Jason belief base for CCRS validation queries
- * and maintains history for contingency strategies.
+ * Queries belief base for RDF triples and history using add_time annotations.
+ * Expects TimestampedBeliefBase to be configured.
  */
 public class JasonCcrsContext implements CcrsContext {
     
     private static final String RDF_FUNCTOR = "rdf";
-    private static final int DEFAULT_HISTORY_SIZE = 50;
+    private static final String ADD_TIME_ANNOT = "add_time";
     
     private final Agent agent;
     private final String agentId;
     
-    // History tracking
-    private final LinkedList<ActionRecord> actionHistory = new LinkedList<>();
-    private final LinkedList<StateSnapshot> stateHistory = new LinkedList<>();
+    // Only track CCRS invocations (not in BB)
     private final LinkedList<CcrsTrace> ccrsHistory = new LinkedList<>();
-    private int maxHistorySize = DEFAULT_HISTORY_SIZE;
+    private static final int MAX_CCRS_HISTORY = 50;
     
-    // Current state
+    // Current state cache
     private String currentResource;
     
     public JasonCcrsContext(Agent agent) {
@@ -102,22 +95,100 @@ public class JasonCcrsContext implements CcrsContext {
     }
 
     
-    // ========== History Implementation ==========
+    // ========== History Implementation (Query Beliefs) ==========
     
     @Override
     public List<ActionRecord> getRecentActions(int maxCount) {
-        synchronized (actionHistory) {
-            int count = Math.min(maxCount, actionHistory.size());
-            return new ArrayList<>(actionHistory.subList(0, count));
+        List<ActionRecord> actions = new ArrayList<>();
+        
+        try {
+            Iterator<Literal> allBeliefs = agent.getBB().iterator();
+            while (allBeliefs.hasNext()) {
+                Literal bel = allBeliefs.next();
+                if ("action".equals(bel.getFunctor()) && bel.getArity() >= 3) {
+                    long timestamp = getTimestamp(bel);
+                    String actionType = JasonRdfAdapter.termToString(bel.getTerm(0));
+                    String target = JasonRdfAdapter.termToString(bel.getTerm(1));
+                    String outcomeStr = JasonRdfAdapter.termToString(bel.getTerm(2));
+                    
+                    ActionRecord.Outcome outcome = ActionRecord.Outcome.UNKNOWN;
+                    try {
+                        outcome = ActionRecord.Outcome.valueOf(outcomeStr.toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        // Keep UNKNOWN
+                    }
+                    
+                    ActionRecord.Builder builder = ActionRecord.builder(actionType, target)
+                        .outcome(outcome)
+                        .timestamp(millisToInstant(timestamp));
+                    
+                    if (bel.getArity() >= 4 && bel.getTerm(3).isList()) {
+                        ListTerm details = (ListTerm) bel.getTerm(3);
+                        for (Term item : details) {
+                            if (item.isStructure()) {
+                                Structure s = (Structure) item;
+                                if (s.getArity() > 0) {
+                                    builder.detail(s.getFunctor(), 
+                                        JasonRdfAdapter.termToString(s.getTerm(0)));
+                                }
+                            }
+                        }
+                    }
+                    
+                    actions.add(builder.build());
+                }
+            }
+        } catch (Exception e) {
+            // Query failed
         }
+        
+        actions.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
+        
+        return actions.stream()
+            .limit(maxCount)
+            .collect(Collectors.toList());
     }
     
     @Override
     public List<StateSnapshot> getRecentStates(int maxCount) {
-        synchronized (stateHistory) {
-            int count = Math.min(maxCount, stateHistory.size());
-            return new ArrayList<>(stateHistory.subList(0, count));
+        List<StateSnapshot> states = new ArrayList<>();
+        
+        try {
+            Iterator<Literal> allBeliefs = agent.getBB().iterator();
+            while (allBeliefs.hasNext()) {
+                Literal bel = allBeliefs.next();
+                if ("state".equals(bel.getFunctor()) && bel.getArity() >= 1) {
+                    long timestamp = getTimestamp(bel);
+                    String resource = JasonRdfAdapter.termToString(bel.getTerm(0));
+                    
+                    StateSnapshot.Builder builder = StateSnapshot.builder(resource)
+                        .timestamp(millisToInstant(timestamp));
+                    
+                    if (bel.getArity() >= 2 && bel.getTerm(1).isList()) {
+                        ListTerm summary = (ListTerm) bel.getTerm(1);
+                        for (Term item : summary) {
+                            if (item.isStructure()) {
+                                Structure s = (Structure) item;
+                                if (s.getArity() > 0) {
+                                    builder.summary(s.getFunctor(), 
+                                        JasonRdfAdapter.termToString(s.getTerm(0)));
+                                }
+                            }
+                        }
+                    }
+                    
+                    states.add(builder.build());
+                }
+            }
+        } catch (Exception e) {
+            // Query failed
         }
+        
+        states.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
+        
+        return states.stream()
+            .limit(maxCount)
+            .collect(Collectors.toList());
     }
     
     @Override
@@ -140,46 +211,48 @@ public class JasonCcrsContext implements CcrsContext {
         return true;
     }
     
-    // ========== History Recording ==========
-    
-    /**
-     * Record an action taken by the agent.
-     */
-    public void recordAction(ActionRecord action) {
-        synchronized (actionHistory) {
-            actionHistory.addFirst(action);
-            trimHistory(actionHistory);
-        }
-    }
-    
-    /**
-     * Record a state snapshot.
-     */
-    public void recordState(StateSnapshot state) {
-        synchronized (stateHistory) {
-            stateHistory.addFirst(state);
-            trimHistory(stateHistory);
-        }
-        // Update current resource
-        if (state.getResource() != null) {
-            this.currentResource = state.getResource();
-        }
-    }
-    
     /**
      * Record a CCRS invocation trace.
      */
     public void recordCcrsInvocation(CcrsTrace trace) {
         synchronized (ccrsHistory) {
             ccrsHistory.addFirst(trace);
-            trimHistory(ccrsHistory);
+            while (ccrsHistory.size() > MAX_CCRS_HISTORY) {
+                ccrsHistory.removeLast();
+            }
         }
     }
     
-    private <T> void trimHistory(LinkedList<T> history) {
-        while (history.size() > maxHistorySize) {
-            history.removeLast();
+    // ========== Utility Methods ==========
+    
+    /**
+     * Extract add_time annotation from belief. Returns 0 if not found.
+     */
+    private long getTimestamp(Literal bel) {
+        for (Term annot : bel.getAnnots()) {
+            if (annot.isStructure()) {
+                Structure s = (Structure) annot;
+                if (ADD_TIME_ANNOT.equals(s.getFunctor()) && s.getArity() > 0) {
+                    Term timeTerm = s.getTerm(0);
+                    if (timeTerm.isNumeric()) {
+                        try {
+                            return (long) ((NumberTerm) timeTerm).solve();
+                        } catch (Exception e) {
+                            return 0;
+                        }
+                    }
+                }
+            }
         }
+        return 0;
+    }
+    
+    /**
+     * Convert milliseconds-since-start to Instant approximation.
+     */
+    private Instant millisToInstant(long millis) {
+        // Use current time minus relative offset
+        return Instant.now().minusMillis(System.currentTimeMillis() % 1000000 - millis);
     }
     
     // ========== Agent State ==========
@@ -226,12 +299,6 @@ public class JasonCcrsContext implements CcrsContext {
      */
     public void setCurrentResource(String resource) {
         this.currentResource = resource;
-    }
-    
-    // ========== Configuration ==========
-    
-    public void setMaxHistorySize(int size) {
-        this.maxHistorySize = size;
     }
     
     /**

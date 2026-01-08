@@ -65,33 +65,35 @@ public class track extends DefaultInternalAction {
         
         String actionType = JasonRdfAdapter.termToString(args[1]);
         String target = JasonRdfAdapter.termToString(args[2]);
-        String outcomeStr = JasonRdfAdapter.termToString(args[3]).toUpperCase();
+        String outcomeStr = JasonRdfAdapter.termToString(args[3]);
         
-        ActionRecord.Outcome outcome;
         try {
-            outcome = ActionRecord.Outcome.valueOf(outcomeStr);
-        } catch (IllegalArgumentException e) {
-            outcome = ActionRecord.Outcome.UNKNOWN;
-        }
-        
-        ActionRecord.Builder builder = ActionRecord.builder(actionType, target)
-            .outcome(outcome);
-        
-        // Parse optional details
-        if (args.length >= 5 && args[4].isList()) {
-            ListTerm details = (ListTerm) args[4];
-            for (Term item : details) {
-                if (item.isStructure()) {
-                    Structure s = (Structure) item;
-                    if (s.getArity() > 0) {
-                        builder.detail(s.getFunctor(), JasonRdfAdapter.termToString(s.getTerm(0)));
-                    }
-                }
+            // Create action/3 or action/4 belief directly
+            Literal actionBel;
+            if (args.length >= 5 && args[4].isList()) {
+                // action(Type, Target, Outcome, Details)
+                actionBel = ASSyntax.createLiteral("action",
+                    ASSyntax.createString(actionType),
+                    ASSyntax.createString(target),
+                    ASSyntax.createString(outcomeStr),
+                    args[4]
+                );
+            } else {
+                // action(Type, Target, Outcome)
+                actionBel = ASSyntax.createLiteral("action",
+                    ASSyntax.createString(actionType),
+                    ASSyntax.createString(target),
+                    ASSyntax.createString(outcomeStr)
+                );
             }
+            
+            actionBel.addAnnot(jason.bb.BeliefBase.TSelf);
+            context.getBeliefBase().add(actionBel);
+            logger.fine("[CCRS-Track] Action: " + actionType + " " + target + " -> " + outcomeStr);
+            
+        } catch (Exception e) {
+            throw new JasonException("Failed to track action: " + e.getMessage());
         }
-        
-        context.recordAction(builder.build());
-        logger.fine("[CCRS-Track] Action: " + actionType + " " + target + " -> " + outcome);
         
         return true;
     }
@@ -105,24 +107,30 @@ public class track extends DefaultInternalAction {
         
         String resource = JasonRdfAdapter.termToString(args[1]);
         
-        StateSnapshot.Builder builder = StateSnapshot.builder(resource);
-        
-        // Parse optional summary
-        if (args.length >= 3 && args[2].isList()) {
-            ListTerm summary = (ListTerm) args[2];
-            for (Term item : summary) {
-                if (item.isStructure()) {
-                    Structure s = (Structure) item;
-                    if (s.getArity() > 0) {
-                        builder.summary(s.getFunctor(), JasonRdfAdapter.termToString(s.getTerm(0)));
-                    }
-                }
+        try {
+            // Create state/1 or state/2 belief directly
+            Literal stateBel;
+            if (args.length >= 3 && args[2].isList()) {
+                // state(Resource, Summary)
+                stateBel = ASSyntax.createLiteral("state",
+                    ASSyntax.createString(resource),
+                    args[2]
+                );
+            } else {
+                // state(Resource)
+                stateBel = ASSyntax.createLiteral("state",
+                    ASSyntax.createString(resource)
+                );
             }
+            
+            stateBel.addAnnot(jason.bb.BeliefBase.TSelf);
+            context.getBeliefBase().add(stateBel);
+            context.setCurrentResource(resource);
+            logger.fine("[CCRS-Track] State: " + resource);
+            
+        } catch (Exception e) {
+            throw new JasonException("Failed to track state: " + e.getMessage());
         }
-        
-        context.recordState(builder.build());
-        context.setCurrentResource(resource);
-        logger.fine("[CCRS-Track] State: " + resource);
         
         return true;
     }

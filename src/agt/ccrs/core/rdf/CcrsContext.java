@@ -14,7 +14,7 @@ import ccrs.core.contingency.dto.StateSnapshot;
  * 
  * Core interface is RDF-focused for agent-agnostic design.
  * Platform-specific adapters (Jason, LangGraph) extend this
- * with full access to their respective agent internals.
+ * with access to their respective agent internals.
  */
 public interface CcrsContext {
     

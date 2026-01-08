@@ -49,7 +49,7 @@ mas ccrs_bdi {
 
 */
  
-    agent minimal_ccrs_1: minimal_ccrs.asl {
+    agent contingency_ccrs_4: contingency_ccrs.asl {
       // Jason Agent Class
       ag-class: ccrs.jason.CcrsAgent
 
