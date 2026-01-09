@@ -248,4 +248,9 @@ public class JasonCcrsContext implements CcrsContext {
     public BeliefBase getBeliefBase() {
         return agent.getBB();
     }
+
+    @Override
+    public String toString() {
+        return "JasonCcrsContext{agentId='" + agentId + ", currentResource='" + currentResource + ", interactionLog=" + interactionLog.toString() + "}";
+    }
 }

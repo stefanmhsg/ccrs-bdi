@@ -45,7 +45,7 @@ public class evaluate extends DefaultInternalAction {
         Situation situation = parseSituation(args);
 
         logger.log(Level.INFO,
-            "[CCRS] Evaluating situation: " + situation);
+            "[CCRS] Evaluating situation: " + situation + " with context: " + context.toString());
 
         List<StrategyResult> results =
             ccrs.evaluate(situation, context);
@@ -161,12 +161,13 @@ public class evaluate extends DefaultInternalAction {
             ts.getAg()
               .getTS()
               .getSettings()
-              .getUserParameter("ccrs_context");
+              .getUserParameters()
+              .get("ccrs_context");
 
         if (ctx instanceof CcrsContext) {
             return (CcrsContext) ctx;
         }
-        
+
         throw new IllegalStateException(
             "CCRS context not found for agent: " + ts.getAgArch().getAgName()
         );

@@ -194,4 +194,5 @@ public interface CcrsContext {
     default boolean hasConsultationChannel() {
         return false;
     }
+
 }

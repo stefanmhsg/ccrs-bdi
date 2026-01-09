@@ -210,6 +210,8 @@ ABILITIES
         ?(rdf(MoveURI, related, CreatedResourceURI)) ; 
         .print("Created resource: ", CreatedResourceURI) ;        
         !!checkEndMove ;
+        ccrs.jason.contingency.evaluate("stuck", "loop", URI, Suggestion) ;
+        .print("Suggestion output from CCRS: ", Suggestion) ;
     .
 
 +!checkEndMove :

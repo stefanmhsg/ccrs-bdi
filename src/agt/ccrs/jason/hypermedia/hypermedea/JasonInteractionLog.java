@@ -82,5 +82,10 @@ public class JasonInteractionLog implements InteractionLogSink {
             .filter(i -> logicalSource.equals(i.logicalSource()))
             .toList();
     }
+
+    @Override
+    public String toString() {
+        return "JasonInteractionLog{history[0]=" + (history.isEmpty() ? "none" : history.getFirst()) + ", size=" + history.size() + "}";
+    }
 }
 
