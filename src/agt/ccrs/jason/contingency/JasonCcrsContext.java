@@ -43,6 +43,7 @@ public class JasonCcrsContext implements CcrsContext {
     
     // ========== RDF Query Implementation ==========
     
+    // TODO: Annotations?
     @Override
     public List<RdfTriple> query(String subject, String predicate, String object) {
         List<RdfTriple> results = new ArrayList<>();

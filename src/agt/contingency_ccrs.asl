@@ -206,23 +206,11 @@ ABILITIES
     <-
         .my_name(Me) ; // Name of the agent as defined in .jcm
         .print("POST to target cell URI - requesting MOVE to: ", URI) ;
-
         post(URI, [rdf(MazeAgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", CurrentCell)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", Me)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
         ?(rdf(MoveURI, related, CreatedResourceURI)) ; 
-        .print("Created resource: ", CreatedResourceURI) ;
-        
-        !track(MoveURI, CreatedResourceURI) ;
-        
+        .print("Created resource: ", CreatedResourceURI) ;        
         !!checkEndMove ;
     .
-
-+!track(MoveURI, CreatedResourceURI) :
-    .substring("http", CreatedResourceURI)
-    <-
-        // Track
-        ccrs.contingency.track("action", "post", MoveURI, "success") ;
-    .
-
 
 +!checkEndMove :
     moving
