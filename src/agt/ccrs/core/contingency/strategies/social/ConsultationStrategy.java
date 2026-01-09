@@ -8,8 +8,8 @@ import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
-import ccrs.core.contingency.dto.ActionRecord;
 import ccrs.core.contingency.dto.CcrsTrace;
+import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -253,12 +253,12 @@ public class ConsultationStrategy implements CcrsStrategy {
         
         // Add history if available
         if (context.hasHistory()) {
-            List<ActionRecord> actions = context.getRecentActions(10);
+            List<Interaction> actions = context.getRecentInteractions(10);
             ctx.put("recentActions", actions.stream()
                 .map(a -> Map.of(
-                    "action", a.getActionType(),
-                    "target", a.getTarget(),
-                    "outcome", a.getOutcome().name()))
+                    "action", a.method(),
+                    "target", a.requestUri(),
+                    "outcome", a.outcome().name()))
                 .collect(Collectors.toList()));
             
             // Add previous CCRS invocations

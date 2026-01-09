@@ -5,6 +5,7 @@ import cartago.ArtifactObsProperty;
 import ccrs.core.opportunistic.*;
 import ccrs.core.rdf.*;
 import ccrs.jason.JasonRdfAdapter;
+import ccrs.jason.contingency.JasonCcrsContext;
 import ccrs.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
 import ccrs.jason.hypermedia.hypermedea.InteractionLogSink;
 import ccrs.jason.hypermedia.hypermedea.JasonInteractionLog;
@@ -58,6 +59,12 @@ public class CcrsAgentArch extends CAgentArch {
 
         // Install it globally so the SPI binding can find it
         CcrsGlobalRegistry.setSink(sink);
+
+        // Create CcrsContext for this agent and log
+        JasonCcrsContext context = new JasonCcrsContext(getTS().getAg(), (JasonInteractionLog) sink);
+
+        // Store context in the agent's architecture for later retrieval
+        getTS().getSettings().addOption("ccrs_context", context);
         
         logger.log(Level.INFO, "[CcrsAgentArch: Contingency-CCRS]: Interaction Log Sink installed for Hypermedea.");
     }

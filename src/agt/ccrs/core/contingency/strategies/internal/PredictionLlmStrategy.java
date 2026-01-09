@@ -9,7 +9,7 @@ import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
-import ccrs.core.contingency.dto.ActionRecord;
+import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -174,13 +174,13 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             return "(no history available)";
         }
         
-        List<ActionRecord> actions = context.getRecentActions(maxHistoryActions);
-        if (actions.isEmpty()) {
-            return "(no recent actions)";
+        List<Interaction> interaction = context.getRecentInteractions(maxHistoryActions);
+        if (interaction.isEmpty()) {
+            return "(no recent interaction)";
         }
         
-        return actions.stream()
-            .map(a -> String.format("%s %s -> %s", a.getActionType(), a.getTarget(), a.getOutcome()))
+        return interaction.stream()
+            .map(a -> String.format("%s %s -> %s", a.method(), a.requestUri(), a.outcome()))
             .collect(Collectors.joining("\n"));
     }
     

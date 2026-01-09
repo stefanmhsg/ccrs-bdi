@@ -5,8 +5,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.Situation;
-import ccrs.core.contingency.dto.StateSnapshot;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
@@ -75,7 +75,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         }
         
         // Quick check: is there history or parent relationship?
-        if (context.hasHistory() && !context.getRecentStates(2).isEmpty()) {
+        if (context.hasHistory()) {
             return Applicability.APPLICABLE;
         }
         
@@ -164,23 +164,23 @@ public class BacktrackStrategy implements CcrsStrategy {
     }
     
     private Optional<String> findParentFromHistory(String currentResource, CcrsContext context) {
-        List<StateSnapshot> history = context.getRecentStates(10);
+        List<Interaction> history = context.getRecentInteractions(10);
         
-        // Find the state before we arrived at current
+        // Find the interaction before we arrived at current
         boolean foundCurrent = false;
-        for (StateSnapshot state : history) {
+        for (Interaction interaction : history) {
             if (foundCurrent) {
-                // This is the previous state
-                return Optional.ofNullable(state.getResource());
+                // This is the previous interaction
+                return Optional.ofNullable(interaction.requestUri());
             }
-            if (currentResource.equals(state.getResource())) {
+            if (currentResource.equals(interaction.requestUri())) {
                 foundCurrent = true;
             }
         }
         
         // If current not in history but we have history, return most recent
         if (!history.isEmpty() && !foundCurrent) {
-            return Optional.ofNullable(history.get(0).getResource());
+            return Optional.ofNullable(history.get(0).requestUri());
         }
         
         return Optional.empty();
