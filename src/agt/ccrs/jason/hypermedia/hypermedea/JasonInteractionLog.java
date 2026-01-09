@@ -52,8 +52,35 @@ public class JasonInteractionLog implements InteractionLogSink {
 
     // === Query API used by CcrsContext ===
 
+    /**
+     * Get recent interaction history.
+     * 
+     * @param maxCount Maximum number of interactions to return
+     * @return Recent interactions, most recent first
+     */    
     public List<Interaction> getRecentInteractions(int n) {
         return history.stream().limit(n).toList();
+    }
+
+    /**
+     * Get the most recent interaction.
+     *
+     * @return Last interaction, or empty if none available
+     */
+    public java.util.Optional<Interaction> getLastInteraction() {
+        return history.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(history.getFirst());
+    }
+
+    /**
+     * Get interactions for a specific logical source.
+     * 
+     * @param logicalSource The logical source identifier
+     * @return List of interactions from that source
+     */
+    public List<Interaction> getInteractionsFor(String logicalSource) {
+        return history.stream()
+            .filter(i -> logicalSource.equals(i.logicalSource()))
+            .toList();
     }
 }
 

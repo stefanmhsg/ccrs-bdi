@@ -4,9 +4,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import ccrs.core.contingency.dto.ActionRecord;
 import ccrs.core.contingency.dto.CcrsTrace;
-import ccrs.core.contingency.dto.StateSnapshot;
+import ccrs.core.contingency.dto.Interaction;
 
 /**
  * Context interface for CCRS operations.
@@ -103,25 +102,34 @@ public interface CcrsContext {
         return getNeighborhood(resource, DEFAULT_MAX_OUTGOING, DEFAULT_MAX_INCOMING);
     }
     
-    // ========== History (optional) ==========
+    // ========== History ==========
     
     /**
-     * Get recent actions taken by the agent.
+     * Get recent interaction history.
      * 
-     * @param maxCount Maximum number of actions to return
-     * @return Recent actions, most recent first
+     * @param maxCount Maximum number of interactions to return
+     * @return Recent interactions, most recent first
      */
-    default List<ActionRecord> getRecentActions(int maxCount) {
+    default List<Interaction> getRecentInteractions(int maxCount) {
         return Collections.emptyList();
     }
-    
+
     /**
-     * Get recent state snapshots.
-     * 
-     * @param maxCount Maximum number of snapshots to return
-     * @return Recent states, most recent first
+     * Get the most recent interaction.
+     *
+     * @return Last interaction, or empty if none available
      */
-    default List<StateSnapshot> getRecentStates(int maxCount) {
+    default Optional<Interaction> getLastInteraction() {
+        return Optional.empty();
+    }
+
+    /**
+     * Get interactions for a specific logical source.
+     * 
+     * @param logicalSource The logical source identifier
+     * @return List of interactions from that source
+     */
+    default List<Interaction> getInteractionsFor(String logicalSource) {
         return Collections.emptyList();
     }
     

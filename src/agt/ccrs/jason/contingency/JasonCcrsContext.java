@@ -1,11 +1,11 @@
 package ccrs.jason.contingency;
 
-import ccrs.core.contingency.dto.ActionRecord;
 import ccrs.core.contingency.dto.CcrsTrace;
-import ccrs.core.contingency.dto.StateSnapshot;
+import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
 import ccrs.jason.JasonRdfAdapter;
+import ccrs.jason.hypermedia.hypermedea.JasonInteractionLog;
 import jason.asSemantics.Agent;
 import jason.asSemantics.Unifier;
 import jason.asSyntax.*;
@@ -27,6 +27,8 @@ public class JasonCcrsContext implements CcrsContext {
     
     private final Agent agent;
     private final String agentId;
+
+    private final JasonInteractionLog interactionLog;
     
     // Only track CCRS invocations (not in BB)
     private final LinkedList<CcrsTrace> ccrsHistory = new LinkedList<>();
@@ -35,15 +37,16 @@ public class JasonCcrsContext implements CcrsContext {
     // Current state cache
     private String currentResource;
     
-    public JasonCcrsContext(Agent agent) {
+    public JasonCcrsContext(Agent agent, JasonInteractionLog interactionLog) {
         this.agent = agent;
         this.agentId = agent.getTS() != null ? 
             agent.getTS().getAgArch().getAgName() : "unknown";
+        this.interactionLog = interactionLog;
     }
     
     // ========== RDF Query Implementation ==========
     
-    // TODO: Annotations?
+    // TODO: Annotations? not in rdf?
     @Override
     public List<RdfTriple> query(String subject, String predicate, String object) {
         List<RdfTriple> results = new ArrayList<>();
@@ -96,100 +99,30 @@ public class JasonCcrsContext implements CcrsContext {
     }
 
     
-    // ========== History Implementation (Query Beliefs) ==========
+    // ========== History Implementation (Query Hypermedia-Artifact InteractionLog) ==========
     
     @Override
-    public List<ActionRecord> getRecentActions(int maxCount) {
-        List<ActionRecord> actions = new ArrayList<>();
-        
-        try {
-            Iterator<Literal> allBeliefs = agent.getBB().iterator();
-            while (allBeliefs.hasNext()) {
-                Literal bel = allBeliefs.next();
-                if ("action".equals(bel.getFunctor()) && bel.getArity() >= 3) {
-                    long timestamp = getTimestamp(bel);
-                    String actionType = JasonRdfAdapter.termToString(bel.getTerm(0));
-                    String target = JasonRdfAdapter.termToString(bel.getTerm(1));
-                    String outcomeStr = JasonRdfAdapter.termToString(bel.getTerm(2));
-                    
-                    ActionRecord.Outcome outcome = ActionRecord.Outcome.UNKNOWN;
-                    try {
-                        outcome = ActionRecord.Outcome.valueOf(outcomeStr.toUpperCase());
-                    } catch (IllegalArgumentException e) {
-                        // Keep UNKNOWN
-                    }
-                    
-                    ActionRecord.Builder builder = ActionRecord.builder(actionType, target)
-                        .outcome(outcome)
-                        .timestamp(millisToInstant(timestamp));
-                    
-                    if (bel.getArity() >= 4 && bel.getTerm(3).isList()) {
-                        ListTerm details = (ListTerm) bel.getTerm(3);
-                        for (Term item : details) {
-                            if (item.isStructure()) {
-                                Structure s = (Structure) item;
-                                if (s.getArity() > 0) {
-                                    builder.detail(s.getFunctor(), 
-                                        JasonRdfAdapter.termToString(s.getTerm(0)));
-                                }
-                            }
-                        }
-                    }
-                    
-                    actions.add(builder.build());
-                }
-            }
-        } catch (Exception e) {
-            // Query failed
+    public List<Interaction> getRecentInteractions(int maxCount) {
+        if (interactionLog == null) {
+            return Collections.emptyList();
         }
-        
-        actions.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
-        
-        return actions.stream()
-            .limit(maxCount)
-            .collect(Collectors.toList());
+        return interactionLog.getRecentInteractions(maxCount);
     }
-    
+
     @Override
-    public List<StateSnapshot> getRecentStates(int maxCount) {
-        List<StateSnapshot> states = new ArrayList<>();
-        
-        try {
-            Iterator<Literal> allBeliefs = agent.getBB().iterator();
-            while (allBeliefs.hasNext()) {
-                Literal bel = allBeliefs.next();
-                if ("state".equals(bel.getFunctor()) && bel.getArity() >= 1) {
-                    long timestamp = getTimestamp(bel);
-                    String resource = JasonRdfAdapter.termToString(bel.getTerm(0));
-                    
-                    StateSnapshot.Builder builder = StateSnapshot.builder(resource)
-                        .timestamp(millisToInstant(timestamp));
-                    
-                    if (bel.getArity() >= 2 && bel.getTerm(1).isList()) {
-                        ListTerm summary = (ListTerm) bel.getTerm(1);
-                        for (Term item : summary) {
-                            if (item.isStructure()) {
-                                Structure s = (Structure) item;
-                                if (s.getArity() > 0) {
-                                    builder.summary(s.getFunctor(), 
-                                        JasonRdfAdapter.termToString(s.getTerm(0)));
-                                }
-                            }
-                        }
-                    }
-                    
-                    states.add(builder.build());
-                }
-            }
-        } catch (Exception e) {
-            // Query failed
+    public Optional<Interaction> getLastInteraction() {
+        if (interactionLog == null) {
+            return Optional.empty();
         }
-        
-        states.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()));
-        
-        return states.stream()
-            .limit(maxCount)
-            .collect(Collectors.toList());
+        return interactionLog.getLastInteraction();
+    }
+
+    @Override
+    public List<Interaction> getInteractionsFor(String logicalSource) {
+        if (interactionLog == null) {
+            return Collections.emptyList();
+        }
+        return interactionLog.getInteractionsFor(logicalSource);
     }
     
     @Override
@@ -209,7 +142,7 @@ public class JasonCcrsContext implements CcrsContext {
     
     @Override
     public boolean hasHistory() {
-        return true;
+        return interactionLog != null && !interactionLog.getRecentInteractions(1).isEmpty();
     }
     
     /**
