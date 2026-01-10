@@ -132,32 +132,12 @@ DELIBERATION STEPS
         !evaluate_actions(Location) ; // Check for necessary actions
     .
 
-// Unlock Action if Cell is of type Lock
-+!evaluate_actions(CurrentCell) :
-    //isLocked(CurrentCell)
-    rdf(CurrentCell, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
-    <-
-        ?rdf(CurrentCell, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
-        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
-        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
-        
-        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
-        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
-        
-        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
-        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
-
-        .print(CurrentCell, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
-
-        !post(CurrentCell, [rdf(CurrentCell, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
-        !crawl(CurrentCell) ; // TODO: potential loop
-    .
-
 // Unspecified or Unknown Action
-+!evaluate_actions(CurrentCell) :
-    not rdf(CurrentCell, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock") // DT assumption that only Lock related actions exist
++!evaluate_actions(Location) :
+    true // DT assumption no actions required
     <-
-        .print("Unable to cope with actions in: ", CurrentCell) ;
+        .print("Unable to cope with actions in: ", Location) ;
+        // CCRS Hook
     .
 
 // Next move if Exit in sight
