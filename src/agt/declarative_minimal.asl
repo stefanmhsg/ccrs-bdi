@@ -23,9 +23,8 @@ environment_agent_name_prefix("http://127.0.1.1:8080/agents/") .
     <-
         .date(Y,M,D); .time(H,Min,Sec,MilSec) ; // get current date & time
         +started(Y,M,D,H,Min,Sec,MilSec) ;             // add a new belief
-        // +at(URI) ;
         !construct_agent_name ;
-        !solve_maze ;
+        !enter_maze ;
     .
 
 +!construct_agent_name :
@@ -35,13 +34,6 @@ environment_agent_name_prefix("http://127.0.1.1:8080/agents/") .
         .concat(Prefix, Me, AgentName) ;
         +agent_name(AgentName) ;
         .print("Agent name in the environment is: ", AgentName) ;
-    .
-
-+!solve_maze :
-    true
-    <-
-        !enter_maze ;
-        !escape ;
     .
 
 +!enter_maze :
@@ -54,11 +46,13 @@ environment_agent_name_prefix("http://127.0.1.1:8080/agents/") .
         !access(Start) ;
     .
 
-+!escape :
-    at(URI)
+/*******************
+MAIN LOOP
+*******************/
++!escape(URI) :
+    not crawling
     <-
         !naviagte(URI) ;
-        !escape ;
     .
 
 // Stop at exit
@@ -67,6 +61,60 @@ environment_agent_name_prefix("http://127.0.1.1:8080/agents/") .
     <-
         .print("Already at exit: ", URI) ;
         .succeed_goal(escape) ;
+        .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
+        +finished(Y,M,D,H,Min,Sec,MilSec) ;
+        !!stop ;
+    .
+
+// Move on
++!naviagte(Location) :
+    not requires_action(Location) & not exit(Location)
+    <-
+        .print("No open actions. Deciding next step from: ", Location) ;
+        !select_next(Location) ; // Select next move
+    .
+
+// Must perform action
++!naviagte(Location) : 
+    requires_action(Location)
+    <-
+        .print("Cell requires action: ", Location) ;
+        !evaluate_actions(Location) ; // Check for necessary actions
+    .
+
+// Unspecified or Unknown Action
++!evaluate_actions(Location) :
+    true // DT assumption no actions required
+    <-
+        .print("Unable to cope with actions in: ", Location) ;
+        // CCRS Hook
+    .
+
+// Next move if Exit in sight
++!select_next(Location) :
+    exit(ExitCell)
+    <-
+        !access(ExitCell) ;
+    .
+
+// Next move 
++!select_next(Location) :
+    true
+    <-
+        // Retruns List as list of all X = Options from affords beliefs that are annotated as valid.
+        .findall(X, affords(_,X)[base(Location)], List) ; 
+        
+        // randomly choose from valid outgoing links
+        jia.pick(List, Result) ;
+        .print("Random IA resultet in: ", Result) ;
+        !access(Result) ;   
+    .
+
+// Start next loop
+-crawling : 
+    at(URI) & not entry_point(URI)
+    <- 
+        !escape(URI) ;
     .
 
 /*******************
@@ -111,55 +159,6 @@ REACTING TO EVENTS
         +exit(ExitCell) ;
         .print("Found Exit! It's at: ", ExitCell);
     .
-
-/*******************
-DELIBERATION STEPS
-*******************/
-
-// Move on
-+!naviagte(Location) :
-    not requires_action(Location) & not exit(Location)
-    <-
-        .print("No open actions. Deciding next step from: ", Location) ;
-        !select_next(Location) ; // Select next move
-    .
-
-// Must perform action
-+!naviagte(Location) : 
-    requires_action(Location)
-    <-
-        .print("Cell requires action: ", Location) ;
-        !evaluate_actions(Location) ; // Check for necessary actions
-    .
-
-// Unspecified or Unknown Action
-+!evaluate_actions(Location) :
-    true // DT assumption no actions required
-    <-
-        .print("Unable to cope with actions in: ", Location) ;
-        // CCRS Hook
-    .
-
-// Next move if Exit in sight
-+!select_next(Location) :
-    exit(ExitCell)
-    <-
-        !access(ExitCell) ;
-    .
-
-// Next move 
-+!select_next(Location) :
-    true
-    <-
-        // Retruns List as list of all X = Options from affords beliefs that are annotated as valid.
-        .findall(X, affords(_,X), List) ; 
-        
-        // randomly choose from valid outgoing links
-        jia.pick(List, Result) ;
-        .print("Random IA resultet in: ", Result) ;
-        !access(Result) ;   
-    .
-
 
 /*******************
 HELPER PLANS
@@ -218,16 +217,20 @@ HELPER PLANS
 +!report_time :
     true
     <-
-        ?started(Y1, M1, D1, H1, Min1, S1) ;
-        ?finished(Y2, M2, D2, H2, Min2, S2) ;
+        ?started(Y1, M1, D1, H1, Min1, S1, MilSec1) ;
+        ?finished(Y2, M2, D2, H2, Min2, S2, MilSec2) ;
 
-        // convert both to seconds
-        T1 = ((H1 * 3600) + (Min1 * 60) + S1) ;
-        T2 = ((H2 * 3600) + (Min2 * 60) + S2) ;
+        // convert both to milliseconds
+        T1ms = ((H1 * 3600 + Min1 * 60 + S1) * 1000) + MilSec1 ;
+        T2ms = ((H2 * 3600 + Min2 * 60 + S2) * 1000) + MilSec2 ;
 
-        Diff = T2 - T1 ;
+        DiffMs = T2ms - T1ms ;
 
-        .print("It took ", Diff, " seconds") ;
+        // derive seconds and remaining milliseconds
+        DiffSec = DiffMs div 1000 ;
+        DiffRemMs = DiffMs mod 1000 ;
+        
+        .print("It took ", DiffSec, " seconds and ", DiffRemMs, " milliseconds") ;
     .
 
 
