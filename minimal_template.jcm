@@ -14,20 +14,22 @@
 
 mas ccrs_bdi {
 
-    agent baseline_1: baseline_agent.asl {
-      ag-class: ccrs.jason.CcrsAgent
-    //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
+    agent minimal_template_1: minimal_template.asl {
+      // Jason Agent Class
+      // ag-class: ccrs.jason.CcrsAgent
+
+      // JaCaMo Agent Architecture
+      // ag-arch: ccrs.jaca.CcrsAgentArch
+
+      //  debug: mindinspector(gui(cycle,html,history))
+      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }    
+
 
     workspace w {
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
-    }
-
- 
-
-
+    }  
 
 }

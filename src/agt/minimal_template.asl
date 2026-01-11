@@ -82,31 +82,12 @@ MAIN LOOP
         !evaluate_actions(Location) ; // Check for necessary actions
     .
 
-// Unlock Action if Cell is of type Lock
-+!evaluate_actions(Location) :
-    rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
-    <-
-        ?rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
-        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
-        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
-        
-        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
-        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
-        
-        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
-        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
-
-        .print(Location, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
-
-        !post(Location, [rdf(Location, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
-        !crawl(Location) ;
-    .
-
 // Unspecified or Unknown Action
 +!evaluate_actions(Location) :
-    not rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock") // DT assumption that only Lock related actions exist
+    true // DT assumption no actions required
     <-
         .print("Unable to cope with actions in: ", Location) ;
+        // CCRS Hook
     .
 
 // Next move if Exit in sight
@@ -126,7 +107,7 @@ MAIN LOOP
         // randomly choose from valid outgoing links
         jia.pick(List, Result) ;
         .print("Random IA resultet in: ", Result) ;
-        !access(Result) ;   
+        !access(Result) ;
     .
 
 // Start next loop

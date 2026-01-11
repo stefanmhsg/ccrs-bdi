@@ -71,6 +71,10 @@ MAIN LOOP
     not requires_action(Location) & not exit(Location)
     <-
         .print("No open actions. Deciding next step from: ", Location) ;
+        // DFS
+        !evaluate_affordances(Location) ; // Annotate valid affordances
+        // DFS
+        !track_unexplored_affordances(Location) ; // Tracking which valid affordances have (not) been explored from current Location
         !select_next(Location) ; // Select next move
     .
 
@@ -82,12 +86,60 @@ MAIN LOOP
         !evaluate_actions(Location) ; // Check for necessary actions
     .
 
+// Unlock Action if Cell is of type Lock
++!evaluate_actions(Location) :
+    rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
+    <-
+        ?rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
+        
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
+        
+        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
+        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
+
+        .print(Location, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
+
+        !post(Location, [rdf(Location, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
+        !crawl(Location) ;
+    .
+
 // Unspecified or Unknown Action
 +!evaluate_actions(Location) :
-    true // DT assumption no actions required
+    not rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock") // DT assumption that only Lock related actions exist
     <-
         .print("Unable to cope with actions in: ", Location) ;
-        // CCRS Hook
+    .
+
+
+// DFS: Annotate valid affordances
++!evaluate_affordances(Location) :
+    discovered(Location)[parent(Parent)]
+    <-
+        .print("Evaluate affordances from: ", Location) ;
+        -affords(_,_)[base(Parent)] ; // Delete all remaining affordance beliefs from Parent. If none is present because is Locked -> should still remove the previous belief of this affordance!
+        // Evaluate affordance possibilities
+        for (affords(P, Option)) { // Loop through beliefs of form affords/2
+            if (not (blocked(Option)) & Location \== Option & Parent \== Option) { // Filter out blocked options / going to self / going back
+                .print("Could go ", Option) ;
+                +affords(P, Option)[valid_affordance("True")] ; // Append an annotation to the existing belief
+            }
+        }    
+    .
+
+// DFS: Create DFS structure if not existing (for tracking which dirs have been explored from current Location).
++!track_unexplored_affordances(Location) :
+    true 
+    <-
+        if (not remaining(Location, _)) { // Ensure this is only added once to keep track of explored affordances
+            .findall(X, affords(_,X)[valid_affordance("True")], List) ; // Retruns List as list of all X = Options from affordance beliefs that are annotated as valid.
+            .print("Tracking unexplored affordances: ", List) ;
+            +remaining(Location, List) ; // Add belief of unexplored options based from current Location.
+        } else {
+            .print("Tracking list of unexplored affordances already available.") ;
+        }
     .
 
 // Next move if Exit in sight
@@ -97,17 +149,40 @@ MAIN LOOP
         !access(ExitCell) ;
     .
 
-// Next move 
+// DFS: Next move if current Location has unexplored options left
 +!select_next(Location) :
-    true
+    remaining(Location, [Next | Tail]) // check if list has next item
     <-
-        // Retruns List as list of all X = Options from affords beliefs that are annotated as valid.
-        .findall(X, affords(_,X)[base(Location)], List) ; 
-        
-        // randomly choose from valid outgoing links
-        jia.pick(List, Result) ;
-        .print("Random IA resultet in: ", Result) ;
-        !access(Result) ;   
+        .print("Selected next option: ", Next) ;
+        -remaining(Location, [Next|Tail]) ; // Delete item
+        +remaining(Location, Tail) ; // Add item minus next option
+        .print("remaining options: ", Tail) ;
+        !access(Next) ;
+    .
+
+// DFS: Next move if current Location has no options left
++!select_next(Location) :
+    remaining(Location, []) // check if list is empty = Location fully explored
+    <-
+        .print("Location fully explored, lets backtrack") ;
+        !backtrack_from(Location) ; // Dead-end.. Go to parent        
+    .
+
+// DFS: Back at start
++!backtrack_from(Location) :
+    discovered(Location)[parent (Parent)] & entry_point(Parent)
+    <-
+        .print("All the way back to http://127.0.1.1:8080/maze. I give up.") ;
+        .fail_goal(backtrack_from(Location)) ;
+        .fail_goal(select_next(Location)) ;
+    .
+
+// DFS: Take one step backwards
++!backtrack_from(Location) :
+    discovered(Location)[parent (Parent)] & not entry_point(Parent)
+    <-
+        .print("Going back to parent: ", Parent) ;
+        !access(Parent) ;
     .
 
 // Start next loop
@@ -125,8 +200,14 @@ REACTING TO EVENTS
 +rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Cell")[rdf_type_map(_, _, uri), source(Anchor)] :
     crawling & h.target(Location, Target)
     <-
+        // DFS: Path tracking
+        ?at(Previous) ;
         -+at(Target) ; // update location. (Same as -at(_) ; +at(Target) ;)
-        .print("I'm now at: ", Target) ;
+        .print("I'm now at: ", Target) ;         
+        if (not (discovered(Target))) { // Only add once on first encounter.
+            +discovered(Target)[parent(Previous)] ; // mark current location as discovered (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
+            .print("Discovered: ", Target, " from: ", Previous) ;
+        }       
     .
 
 // Map outgoing links (as soon as they get perceived)

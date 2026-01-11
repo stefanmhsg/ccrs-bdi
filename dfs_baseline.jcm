@@ -14,7 +14,7 @@
 
 mas ccrs_bdi {
 
-    agent declarative_minimal_1: declarative_minimal.asl {
+    agent dfs_baseline_1: dfs_baseline.asl {
       // Jason Agent Class
       // ag-class: ccrs.jason.CcrsAgent
 
@@ -26,10 +26,13 @@ mas ccrs_bdi {
       focus: w.h 
     }    
 
-
     workspace w {
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
-    }  
+    }
+
+ 
+
+
 
 }
