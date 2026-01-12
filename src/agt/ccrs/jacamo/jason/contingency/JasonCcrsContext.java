@@ -1,11 +1,11 @@
-package ccrs.jason.contingency;
+package ccrs.jacamo.jason.contingency;
 
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
-import ccrs.jason.JasonRdfAdapter;
-import ccrs.jason.hypermedia.hypermedea.JasonInteractionLog;
+import ccrs.jacamo.jason.JasonRdfAdapter;
+import ccrs.jacamo.jason.hypermedia.hypermedea.JasonInteractionLog;
 import jason.asSemantics.Agent;
 import jason.asSemantics.Unifier;
 import jason.asSyntax.*;

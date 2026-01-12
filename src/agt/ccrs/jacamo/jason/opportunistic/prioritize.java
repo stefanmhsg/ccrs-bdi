@@ -1,4 +1,4 @@
-package ccrs.jason;
+package ccrs.jacamo.jason.opportunistic;
 
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
@@ -55,6 +55,12 @@ public class prioritize extends DefaultInternalAction {
             ListTerm inputList = (ListTerm) inputListTerm;
 
             logger.log(Level.INFO, "[CCRS-Prioritize] Input options: " + inputList);
+
+            // Return early if input list is empty or has one element (no prioritization needed)
+            if (inputList.isEmpty() || inputList.size() == 1) {
+                logger.log(Level.INFO, "[CCRS-Prioritize] Input list has 0 or 1 element, no prioritization needed.");
+                return un.unifies(inputList, args[1]);
+            }
             
             // 3. Extract CCRS beliefs from the belief base
             Map<String, Literal> ccrsBeliefs = extractCcrsBeliefs(ts);

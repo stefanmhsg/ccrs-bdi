@@ -14,12 +14,12 @@
 
 mas ccrs_bdi {
 
-    agent dfs_baseline_1: dfs_baseline.asl {
+    agent dfs_ccrs_3: dfs_ccrs.asl {
       // Jason Agent Class
-      // ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
+      ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
-      // ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
+      ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
       //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging

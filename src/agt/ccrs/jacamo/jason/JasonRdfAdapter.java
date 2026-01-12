@@ -1,4 +1,4 @@
-package ccrs.jason;
+package ccrs.jacamo.jason;
 
 import ccrs.core.opportunistic.OpportunisticResult;
 import ccrs.core.rdf.RdfTriple;

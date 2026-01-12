@@ -1,4 +1,4 @@
-package ccrs.jason.hypermedia.hypermedea;
+package ccrs.jacamo.jason.hypermedia.hypermedea;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -7,7 +7,7 @@ import java.util.Map;
 
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.RdfTriple;
-import ccrs.jason.JasonRdfAdapter;
+import ccrs.jacamo.jason.JasonRdfAdapter;
 
 import org.hypermedea.op.Operation;
 import org.hypermedea.op.Response;

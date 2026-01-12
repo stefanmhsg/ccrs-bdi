@@ -1,4 +1,4 @@
-package ccrs.jason.hypermedia.hypermedea;
+package ccrs.jacamo.jason.hypermedia.hypermedea;
 
 import java.util.concurrent.atomic.AtomicReference;
 

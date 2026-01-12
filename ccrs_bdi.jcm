@@ -24,10 +24,10 @@ mas ccrs_bdi {
 
     agent minimal_ccrs: minimal_ccrs.asl {
       // Jason Agent Class
-      ag-class: ccrs.jason.CcrsAgent
+      ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
-      ag-arch: ccrs.jaca.CcrsAgentArch
+      ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
@@ -37,10 +37,10 @@ mas ccrs_bdi {
     agent dfs_ccrs_1: dfs_ccrs.asl {
 
       // Jason Agent Class
-      ag-class: ccrs.jason.CcrsAgent
+      ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
-      ag-arch: ccrs.jaca.CcrsAgentArch
+      ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
@@ -51,10 +51,10 @@ mas ccrs_bdi {
  
     agent contingency_ccrs_5: contingency_ccrs.asl {
       // Jason Agent Class
-      ag-class: ccrs.jason.CcrsAgent
+      ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
-      ag-arch: ccrs.jaca.CcrsAgentArch
+      ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
     //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging

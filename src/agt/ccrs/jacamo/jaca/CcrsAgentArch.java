@@ -1,14 +1,14 @@
-package ccrs.jaca;
+package ccrs.jacamo.jaca;
 
 import cartago.ArtifactId;
 import cartago.ArtifactObsProperty;
 import ccrs.core.opportunistic.*;
 import ccrs.core.rdf.*;
-import ccrs.jason.JasonRdfAdapter;
-import ccrs.jason.contingency.JasonCcrsContext;
-import ccrs.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
-import ccrs.jason.hypermedia.hypermedea.InteractionLogSink;
-import ccrs.jason.hypermedia.hypermedea.JasonInteractionLog;
+import ccrs.jacamo.jason.JasonRdfAdapter;
+import ccrs.jacamo.jason.contingency.JasonCcrsContext;
+import ccrs.jacamo.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
+import ccrs.jacamo.jason.hypermedia.hypermedea.InteractionLogSink;
+import ccrs.jacamo.jason.hypermedia.hypermedea.JasonInteractionLog;
 import jaca.CAgentArch;
 import jason.JasonException;
 import jason.asSemantics.Intention;

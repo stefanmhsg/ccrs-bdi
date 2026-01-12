@@ -1,4 +1,4 @@
-package ccrs.jason;
+package ccrs.jacamo.jason;
 
 import jason.JasonException;
 import jason.asSemantics.Agent;

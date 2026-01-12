@@ -16,10 +16,10 @@ mas ccrs_bdi {
 
     agent minimal_template_1: minimal_template.asl {
       // Jason Agent Class
-      // ag-class: ccrs.jason.CcrsAgent
+      // ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
-      // ag-arch: ccrs.jaca.CcrsAgentArch
+      // ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
       //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging

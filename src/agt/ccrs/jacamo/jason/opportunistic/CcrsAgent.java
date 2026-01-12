@@ -1,4 +1,4 @@
-package ccrs.jason;
+package ccrs.jacamo.jason.opportunistic;
 
 import jason.JasonException;
 import jason.RevisionFailedException;
@@ -19,6 +19,7 @@ import ccrs.core.opportunistic.VocabularyMatcher;
 import ccrs.core.rdf.CcrsVocabulary;
 import ccrs.core.rdf.CcrsVocabularyLoader;
 import ccrs.core.rdf.RdfTriple;
+import ccrs.jacamo.jason.JasonRdfAdapter;
 
 /**
  * Jason agent with opportunistic CCRS scanning at the BRF level.

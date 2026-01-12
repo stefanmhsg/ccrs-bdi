@@ -1,10 +1,10 @@
-package ccrs.jason.contingency;
+package ccrs.jacamo.jason.contingency;
 
 import ccrs.core.contingency.ContingencyCcrs;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
-import ccrs.jason.JasonRdfAdapter;
+import ccrs.jacamo.jason.JasonRdfAdapter;
 import jason.JasonException;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
