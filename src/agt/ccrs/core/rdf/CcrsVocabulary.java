@@ -66,7 +66,8 @@ public class CcrsVocabulary {
 
             String type = getString(r, PATTERN_TYPE);
             String pos = getString(r, MATCHES_POSITION);
-            int priority = getInt(r, PRIORITY, 0);
+            double priority = getDouble(r, PRIORITY, 0.0);
+            validatePriority(priority, r.getURI());
             
             if (type != null && pos != null) {
                 discoveredTypes.add(type);
@@ -88,7 +89,8 @@ public class CcrsVocabulary {
 
             String id = getPatternId(r);
             String type = getString(r, PATTERN_TYPE);
-            int priority = getInt(r, PRIORITY, 0);
+            double priority = getDouble(r, PRIORITY, 0.0);
+            validatePriority(priority, id);
             String targetVar = getString(r, EXTRACT_TARGET_VARIABLE);            
             String sparql = getString(r, SPARQL_PATTERN);
             String relVar = getString(r, EXTRACT_RELEVANCE_VARIABLE);
@@ -110,13 +112,13 @@ public class CcrsVocabulary {
         }
         
         // Ensure high priority patterns are matched first
-        structuralPatterns.sort((a, b) -> Integer.compare(b.priority, a.priority));
+        structuralPatterns.sort((a, b) -> Double.compare(b.priority, a.priority));
     }
 
     /**
      * Attempts to compile SPARQL into a lightweight Java object.
      */
-    private Optional<StructuralPatternDefinition> tryCompileFastPath(String id, String type, int prio, 
+    private Optional<StructuralPatternDefinition> tryCompileFastPath(String id, String type, double prio, 
             String targetVar, String relVar, String sparql) {
         try {
             Query query = QueryFactory.create(sparql);
@@ -142,7 +144,7 @@ public class CcrsVocabulary {
     /**
      * Fallback to Jena Query object.
      */
-    private StructuralPatternDefinition compileSlowPath(String id, String type, int prio, 
+    private StructuralPatternDefinition compileSlowPath(String id, String type, double prio, 
             String targetVar, String relVar, String sparql) {
         Query query = QueryFactory.create(sparql);
         logger.fine("Compiled to SLOW PATH (Jena): " + id);
@@ -190,6 +192,33 @@ public class CcrsVocabulary {
     private int getInt(Resource r, Property p, int def) {
         Statement s = r.getProperty(p); return s == null ? def : s.getInt();
     }
+    
+    private double getDouble(Resource r, Property p, double def) {
+        Statement s = r.getProperty(p);
+        if (s == null) return def;
+        try {
+            return s.getDouble();
+        } catch (Exception e) {
+            // Try int as fallback
+            try {
+                return (double) s.getInt();
+            } catch (Exception e2) {
+                logger.warning("Invalid priority value for " + r + ": " + e.getMessage());
+                return def;
+            }
+        }
+    }
+    
+    /**
+     * Validates that priority is in the valid range [-1, 1].
+     * @throws IllegalArgumentException if priority is out of range
+     */
+    private void validatePriority(double priority, String patternId) {
+        if (priority < -1.0 || priority > 1.0) {
+            throw new IllegalArgumentException(
+                "Priority must be in range [-1, 1], got " + priority + " for pattern: " + patternId);
+        }
+    }
 
     // Accessors
     public boolean matchesSimple(String uri, String type, String pos) {
@@ -220,10 +249,10 @@ public class CcrsVocabulary {
     public static class SimplePatternDefinition {
         public final String id;
         public final String type;
-        public final int priority;
+        public final double priority;
         public final String position;
 
-        public SimplePatternDefinition(String id, String type, int priority, String position) {
+        public SimplePatternDefinition(String id, String type, double priority, String position) {
             this.id = id;
             this.type = type;
             this.priority = priority;
@@ -238,14 +267,14 @@ public class CcrsVocabulary {
     public static class StructuralPatternDefinition {
         public final String id;
         public final String type;
-        public final int priority;
+        public final double priority;
         public final String extractTargetVar;
         public final String extractRelevanceVar;
 
         public final Query slowQuery; 
         public final StructuralPatternMatcher.CompiledPattern fastPattern;
 
-        public StructuralPatternDefinition(String id, String type, int priority, 
+        public StructuralPatternDefinition(String id, String type, double priority, 
                 String extractTargetVar, String extractRelevanceVar,
                 Query slowQuery, StructuralPatternMatcher.CompiledPattern fastPattern) {
             this.id = id; this.type = type; this.priority = priority; 
@@ -255,5 +284,10 @@ public class CcrsVocabulary {
         }
 
         public boolean isFastPath() { return fastPattern != null; }
+        
+        /**
+         * @return true if this pattern declares a relevance variable by design
+         */
+        public boolean hasRelevanceVariable() { return extractRelevanceVar != null; }
     }
 }

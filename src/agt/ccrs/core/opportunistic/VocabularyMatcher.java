@@ -19,9 +19,15 @@ public class VocabularyMatcher implements OpportunisticCcrs {
 
     private static final Logger logger = Logger.getLogger(VocabularyMatcher.class.getName());
     private final CcrsVocabulary vocabulary;
+    private final ScoringStrategy scoringStrategy;
 
     public VocabularyMatcher(CcrsVocabulary vocabulary) {
+        this(vocabulary, new DefaultScoringStrategy());
+    }
+    
+    public VocabularyMatcher(CcrsVocabulary vocabulary, ScoringStrategy scoringStrategy) {
         this.vocabulary = vocabulary;
+        this.scoringStrategy = scoringStrategy;
     }
 
     @Override
@@ -62,9 +68,19 @@ public class VocabularyMatcher implements OpportunisticCcrs {
             String target = binding.get("?" + def.extractTargetVar); // Matcher variables have '?'
             
             if (target != null) {
-
-                // Calculate Utility
-                double utility = calculateUtility(def.priority, getRelevance(def.extractRelevanceVar, binding));
+                // Extract relevance value if pattern declares variable
+                Object relevanceValue = null;
+                if (def.hasRelevanceVariable()) {
+                    relevanceValue = binding.get("?" + def.extractRelevanceVar);
+                }
+                
+                // Build relevance context
+                ScoringStrategy.RelevanceContext relContext = def.hasRelevanceVariable()
+                    ? ScoringStrategy.RelevanceContext.forStructuralWithVariable(relevanceValue)
+                    : ScoringStrategy.RelevanceContext.forStructuralWithoutVariable();
+                
+                // Calculate utility using strategy
+                double utility = scoringStrategy.calculateUtility(def.priority, relContext);
                 
                 OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
                 binding.forEach((k, v) -> res.withMetadata("var_" + k.replace("?", ""), v));
@@ -100,8 +116,20 @@ public class VocabularyMatcher implements OpportunisticCcrs {
                 if (node != null) {
                     String target = node.isResource() ? node.asResource().getURI() : node.toString();
                     
-                    // Calculate Utility
-                    double utility = calculateUtility(def.priority, getRelevance(def.extractRelevanceVar, sol));
+                    // Extract relevance value if pattern declares variable
+                    Object relevanceValue = null;
+                    if (def.hasRelevanceVariable()) {
+                        RDFNode relNode = sol.get(def.extractRelevanceVar);
+                        relevanceValue = relNode; // Pass RDFNode directly
+                    }
+                    
+                    // Build relevance context
+                    ScoringStrategy.RelevanceContext relContext = def.hasRelevanceVariable()
+                        ? ScoringStrategy.RelevanceContext.forStructuralWithVariable(relevanceValue)
+                        : ScoringStrategy.RelevanceContext.forStructuralWithoutVariable();
+                    
+                    // Calculate utility using strategy
+                    double utility = scoringStrategy.calculateUtility(def.priority, relContext);
 
                     OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
                     
@@ -138,7 +166,9 @@ public class VocabularyMatcher implements OpportunisticCcrs {
     }
 
     private OpportunisticResult createSimpleRes(CcrsVocabulary.SimplePatternDefinition def, String target, Map<String, Object> ctx) {
-        double utility = calculateUtility(def.priority, 1.0); // Simple patterns don't extract relevance variables. Setting relevance to 1.0 keeping utility = priority.
+        // Simple patterns: match itself is the signal
+        ScoringStrategy.RelevanceContext relContext = ScoringStrategy.RelevanceContext.forSimplePattern();
+        double utility = scoringStrategy.calculateUtility(def.priority, relContext);
         
         OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
         res.withMetadata("match_position", def.position);
@@ -150,60 +180,33 @@ public class VocabularyMatcher implements OpportunisticCcrs {
         if (ctx != null) ctx.forEach((k, v) -> res.withMetadata("ctx_" + k, v.toString()));
     }
 
-    // Utility Calculation Helpers
-
-    private double calculateUtility(int priority, double relevance) {
-        return priority * relevance;
-    }
-
-    private double getRelevance(String varName, Map<String, String> bindings) {
-        if (varName == null) return 1.0;
-        return normalize(bindings.get("?" + varName));
-    }
-
-    private double getRelevance(String varName, QuerySolution sol) {
-        if (varName == null) return 1.0;
-        return normalize(sol.get(varName));
-    }
-    
-    // Normalization Helpers
-
-    private double normalize(String val) {
-        if (val == null) return 1.0;
-        try {
-            return normalize(Double.parseDouble(val));
-        } catch (NumberFormatException e) {
-            return 1.0;
-        }
-    }
-    
-    private double normalize(RDFNode node) {
-        if (node == null) return 1.0;
-        if (node.isLiteral()) {
-            try {
-                return normalize(node.asLiteral().getDouble());
-            } catch (Exception e) {
-                return 1.0;
-            }
-        }
-        return 1.0;
-    }
-    
-    private double normalize(double val) {
-        if (val > 1.0) return val / 100.0; // Assume 0-100 scale
-        if (val < 0.0) return 0.0;
-        return val;
-    }
-
 
     public static class Factory implements CcrsScannerFactory {
+        private final ScoringStrategy scoringStrategy;
+        
+        /**
+         * Create factory with default scoring strategy.
+         */
+        public Factory() {
+            this(new DefaultScoringStrategy());
+        }
+        
+        /**
+         * Create factory with custom scoring strategy.
+         * 
+         * @param scoringStrategy Custom scoring strategy for utility calculation
+         */
+        public Factory(ScoringStrategy scoringStrategy) {
+            this.scoringStrategy = scoringStrategy;
+        }
+        
         @Override
         public OpportunisticCcrs createScanner(CcrsVocabulary vocabulary) {
             // Uses the loader if no vocab is provided, matching CcrsAgent usage
             if (vocabulary == null) {
                 vocabulary = CcrsVocabularyLoader.loadDefault();
             }
-            return new VocabularyMatcher(vocabulary);
+            return new VocabularyMatcher(vocabulary, scoringStrategy);
         }
     }
 }

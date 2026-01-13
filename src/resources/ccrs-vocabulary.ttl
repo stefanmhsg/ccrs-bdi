@@ -53,7 +53,7 @@ ccrs:extractedRelevanceVariable a owl:DatatypeProperty ;
     a ccrs:SimplePattern ;
     ccrs:patternType "signifier" ;
     ccrs:matchesPosition "predicate" ;
-    ccrs:priority 100 ;
+    ccrs:priority 1.0 ;
     rdfs:label "Green Signifier" ;
     rdfs:comment "Visual signifier indicating preferred direction or state" .
 
@@ -64,7 +64,7 @@ ccrs:extractedRelevanceVariable a owl:DatatypeProperty ;
 stigmark:stigmergyMarkerPattern
     a ccrs:StructuralPattern ;
     ccrs:patternType "stigmergy" ;
-    ccrs:priority 20 ;
+    ccrs:priority 0.2 ;
     ccrs:extractTargetVariable "target" ;
     ccrs:extractedRelevanceVariable "value" ;
     rdfs:label "Stigmergy Marker with Pheromones" ;
