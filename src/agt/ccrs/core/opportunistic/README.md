@@ -12,7 +12,9 @@ ccrs/
 │   │   ├── OpportunisticResult.java        # DTO for detected patterns (target, type, utility).
 │   │   ├── VocabularyMatcher.java          # Runtime engine orchestrating Fast/Slow pattern matching.
 │   │   ├── StructuralPatternMatcher.java   # "Fast Path" engine: Matches graph patterns using pure Java.
-│   │   └── CcrsScannerFactory.java         # Factory interface for instantiating scanners.
+│   │   ├── CcrsScannerFactory.java         # Factory interface for instantiating scanners.
+│   │   ├── ScoringStrategy.java            # Interface for customizable utility calculation.
+│   │   └── DefaultScoringStrategy.java     # Standard scoring: saturating normalization, relevance logic.
 │   │
 │   └── rdf/
 │       ├── RdfTriple.java                  # Lightweight, immutable Triple POJO.
@@ -20,15 +22,24 @@ ccrs/
 │       ├── CcrsVocabularyLoader.java       # Utility to load vocabularies from files/URLs.
 │       └── CcrsContext.java                # Interface for context-aware validation (future contingency).
 │
-├── jason/                                  # JASON PLATFORM ADAPTERS
-│   ├── CcrsAgent.java                      # Custom Agent class; intercepts perceptions via BRF override.
-│   ├── JasonRdfAdapter.java                # Converts between Jason Literals and RdfTriples.
-│   ├── CcrsConfiguration.java              # Helper for configuring agent vocabularies.
-│   ├── JasonCcrsContext.java               # Context implementation using Jason's Belief Base.
-│   └── prioritize.java                     # Internal action for prioritizing options by CCRS utilities.
-│
-├── jaca/                                   # CArtAgO ARCHITECTURE ADAPTERS
-│   └── CcrsAgentArch.java                  # Intercepts artifact observables; batches triples per cycle.
+├── jacamo/                                 # JACAMO PLATFORM ADAPTERS
+│   ├── jason/                              # Jason-specific components
+│   │   ├── opportunistic/
+│   │   │   ├── CcrsAgent.java              # Custom Agent class; intercepts perceptions via BRF override.
+│   │   │   ├── CcrsConfiguration.java      # Helper for configuring agent vocabularies.
+│   │   │   └── prioritize.java             # Internal action for prioritizing options by CCRS utilities.
+│   │   ├── hypermedia/
+│   │   │   └── hypermedea/                 # Hypermedea-specific instrumentation
+│   │   │       ├── CcrsHttpBinding.java    # SPI-based HTTP operation interceptor.
+│   │   │       ├── CcrsHttpOperation.java  # Logging wrapper for HTTP operations.
+│   │   │       ├── InteractionLogSink.java # Interface for interaction logging.
+│   │   │       ├── JasonInteractionLog.java# Jason implementation of interaction history.
+│   │   │       └── ...                     # (See hypermedia/hypermedea/Readme.md)
+│   │   ├── JasonRdfAdapter.java            # Converts between Jason Literals and RdfTriples.
+│   │   └── TimestampedBeliefBase.java      # Belief base with temporal tracking.
+│   │
+│   └── jaca/                               # CArtAgO-specific components
+│       └── CcrsAgentArch.java              # Intercepts artifact observables; batches triples per cycle.
 │
 └── resources/
     └── ccrs-vocabulary.ttl                 # Default vocabulary definitions and SPARQL patterns.
@@ -42,15 +53,29 @@ ccrs/
 *   **`OpportunisticCcrs.java`**: Defines the contract `scan(triple)` and `scanAll(triples)`. Completely stateless.
 *   **`VocabularyMatcher.java`**: The main runtime component. It delegates simple patterns to O(1) lookups and structural patterns to either the Fast or Slow path engines.
 *   **`StructuralPatternMatcher.java`**: A high-performance, recursion-based matcher for basic graph patterns. Avoids Jena overhead entirely.
+*   **`ScoringStrategy.java`**: Interface separating "what is scored" (priorities, relevance) from "how it is scored" (normalization). Enables custom utility calculation via subclassing.
+*   **`DefaultScoringStrategy.java`**: Implements standard CCRS scoring with saturating normalization `x/(x+1)`. Handles three relevance modes: simple patterns (1.0), structural without variable (1.0), structural with variable (normalize or 0.0 if absent).
 *   **`RdfTriple.java`**: A minimal data carrier to decouple the Core from specific libraries like Jason or Jena.
-*   **`CcrsVocabulary.java`**: The "Brain". It reads Turtle files at startup. It analyzes SPARQL patterns: if simple, it compiles them to Java objects (Fast Path); if complex (FILTER/UNION), it keeps them as Jena Queries (Slow Path).
+*   **`CcrsVocabulary.java`**: The "Brain". It reads Turtle files at startup. It analyzes SPARQL patterns: if simple, it compiles them to Java objects (Fast Path); if complex (FILTER/UNION), it keeps them as Jena Queries (Slow Path). Validates priorities ∈ [-1, 1] at load time.
 
-### Jason Adapters
+### JaCaMo Platform Adapters
+**Jason Adapters** (`jacamo/jason/opportunistic`):
 *   **`CcrsAgent.java`**: Extends standard `Agent`. Intercepts incoming perceptions in the Belief Revision Function (`brf`). Detected opportunities are added as beliefs immediately.
-*   **`JasonRdfAdapter.java`**: Bridges the gap between Jason's `rdf(S,P,O)` literals and the Core's `RdfTriple`.
+*   **`CcrsConfiguration.java`**: Helper for configuring agent vocabularies and scanning strategies.
 *   **`prioritize.java`**: Internal action (`ccrs.prioritize/2`) that reorders hypermedia options based on CCRS utilities. Accesses the belief base to match options with `ccrs(Target, PatternType, Utility)` beliefs, preserving complete literals with annotations for rich decision-making.
 
-### JaCa Adapters
+**Jason Utilities** (`jacamo/jason`):
+*   **`JasonRdfAdapter.java`**: Bridges the gap between Jason's `rdf(S,P,O)` literals and the Core's `RdfTriple`.
+*   **`TimestampedBeliefBase.java`**: Belief base implementation with temporal tracking capabilities.
+
+**Hypermedea Instrumentation** (`jacamo/jason/hypermedia/hypermedea`):
+*   Provides transparent HTTP interaction logging via Java SPI without modifying Hypermedea artifact.
+*   **`CcrsHttpBinding.java`**: Protocol binding discovered via SPI; intercepts HTTP operation creation.
+*   **`JasonInteractionLog.java`**: Maintains bounded interaction history, exposing `CcrsContext` for contingency strategies.
+*   See `hypermedia/hypermedea/Readme.md` for architecture details.
+*   **Note:** Artifact-specific implementation. Other artifacts require similar instrumentation.
+
+**CArtAgO Adapters** (`jacamo/jaca`):
 *   **`CcrsAgentArch.java`**: Extends `CAgentArch`. Intercepts `addObsPropertiesBel`. Since artifacts emit properties sequentially, this buffers them and processes them as a batch at the end of the perception cycle to allow structural matching.
 
 ---
@@ -70,7 +95,9 @@ Structural patterns (e.g., Stigmergy Markers) span multiple triples.
 
 ### 3. Extensibility
 *   **No Hardcoding:** Developers define patterns solely in `.ttl` files.
-*   **Priorities:** Patterns include `ccrs:priority` to determine matching order.
+*   **Priorities:** Patterns include `ccrs:priority` (range [-1, 1]) to determine matching order and utility strength.
+*   **Relevance Variables:** Structural patterns can extract runtime values (e.g., pheromone strength) via `ccrs:extractedRelevanceVariable` for dynamic utility calculation.
+*   **Custom Scoring:** Implement `ScoringStrategy` to override normalization or utility formulas. Inject via `VocabularyMatcher.Factory`.
 *   **IDs:** Anonymous structures are identified by URI or Label from the vocabulary.
 
 ### 4. Zero-Touch Integration
@@ -102,7 +129,7 @@ graph_flow
                │ 2. notifyObsEvent()
                ▼
  ┌───────────────────────────────────────────────┐
- │  CcrsAgentArch (ccrs.jaca)                    │ ◄── INTERCEPTION POINT
+ │  CcrsAgentArch (ccrs.jacamo.jaca)             │ ◄── INTERCEPTION POINT
  │  (Extends CAgentArch)                         │
  └──────┬───────────────────────────────┬────────┘
         │                               │
@@ -126,7 +153,8 @@ graph_flow
         │                               │ Returns List<OpportunisticResult>
         │                               ▼
         │                     ┌─────────────────────────────────┐
-        │                     │  JasonRdfAdapter (ccrs.jason)   │
+        │                     │  JasonRdfAdapter                │
+        │                     │  (ccrs.jacamo.jason)            │
         │                     └─────────┬───────────────────────┘
         │                               │ 6. createCcrsBelief()
         │                               │    (Result → Literal)
