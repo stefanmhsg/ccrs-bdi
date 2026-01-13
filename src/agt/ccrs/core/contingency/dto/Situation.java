@@ -94,15 +94,29 @@ public class Situation {
         return value != null ? value.toString() : null;
     }
     
+    /**
+     * Get the list of attempted strategies.
+     * @return list of strategy IDs that have been attempted
+     */
     public List<String> getAttemptedStrategies() {
         return attemptedStrategies;
     }
     
+    /**
+     * Check if a strategy has been attempted.
+     * @param strategyId
+     * @return true if attempted
+     */
     public boolean hasAttempted(String strategyId) {
         return attemptedStrategies.stream()
             .anyMatch(s -> s.startsWith(strategyId + ":") || s.equals(strategyId));
     }
     
+    /**
+     * Get how many times a strategy has been attempted.
+     * @param strategyId
+     * @return number of attempts
+     */
     public int getAttemptCount(String strategyId) {
         return (int) attemptedStrategies.stream()
             .filter(s -> s.startsWith(strategyId + ":") || s.equals(strategyId))

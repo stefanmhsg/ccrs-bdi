@@ -54,6 +54,8 @@ public class CcrsAgentArch extends CAgentArch {
     public void init() throws Exception {
         super.init();
 
+        // Contingency-CCRS setup:
+
         // Create your specific sink implementation (e.g., storing to a database or list)
         InteractionLogSink sink = new JasonInteractionLog();
 

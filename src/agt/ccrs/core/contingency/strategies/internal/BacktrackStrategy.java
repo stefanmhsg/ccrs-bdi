@@ -101,14 +101,18 @@ public class BacktrackStrategy implements CcrsStrategy {
                 "Cannot determine current resource location");
         }
         
-        // Try to find parent via RDF first
+        // BACKTRACK CCRS
+        // STEP 1: Identify parent resource to backtrack to
+
+        // STEP 1a: Try to find parent via RDF first. 
         Optional<String> parentOpt = findParent(currentResource, context);
         
-        // Fall back to history if RDF doesn't have parent
+        // STEP 1b: Fall back to history if RDF doesn't have parent
         if (!parentOpt.isPresent() && context.hasHistory()) {
             parentOpt = findParentFromHistory(currentResource, context);
         }
         
+        // STEP 1c: Check if parent was found. If not, cannot backtrack.
         if (!parentOpt.isPresent()) {
             return StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.PRECONDITION_MISSING,
@@ -117,7 +121,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         
         String parent = parentOpt.get();
         
-        // Check for alternatives at parent (optional)
+        // STEP 2: Check for alternatives at parent (optional)
         List<String> alternatives = findAlternatives(parent, context);
         
         if (requireAlternatives && alternatives.isEmpty()) {
