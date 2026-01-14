@@ -3,6 +3,7 @@ package ccrs.core.contingency.strategies.internal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import ccrs.core.contingency.CcrsStrategy;
@@ -27,6 +28,8 @@ import ccrs.core.rdf.RdfTriple;
  * to real LLM services.
  */
 public class PredictionLlmStrategy implements CcrsStrategy {
+    
+    private static final Logger logger = Logger.getLogger(PredictionLlmStrategy.class.getName());
     
     public static final String ID = "prediction_llm";
     
@@ -69,61 +72,83 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         // Need LLM client configured
         if (llmClient == null && !context.hasLlmAccess()) {
+            logger.info("[PredictionLLM] Not applicable - no LLM client configured");
             return Applicability.NOT_APPLICABLE;
         }
         
         // Don't apply if already tried
         if (situation.hasAttempted(ID)) {
+            logger.info("[PredictionLLM] Not applicable - already attempted");
             return Applicability.NOT_APPLICABLE;
         }
         
         // Need enough context to be useful
         if (situation.getCurrentResource() == null && 
             context.getCurrentResource().isEmpty()) {
+            logger.info("[PredictionLLM] Not applicable - insufficient context (no current resource)");
             return Applicability.NOT_APPLICABLE;
         }
         
+        logger.info("[PredictionLLM] Applicable - LLM available with sufficient context");
         return Applicability.APPLICABLE;
     }
     
     @Override
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
+        logger.info("[PredictionLLM] Evaluating LLM prediction strategy");
+        
         if (llmClient == null) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[PredictionLLM] LLM client not configured");
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.PRECONDITION_MISSING,
                 "LLM client not configured");
+            logger.info("[PredictionLLM] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
         
         if (responseParser == null) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[PredictionLLM] Response parser not configured");
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.PRECONDITION_MISSING,
                 "Response parser not configured");
+            logger.info("[PredictionLLM] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
         
         try {
             // Prepare context map (strategy responsibility, not prompt builder's)
             Map<String, Object> contextMap = prepareContextMap(situation, context);
+            logger.fine("[PredictionLLM] Prepared context map with " + contextMap.size() + " entries");
             
             // Build prompt using configured builder
             String prompt = promptBuilder.buildPredictionPrompt(contextMap);
+            logger.finer("[PredictionLLM] Built prompt (" + prompt.length() + " chars)");
             
             // Call LLM
+            logger.info("[PredictionLLM] Calling LLM for prediction...");
             String rawResponse = llmClient.complete(prompt);
+            logger.fine("[PredictionLLM] Received LLM response (" + rawResponse.length() + " chars)");
             
             // Parse response using centralized parser
             LlmActionResponse response = responseParser.parse(rawResponse);
             
             if (!response.isValid()) {
-                return StrategyResult.noHelp(ID,
+                logger.warning("[PredictionLLM] Failed to parse LLM response: " + response.getParseError());
+                StrategyResult result = StrategyResult.noHelp(ID,
                     StrategyResult.NoHelpReason.EVALUATION_FAILED,
                     "Could not parse valid action from LLM: " + response.getParseError());
+                logger.info("[PredictionLLM] Returning noHelp: " + result.asNoHelp().getReason());
+                return result;
             }
             
             // Determine confidence (use parser's if available, otherwise base)
             double confidence = response.hasConfidence() ? response.getConfidence() : baseConfidence;
             
+            logger.info(String.format("[PredictionLLM] LLM suggests action '%s' to '%s' (confidence=%.2f)",
+                response.getAction(), response.getTarget(), confidence));
+            
             // Build result
-            return StrategyResult.suggest(ID, response.getAction())
+            StrategyResult result = StrategyResult.suggest(ID, response.getAction())
                 .target(response.getTarget())
                 .param("llmGenerated", true)
                 .param("originalReasoning", response.getExplanation())
@@ -133,10 +158,17 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 .rationale(buildRationale(response))
                 .build();
             
+            logger.info(String.format("[PredictionLLM] Returning suggestion: %s to '%s' (confidence=%.2f)",
+                response.getAction(), response.getTarget(), result.asSuggestion().getConfidence()));
+            return result;
+            
         } catch (Exception e) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[PredictionLLM] LLM call failed: " + e.getMessage());
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.EVALUATION_FAILED,
                 "LLM call failed: " + e.getMessage());
+            logger.info("[PredictionLLM] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
     }
     

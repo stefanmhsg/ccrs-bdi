@@ -2,6 +2,7 @@ package ccrs.core.contingency.strategies.internal;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.Situation;
@@ -15,6 +16,8 @@ import ccrs.core.rdf.CcrsContext;
  * Applies to HTTP 5xx errors, timeouts, and connection issues.
  */
 public class RetryStrategy implements CcrsStrategy {
+    
+    private static final Logger logger = Logger.getLogger(RetryStrategy.class.getName());
     
     public static final String ID = "retry";
     
@@ -59,11 +62,13 @@ public class RetryStrategy implements CcrsStrategy {
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         // Must be a failure situation
         if (situation.getType() != Situation.Type.FAILURE) {
+            logger.info("[Retry] Not applicable - situation type is " + situation.getType());
             return Applicability.NOT_APPLICABLE;
         }
         
         // Must have a failed action to retry
         if (situation.getFailedAction() == null || situation.getTargetResource() == null) {
+            logger.info("[Retry] Not applicable - missing failed action or target resource");
             return Applicability.NOT_APPLICABLE;
         }
         
@@ -76,24 +81,33 @@ public class RetryStrategy implements CcrsStrategy {
             (errorType != null && retriableCodes.contains(errorType));
         
         if (!isRetriable) {
+            logger.info(String.format("[Retry] Not applicable - error not retriable (status=%s, type=%s)",
+                httpStatus, errorType));
             return Applicability.NOT_APPLICABLE;
         }
         
         // Check if we haven't exceeded max attempts
         int attemptCount = situation.getAttemptCount(ID);
         if (attemptCount >= maxAttempts) {
+            logger.info(String.format("[Retry] Not applicable - max attempts reached (%d/%d)",
+                attemptCount, maxAttempts));
             return Applicability.NOT_APPLICABLE;
         }
         
+        logger.info(String.format("[Retry] Applicable - retriable error (status=%s, type=%s), attempt %d/%d",
+            httpStatus, errorType, attemptCount + 1, maxAttempts));
         return Applicability.APPLICABLE;
     }
     
     @Override
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
+        logger.info("[Retry] Evaluating retry strategy for situation: " + situation.getType());
+        
         int attemptCount = situation.getAttemptCount(ID);
         
         // Check max attempts again (defensive)
         if (attemptCount >= maxAttempts) {
+            logger.warning(String.format("[Retry] Max attempts exceeded (%d/%d)", attemptCount, maxAttempts));
             return StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.ALREADY_ATTEMPTED,
                 String.format("Max retry attempts (%d) exceeded", maxAttempts));
@@ -106,8 +120,11 @@ public class RetryStrategy implements CcrsStrategy {
         String httpStatus = situation.getErrorInfoString("httpStatus");
         String errorMsg = situation.getErrorInfoString("message");
         
+        logger.info(String.format("[Retry] Attempt %d/%d with %dms delay (status=%s)",
+            nextAttempt, maxAttempts, delayMs, httpStatus));
+        
         // Build suggestion
-        return StrategyResult.suggest(ID, "retry")
+        StrategyResult result = StrategyResult.suggest(ID, "retry")
             .target(situation.getTargetResource())
             .param("originalAction", situation.getFailedAction())
             .param("delayMs", delayMs)
@@ -117,6 +134,10 @@ public class RetryStrategy implements CcrsStrategy {
             .cost(0.1)  // Low cost - just time
             .rationale(buildRationale(httpStatus, errorMsg, nextAttempt, delayMs))
             .build();
+        
+        logger.info(String.format("[Retry] Returning suggestion: retry action '%s' to '%s' (confidence=%.2f)",
+            situation.getFailedAction(), situation.getTargetResource(), result.asSuggestion().getConfidence()));
+        return result;
     }
     
     private double calculateConfidence(int attemptCount, String httpStatus) {

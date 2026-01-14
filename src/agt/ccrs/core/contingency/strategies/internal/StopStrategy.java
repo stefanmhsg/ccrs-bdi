@@ -1,5 +1,7 @@
 package ccrs.core.contingency.strategies.internal;
 
+import java.util.logging.Logger;
+
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -12,6 +14,8 @@ import ccrs.core.rdf.CcrsContext;
  * This is the fallback when all other strategies have been exhausted.
  */
 public class StopStrategy implements CcrsStrategy {
+    
+    private static final Logger logger = Logger.getLogger(StopStrategy.class.getName());
     
     public static final String ID = "stop";
     
@@ -47,8 +51,14 @@ public class StopStrategy implements CcrsStrategy {
         if (requireExhaustion) {
             int attemptedCount = situation.getAttemptedStrategies().size();
             if (attemptedCount < exhaustionThreshold) {
+                logger.info(String.format("[Stop] Not applicable - exhaustion threshold not met (%d/%d strategies tried)",
+                    attemptedCount, exhaustionThreshold));
                 return Applicability.NOT_APPLICABLE;
             }
+            logger.info(String.format("[Stop] Applicable - exhaustion threshold met (%d strategies tried)",
+                attemptedCount));
+        } else {
+            logger.info("[Stop] Applicable - immediate stop (no exhaustion required)");
         }
         
         return Applicability.APPLICABLE;
@@ -56,19 +66,25 @@ public class StopStrategy implements CcrsStrategy {
     
     @Override
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
+        logger.info("[Stop] Evaluating stop strategy - last resort activated");
+        
         int attemptedCount = situation.getAttemptedStrategies().size();
         
         // Check threshold if required
         if (requireExhaustion && attemptedCount < exhaustionThreshold) {
+            logger.warning(String.format("[Stop] Threshold not met (%d/%d)", attemptedCount, exhaustionThreshold));
             return StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.NOT_APPLICABLE,
                 String.format("Only %d strategies attempted, threshold is %d", 
                     attemptedCount, exhaustionThreshold));
         }
         
+        logger.warning(String.format("[Stop] Recommending graceful failure after %d strategies: %s",
+            attemptedCount, situation.getAttemptedStrategies()));
+        
         String finalError = buildFinalError(situation);
         
-        return StrategyResult.suggest(ID, "stop")
+        StrategyResult result = StrategyResult.suggest(ID, "stop")
             .target(null)  // No target - we're stopping
             .param("reason", determineReason(situation, attemptedCount))
             .param("attemptedCount", attemptedCount)
@@ -79,6 +95,10 @@ public class StopStrategy implements CcrsStrategy {
             .cost(1.0)        // Maximum cost - goal failure
             .rationale(buildRationale(situation, attemptedCount, finalError))
             .build();
+        
+        logger.info(String.format("[Stop] Returning suggestion: stop with reason '%s' (confidence=%.2f)",
+            determineReason(situation, attemptedCount), result.asSuggestion().getConfidence()));
+        return result;
     }
     
     private String determineReason(Situation situation, int attemptedCount) {

@@ -2,6 +2,7 @@ package ccrs.core.contingency.strategies.social;
 
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import ccrs.core.contingency.CcrsStrategy;
@@ -28,6 +29,8 @@ import ccrs.capabilities.llm.TemplatePromptBuilder;
  *   admission of prior failures, may involve richer context sharing
  */
 public class ConsultationStrategy implements CcrsStrategy {
+    
+    private static final Logger logger = Logger.getLogger(ConsultationStrategy.class.getName());
     
     public static final String ID = "consultation";
     
@@ -123,41 +126,57 @@ public class ConsultationStrategy implements CcrsStrategy {
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         // Need a consultation channel
         if (channel == null) {
+            logger.info("[Consultation] Not applicable - no channel configured");
             return Applicability.NOT_APPLICABLE;
         }
         
         // Check if channel is available
         if (channel != null && !channel.isAvailable()) {
+            logger.info("[Consultation] Not applicable - channel not available");
             return Applicability.NOT_APPLICABLE;
         }
         
         // Don't exceed consultation limit
         int consultationCount = situation.getAttemptCount(ID);
         if (consultationCount >= maxConsultationsPerSituation) {
+            logger.info(String.format("[Consultation] Not applicable - consultation limit reached (%d/%d)",
+                consultationCount, maxConsultationsPerSituation));
             return Applicability.NOT_APPLICABLE;
         }
         
         // Only consult for complex situations (after simpler strategies tried)
         if (situation.getAttemptedStrategies().isEmpty()) {
             // Could be applicable but should try simpler things first
+            logger.info("[Consultation] Unknown - no strategies tried yet");
             return Applicability.UNKNOWN;
         }
         
+        logger.info(String.format("[Consultation] Applicable - channel '%s' available, %d strategies already tried",
+            channel.getChannelType(), situation.getAttemptedStrategies().size()));
         return Applicability.APPLICABLE;
     }
     
     @Override
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
+        logger.info("[Consultation] Evaluating consultation strategy via " + 
+            (channel != null ? channel.getChannelType() : "unknown channel"));
+        
         if (channel == null) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[Consultation] No channel configured");
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.PRECONDITION_MISSING,
                 "No consultation channel configured");
+            logger.info("[Consultation] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
         
         if (!channel.isAvailable()) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[Consultation] Channel not available: " + channel.getChannelType());
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.PRECONDITION_MISSING,
                 "Consultation channel is not available");
+            logger.info("[Consultation] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
         
         try {
@@ -165,23 +184,35 @@ public class ConsultationStrategy implements CcrsStrategy {
             String question = buildQuestion(situation, context); //TODO: remove llm-mock channel and query building.
             Map<String, Object> consultContext = buildContext(situation, context);
             
+            logger.fine("[Consultation] Prepared consultation request (" + question.length() + " chars)");
+            
             // Query the channel
+            logger.info("[Consultation] Querying external consultant via " + channel.getChannelType());
             ConsultationResponse response = channel.query(question, consultContext);
             
             if (!response.success) {
-                return StrategyResult.noHelp(ID,
+                logger.warning("[Consultation] Consultation failed: " + response.suggestion);
+                StrategyResult result = StrategyResult.noHelp(ID,
                     StrategyResult.NoHelpReason.EVALUATION_FAILED,
                     "Consultation failed: " + response.suggestion);
+                logger.info("[Consultation] Returning noHelp: " + result.asNoHelp().getReason());
+                return result;
             }
             
             if (response.action == null || response.action.isEmpty()) {
-                return StrategyResult.noHelp(ID,
+                logger.warning("[Consultation] Consultant provided no actionable advice");
+                StrategyResult result = StrategyResult.noHelp(ID,
                     StrategyResult.NoHelpReason.INSUFFICIENT_CONTEXT,
                     "Consultant could not provide actionable advice");
+                logger.info("[Consultation] Returning noHelp: " + result.asNoHelp().getReason());
+                return result;
             }
             
+            logger.info(String.format("[Consultation] Consultant suggests action '%s' to '%s' (confidence=%.2f, source=%s)",
+                response.action, response.target, response.confidence, response.source));
+            
             // Build result
-            return StrategyResult.suggest(ID, response.action)
+            StrategyResult result = StrategyResult.suggest(ID, response.action)
                 .target(response.target)
                 .param("consulted", true)
                 .param("consultationSource", channel.getChannelType() + 
@@ -192,10 +223,17 @@ public class ConsultationStrategy implements CcrsStrategy {
                 .rationale(buildRationale(response))
                 .build();
             
+            logger.info(String.format("[Consultation] Returning suggestion: %s to '%s' (confidence=%.2f)",
+                response.action, response.target, result.asSuggestion().getConfidence()));
+            return result;
+            
         } catch (Exception e) {
-            return StrategyResult.noHelp(ID,
+            logger.warning("[Consultation] Consultation error: " + e.getMessage());
+            StrategyResult result = StrategyResult.noHelp(ID,
                 StrategyResult.NoHelpReason.EVALUATION_FAILED,
                 "Consultation error: " + e.getMessage());
+            logger.info("[Consultation] Returning noHelp: " + result.asNoHelp().getReason());
+            return result;
         }
     }
     

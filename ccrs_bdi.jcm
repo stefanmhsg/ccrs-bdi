@@ -37,7 +37,7 @@ mas ccrs_bdi {
 
 */
  
-    agent contingency_ccrs_6: contingency_ccrs.asl {
+    agent contingency_ccrs_8: contingency_ccrs.asl {
       // Jason Agent Class
       ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
