@@ -1,7 +1,10 @@
 package ccrs.core.contingency.dto;
 
+import ccrs.core.opportunistic.OpportunisticResult;
+
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,6 +67,7 @@ public abstract class StrategyResult {
         private final double confidence;
         private final double estimatedCost;
         private final String rationale;
+        private final List<OpportunisticResult> opportunisticGuidance;  // B2: Optional preference shaping
         
         private Suggestion(Builder builder) {
             super(builder.strategyId);
@@ -73,6 +77,8 @@ public abstract class StrategyResult {
             this.confidence = builder.confidence;
             this.estimatedCost = builder.estimatedCost;
             this.rationale = builder.rationale;
+            this.opportunisticGuidance = builder.opportunisticGuidance != null ? 
+                List.copyOf(builder.opportunisticGuidance) : List.of();
         }
         
         @Override
@@ -110,6 +116,21 @@ public abstract class StrategyResult {
         }
         
         /**
+         * Get opportunistic guidance for preference shaping (B2 extension).
+         * Empty list if no guidance available.
+         */
+        public List<OpportunisticResult> getOpportunisticGuidance() {
+            return opportunisticGuidance;
+        }
+        
+        /**
+         * Check if opportunistic guidance is available.
+         */
+        public boolean hasOpportunisticGuidance() {
+            return !opportunisticGuidance.isEmpty();
+        }
+        
+        /**
          * Score combining confidence and cost for ranking.
          * Higher is better.
          */
@@ -131,6 +152,7 @@ public abstract class StrategyResult {
             private double confidence = 0.5;
             private double estimatedCost = 0.5;
             private String rationale;
+            private List<OpportunisticResult> opportunisticGuidance;  // B2: Optional
             
             private Builder(String strategyId, String actionType) {
                 this.strategyId = strategyId;
@@ -164,6 +186,15 @@ public abstract class StrategyResult {
             
             public Builder rationale(String rationale) {
                 this.rationale = rationale;
+                return this;
+            }
+            
+            /**
+             * Add opportunistic guidance for preference shaping (B2 extension).
+             * Will be used to guide agent's option selection during backtracking.
+             */
+            public Builder opportunisticGuidance(List<OpportunisticResult> guidance) {
+                this.opportunisticGuidance = guidance;
                 return this;
             }
             
