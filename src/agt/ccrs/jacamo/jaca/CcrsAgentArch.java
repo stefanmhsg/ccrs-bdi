@@ -9,6 +9,7 @@ import ccrs.jacamo.jason.contingency.JasonCcrsContext;
 import ccrs.jacamo.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
 import ccrs.jacamo.jason.hypermedia.hypermedea.InteractionLogSink;
 import ccrs.jacamo.jason.hypermedia.hypermedea.JasonInteractionLog;
+import io.github.cdimascio.dotenv.Dotenv;
 import jaca.CAgentArch;
 import jason.JasonException;
 import jason.asSemantics.Intention;
@@ -27,6 +28,22 @@ import java.util.logging.Logger;
 public class CcrsAgentArch extends CAgentArch {
     
     private static final Logger logger = Logger.getLogger(CcrsAgentArch.class.getName());
+    
+    static {
+        // Load .env file into environment variables for LLM configuration
+        try {
+            Dotenv dotenv = Dotenv.configure()
+                .ignoreIfMissing()
+                .load();
+            
+            // Inject into system environment for Langchain4jLlmClient.fromEnvironment()
+            dotenv.entries().forEach(entry -> 
+                System.setProperty(entry.getKey(), entry.getValue())
+            );
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "[CcrsAgentArch] Failed to load .env: " + e.getMessage());
+        }
+    }
     
     private OpportunisticCcrs ccrsScanner;
     private CcrsVocabulary vocabulary;

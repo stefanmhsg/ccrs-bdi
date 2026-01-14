@@ -1,8 +1,14 @@
 package ccrs.jacamo.jason.contingency;
 
+import ccrs.capabilities.llm.JsonActionParser;
+import ccrs.capabilities.llm.TemplatePromptBuilder;
+import ccrs.capabilities.llm.langchain4j.Langchain4jLlmClient;
 import ccrs.core.contingency.ContingencyCcrs;
+import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.strategies.internal.PredictionLlmStrategy;
+import ccrs.core.contingency.strategies.social.ConsultationStrategy;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.jacamo.jason.JasonRdfAdapter;
 import jason.JasonException;
@@ -75,8 +81,8 @@ public class evaluate extends DefaultInternalAction {
         logger.log(Level.INFO,
             "[ContingencyCcrs] Evaluating situation: " + situation + " with context: " + context.toString());
 
-        List<StrategyResult> results =
-            ccrs.evaluate(situation, context);
+        // Evaluate Contingency Strategies
+        List<StrategyResult> results = ccrs.evaluate(situation, context);
 
         logger.log(Level.INFO, "[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
         
@@ -311,6 +317,38 @@ public class evaluate extends DefaultInternalAction {
     private synchronized ContingencyCcrs getCcrs() {
         if (contingencyCcrs == null) {
             contingencyCcrs = ContingencyCcrs.withDefaults();
+            
+            // Register LLM-based strategies if available
+            try {
+                LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
+                
+                if (llmClient.isAvailable()) {
+                    // Register PredictionLlmStrategy (L2)
+                    PredictionLlmStrategy predictionStrategy = new PredictionLlmStrategy(
+                        llmClient,
+                        TemplatePromptBuilder.create(),
+                        JsonActionParser.create()
+                    );
+                    contingencyCcrs.getRegistry().register(predictionStrategy);
+                    
+                    // Register ConsultationStrategy (L4)
+                    ConsultationStrategy.ConsultationChannel channel = 
+                        ConsultationStrategy.llmChannel(
+                            llmClient,
+                            TemplatePromptBuilder.create(),
+                            JsonActionParser.create()
+                        );
+                    ConsultationStrategy consultationStrategy = new ConsultationStrategy(channel);
+                    contingencyCcrs.getRegistry().register(consultationStrategy);
+                    
+                    logger.info("[ContingencyCcrs] LLM strategies enabled (PredictionLlm, Consultation)");
+                } else {
+                    logger.warning("[ContingencyCcrs] LLM client not available");
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "[ContingencyCcrs] LLM initialization failed: " + e.getMessage());
+            }
+            
             logger.info("[ContingencyCcrs] Contingency CCRS initialized");
         }
         return contingencyCcrs;

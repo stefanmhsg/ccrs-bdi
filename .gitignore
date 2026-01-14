@@ -36,3 +36,6 @@ replay_pid*
 
 log/mas-0.log.lck
 bin/
+
+# Environment variables (contains API keys)
+.env
