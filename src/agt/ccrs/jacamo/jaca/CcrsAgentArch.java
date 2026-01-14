@@ -214,17 +214,19 @@ public class CcrsAgentArch extends CAgentArch {
         Iterator<Literal> it = getTS().getAg().getBB().getCandidateBeliefs(
             new PredicateIndicator("ccrs", 3));
         
-        List<Literal> toRemove = new ArrayList<>();
-        while (it.hasNext()) {
-            Literal ccrs = it.next();
-            // Check if it has artifact_name annotation (opportunistic)
-            if (ccrs.getAnnot("artifact_name") != null) {
-                toRemove.add(ccrs);
+        if (it != null) {
+            List<Literal> toRemove = new ArrayList<>();
+            while (it.hasNext()) {
+                Literal ccrs = it.next();
+                // Check if it has artifact_name annotation (opportunistic)
+                if (ccrs.getAnnot("artifact_name") != null) {
+                    toRemove.add(ccrs);
+                }
             }
-        }
-        
-        for (Literal l : toRemove) {
-            getTS().getAg().getBB().remove(l);
+            
+            for (Literal l : toRemove) {
+                getTS().getAg().getBB().remove(l);
+            }
         }
         
         logger.fine("Processing new batch of properties.");
