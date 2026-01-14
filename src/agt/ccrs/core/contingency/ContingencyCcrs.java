@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Situation;
@@ -16,6 +17,8 @@ import ccrs.core.rdf.CcrsContext;
  * ranked suggestions for recovery actions.
  */
 public class ContingencyCcrs {
+
+    private static final Logger logger = Logger.getLogger(ContingencyCcrs.class.getName());
     
     private final StrategyRegistry registry;
     private ContingencyConfiguration config;
@@ -177,6 +180,7 @@ public class ContingencyCcrs {
      * Create a ContingencyCcrs instance with default strategies registered.
      */
     public static ContingencyCcrs withDefaults() {
+        logger.info("Creating ContingencyCcrs with default strategies");
         ContingencyCcrs ccrs = new ContingencyCcrs();
         registerDefaultStrategies(ccrs.getRegistry());
         return ccrs;

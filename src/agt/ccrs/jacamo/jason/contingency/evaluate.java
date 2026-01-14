@@ -20,8 +20,12 @@ import java.util.logging.Logger;
  * Internal action bridging AgentSpeak and Contingency-CCRS.
  *
  * Usage:
- *   ccrs.contingency.evaluate(Type, Trigger, Suggestions)
- *   ccrs.contingency.evaluate(Type, Trigger, FocusURI, Suggestions)
+ *   ccrs.jacamo.jason.contingency.evaluate(Type, Trigger, Suggestions)
+ *   ccrs.jacamo.jason.contingency.evaluate(Type, Trigger, FocusURI, Suggestions)
+ * 
+ *  - Type: "failure", "stuck", "uncertainty", "proactive"
+ *  - Trigger: Best effort term for reason why
+ *  - Focus: Current URI
  */
 public class evaluate extends DefaultInternalAction {
 
@@ -45,16 +49,18 @@ public class evaluate extends DefaultInternalAction {
         Situation situation = parseSituation(args);
 
         logger.log(Level.INFO,
-            "[CCRS] Evaluating situation: " + situation + " with context: " + context.toString());
+            "[ContingencyCcrs] Evaluating situation: " + situation + " with context: " + context.toString());
 
         List<StrategyResult> results =
             ccrs.evaluate(situation, context);
+
+        logger.log(Level.INFO, "[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
         
         // Inject OpportunisticResult mental notes as ccrs/3 beliefs (B2)
         injectOpportunisticNotes(ts, results);
 
         ListTerm resultList = buildResultList(results);
-
+        logger.log(Level.INFO, "[ContingencyCcrs] Result list: " + resultList);
         Term out = args[args.length - 1];
         return un.unifies(out, resultList);
     }
@@ -175,7 +181,7 @@ public class evaluate extends DefaultInternalAction {
                             Trigger.TEType.belief, ccrsBelief.copy());
                         ts.getC().addEvent(new jason.asSemantics.Event(te));
                         
-                        logger.fine("[CCRS] Injected contingency mental note: " + ccrsBelief);
+                        logger.fine("[ContingencyCcrs] Injected contingency mental note: " + ccrsBelief);
                     }
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Failed to inject opportunistic note: " + opp, e);
@@ -191,7 +197,7 @@ public class evaluate extends DefaultInternalAction {
     private synchronized ContingencyCcrs getCcrs() {
         if (contingencyCcrs == null) {
             contingencyCcrs = ContingencyCcrs.withDefaults();
-            logger.info("[CCRS] Contingency CCRS initialized");
+            logger.info("[ContingencyCcrs] Contingency CCRS initialized");
         }
         return contingencyCcrs;
     }

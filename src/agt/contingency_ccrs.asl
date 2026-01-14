@@ -71,11 +71,36 @@ MAIN LOOP
     not requires_action(Location) & not exit(Location)
     <-
         .print("No open actions. Deciding next step from: ", Location) ;
-        // DFS
-        !evaluate_affordances(Location) ; // Annotate valid affordances
-        // DFS
-        !track_unexplored_affordances(Location) ; // Tracking which valid affordances have (not) been explored from current Location
+        !track_progress(Location) ;
         !select_next(Location) ; // Select next move
+    .
+
+// Progress heuristic
++!track_progress(Location) : 
+    next(PreviousURI) & distance(D) 
+    <-
+        D2 = D + 1 ;
+        -+distance(D2) ;
+
+        if (not (discovered(Location))) { // Only add once on first encounter.
+            +discovered(Location) ; // mark current location as discovered
+            .print("Discovered: ", Location) ;
+            .count(discovered(_), N) ;
+            -+distinct_count(N) ;
+        }
+        ?distinct_count(N2) ;
+        Progress = N2 / D2 ;
+        -+progress(Progress) ; // 1 = every step yields a new state i.e. highest possible value. 
+        .print("New Progress = ",Progress, " Discovered = ", N2, " Distance = ", D2) ;
+    .
+
+// Progress heuristic init
++!track_progress(Location) : 
+    true
+    <-
+        +discovered(0) ;
+        +distance(0) ;
+        +progress(1) ;
     .
 
 // Must perform action
@@ -113,66 +138,6 @@ MAIN LOOP
         .print("Unable to cope with actions in: ", Location) ;
     .
 
-
-// DFS: Annotate valid affordances
-+!evaluate_affordances(Location) :
-    discovered(Location)[parent(Parent)]
-    <-
-        .print("Evaluate affordances from: ", Location) ;
-        -affords(_,_)[base(Parent)] ; // Delete all remaining affordance beliefs from Parent. If none is present because is Locked -> should still remove the previous belief of this affordance!
-        // Evaluate affordance possibilities
-        for (affords(P, Option)) { // Loop through beliefs of form affords/2
-            if (not (blocked(Option)) & Location \== Option & Parent \== Option) { // Filter out blocked options / going to self / going back
-                .print("Could go ", Option) ;
-                +affords(P, Option)[valid_affordance("True")] ; // Append an annotation to the existing belief
-            }
-        }    
-    .
-
-// DFS: Create DFS structure if not existing (for tracking which options have been explored from current Location).
-+!track_unexplored_affordances(Location) :
-    true 
-    <-
-        if (not remaining(Location, _)) { // Ensure this is only added once to keep track of explored affordances
-            .findall(X, affords(_,X)[valid_affordance("True")], DefaultList) ; // Retruns DefaultList as list of all X = Options from affordance beliefs that are annotated as valid.
-            .print("Tracking unexplored affordances: ", DefaultList) ;
-
-            // Opportunistic-CCRS
-            // Attempting to re-order the list of options based on detected opportunities / threats associated with them.
-            //
-            //  DefaultList:    CCRS-beliefs:               PlainCcrsList:  DetailedCcrsList:
-            //  "Option A"      -                           "Option B"      uri(Option B)[signifier, 0.9]
-            //  "Option B"      ccrs(B, signifier, 0.9)     "Option C"      uri(Option C)[stigmergy, 0.2]
-            //  "Option C"      ccrs(C, stigmergy, 0.2)     "Option A"      uri(Option A)[null, 0]
-            //
-            ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList) ;
-            // 
-            // Use DetailedCcrsList for custom handling and interpretation of ccrs output based on annotations.
-            !interpret_ccrs_prioritization(DetailedCcrsList) ;
-            //
-            // Or directly proceed with PlainCcrsList. 
-            +remaining(Location, PlainCcrsList) ; // Add belief of unexplored options based from current Location. Make sure to pass a list of Strings.
-            //
-            // Instead of following the default first option, DFS will now follow the first option of a prioritized list.
-            //
-        } else {
-            .print("Tracking list of unexplored affordances already available.") ;
-            // Optional: Re-prioritize the list of remaining options based on latests CCRS-beliefs
-        }
-    .
-
-+!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility),strategy(Strategy)] | Tail ] ) :
-        true
-    <-
-        .print("DetailedCcrsList: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility,", strategy=",Strategy) ;
-    .
-
-+!interpret_ccrs_prioritization( [ Head | Tail ] ) :
-        true
-    <-
-        .print("PlainCcrsList: interpret ccrs prioritization output: Target=",Head) ;
-    .
-
 // Next move if Exit in sight
 +!select_next(Location) :
     exit(ExitCell)
@@ -180,41 +145,137 @@ MAIN LOOP
         !access(ExitCell) ;
     .
 
-// DFS: Next move if current Location has unexplored options left
+// Next move 
 +!select_next(Location) :
-    remaining(Location, [Next | Tail]) // check if list has next item
+    progress(P)
     <-
-        .print("Selected next option: ", Next) ;
-        -remaining(Location, [Next|Tail]) ; // Delete item
-        +remaining(Location, Tail) ; // Add item minus next option
-        .print("remaining options: ", Tail) ;
-        !access(Next) ;
+        // Retruns List as list of all X = Options from affords beliefs that are annotated as valid.
+        .findall(X, affords(_,X)[base(Location)], List) ; 
+
+        if (P < 0.5) {
+            // *** Contingency-CCRS: Trigger ***
+            !escalate("Stuck", "performance", Location) ;
+        } else {
+            !select_first(List) ;
+        }
+
+        ?next(URI) ;
+        !access(URI) ;   
     .
 
-// DFS: Next move if current Location has no options left
-+!select_next(Location) :
-    remaining(Location, []) // check if list is empty = Location fully explored
++!select_first([Head | Tail]) :
+    true
     <-
-        .print("Location fully explored, lets backtrack") ;
-        !backtrack_from(Location) ; // Dead-end.. Go to parent        
+        -+next(Head) ;
+        .print("Selecting First resulted in: ", Head) ;
+    .
+/**
+********** Contigency-CCRS **********
+*/
++!escalate(Type, Trigger, Location) :
+    true
+    <-
+        .print("Escalte to CCRS") ;
+        // Contingency-CCRS
+        ccrs.jacamo.jason.contingency.evaluate("Failure", "Error", Location, Suggestions) ;
+
+        // Pattern 1: Get first suggestion
+        //
+        //.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _, _)) ;
+        //.print("[CCRS] First Suggestion is: Executing '", ActionType, "' to ", Target) ;
+
+        // Pattern 2: Iterate through all suggestions
+        //
+        //for (.member(Sug, Suggestions)) {
+        //    !process_suggestion(Sug) ;
+        //}
+
+        // Pattern 3: Select best suggestion by confidence
+        //
+        !select_confident_suggestion(Suggestions, BestSuggestion) ;
+
+        // Pattern 4: Decompose a single suggestion
+        //
+        !process_suggestion(BestSuggestion) ;
     .
 
-// DFS: Back at start
-+!backtrack_from(Location) :
-    discovered(Location)[parent (Parent)] & entry_point(Parent)
+// Pattern 4: Decompose suggestion structure with all fields
++!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Cost, Rationale, Params)) :
+    true
     <-
-        .print("All the way back to http://127.0.1.1:8080/maze. I give up.") ;
-        .fail_goal(backtrack_from(Location)) ;
-        .fail_goal(select_next(Location)) ;
+        .print("[CCRS Suggestion]") ;
+        .print("  Strategy ID: ", StrategyId) ;
+        .print("  Action: ", ActionType, " -> Target: ", Target) ;
+        .print("  Confidence: ", Confidence, ", Cost: ", Cost) ;
+        .print("  Rationale: ", Rationale) ;
+        
+        // Extract specific parameters
+        !extract_params(Params) ;
     .
 
-// DFS: Take one step backwards
-+!backtrack_from(Location) :
-    discovered(Location)[parent (Parent)] & not entry_point(Parent)
+// Extract useful parameters from the list
++!extract_params(Params) :
+    true
     <-
-        .print("Going back to parent: ", Parent) ;
-        !access(Parent) ;
+        // Check for specific parameters
+        // .member(paramName(Value), Params)
+        if (.member(reason(R), Params)) {
+            .print("  Reason: ", R) ;
+        }
+        
+        if (.member(checkpoint(C), Params)) {
+            .print("  Checkpoint: ", C) ;
+        }
+        
+        if (.member(unexploredCount(UC), Params)) {
+            .print("  Unexplored options: ", UC) ;
+        }
+        
+        if (.member(backtrackPath(Path), Params)) {
+            .print("  Backtrack path: ", Path) ;
+        }
+        
+        if (.member(alternativesByCheckpoint(Alts), Params)) {
+            .print("  Alternatives: ", Alts) ;
+        }
+        
+        // Print all parameters for debugging
+        .print("  All params: ", Params) ;
     .
+
+// Pattern 3: Select best suggestion by confidence
++!select_confident_suggestion([Sug], Sug) : true.
+
+// Pattern 3: Select best suggestion by confidence
++!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) | Rest], Best) :
+    true
+    <-
+        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2)) ;
+        
+        if (C1 > C2) {
+            Best = suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) ;
+        } else {
+            Best = suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2) ;
+        }
+    .
+
+-!select_next(Location) :
+    true
+    <-
+        .print("Plan-Failure -!select_next") ;
+        // Contingency-CCRS
+        ccrs.jacamo.jason.contingency.evaluate("Failure", "Error", Location, Suggestions) ;
+        // Pattern 2: Iterate through all suggestions
+        //
+        for (.member(Sug, Suggestions)) {
+            !process_suggestion(Sug) ;
+        }
+    .
+
+/**
+********** Contigency-CCRS **********
+*/
+
 
 // Start next loop
 -crawling : 
@@ -231,14 +292,8 @@ REACTING TO EVENTS
 +rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://kaefer3000.github.io/2021-02-dagstuhl/vocab#Cell")[rdf_type_map(_, _, uri), source(Anchor)] :
     crawling & h.target(Location, Target)
     <-
-        // DFS: Path tracking
-        ?at(Previous) ;
         -+at(Target) ; // update location. (Same as -at(_) ; +at(Target) ;)
-        .print("I'm now at: ", Target) ;         
-        if (not (discovered(Target))) { // Only add once on first encounter.
-            +discovered(Target)[parent(Previous)] ; // mark current location as discovered (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
-            .print("Discovered: ", Target, " from: ", Previous) ;
-        }       
+        .print("I'm now at: ", Target) ;
     .
 
 // Map outgoing links (as soon as they get perceived)

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 /**
  * Registry for contingency strategies.
@@ -15,6 +16,8 @@ import java.util.stream.Collectors;
  */
 public class StrategyRegistry {
     
+    private static final Logger logger = Logger.getLogger(StrategyRegistry.class.getName());
+
     private final Map<String, CcrsStrategy> strategies = new LinkedHashMap<>();
     
     /**
@@ -29,6 +32,7 @@ public class StrategyRegistry {
                 "Strategy already registered: " + strategy.getId());
         }
         strategies.put(strategy.getId(), strategy);
+        logger.info("Registered strategy: " + strategy.getId());
     }
     
     /**
@@ -47,6 +51,7 @@ public class StrategyRegistry {
      * @return The removed strategy, or null if not found
      */
     public CcrsStrategy unregister(String strategyId) {
+        logger.info("Unregistering strategy: " + strategyId);
         return strategies.remove(strategyId);
     }
     
@@ -106,6 +111,10 @@ public class StrategyRegistry {
         };
         
         enabled.sort(escalationOrder);
+
+        logger.info("Ordered strategies for evaluation: " +
+            enabled.stream().map(CcrsStrategy::getId).collect(Collectors.joining(", ")));
+
         return enabled;
     }
     

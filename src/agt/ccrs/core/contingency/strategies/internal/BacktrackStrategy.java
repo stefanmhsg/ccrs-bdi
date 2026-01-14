@@ -121,11 +121,19 @@ public class BacktrackStrategy implements CcrsStrategy {
         return 2;
     }
     
+    /**
+     * Check if strategy applies to the given situation and context.
+     * Is applicable for STUCK or FAILURE situations with available checkpoints.
+     * @param situation The current situation
+     * @param context The current context
+     * @return Applicability status
+     */
     @Override
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         if (situation.getType() != Situation.Type.STUCK && 
             situation.getType() != Situation.Type.FAILURE) {
-            return Applicability.NOT_APPLICABLE;
+                logger.fine("[Backtrack] Situation type not applicable: " + situation.getType());
+                return Applicability.NOT_APPLICABLE;
         }
         
         String currentResource = situation.getCurrentResource();
@@ -133,25 +141,30 @@ public class BacktrackStrategy implements CcrsStrategy {
             currentResource = context.getCurrentResource().orElse(null);
         }
         if (currentResource == null) {
+            logger.fine("[Backtrack] Cannot determine current resource");
             return Applicability.NOT_APPLICABLE;
         }
         
         int backtrackCount = situation.getAttemptCount(ID);
         if (backtrackCount >= maxBacktrackDepth) {
+            logger.fine(String.format("[Backtrack] Max backtrack depth reached (%d) for %s", backtrackCount, ID));
             return Applicability.NOT_APPLICABLE;
         }
         
         // Quick check: do we have any potential checkpoints?
         if (context.hasHistory()) {
+            logger.fine("[Backtrack] Is hasHistory() is applicable");
             return Applicability.APPLICABLE;
         }
         
         // Check RDF for incoming links
         List<RdfTriple> incomingLinks = context.query(null, null, currentResource);
         if (!incomingLinks.isEmpty()) {
+            logger.fine("[Backtrack] Incoming RDF links found");
             return Applicability.APPLICABLE;
         }
         
+        logger.fine("[Backtrack] No evidence for backtrack applicability");
         return Applicability.NOT_APPLICABLE;
     }
     
@@ -188,7 +201,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         }
         
         final String current = currentResource;  // Make effectively final for lambdas
-        logger.fine("[Backtrack] Current resource: " + shortenUri(current));
+        logger.fine("[Backtrack] Current resource: " + current);
         
         // STEP 1: Collect checkpoint candidates from RDF and history
         List<CheckpointCandidate> rdfCandidates = collectRdfCheckpoints(current, context);
@@ -206,7 +219,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 mergedCandidates.get(uri), current, context);
             mergedCandidates.put(uri, classified);
             logger.finer(String.format("[Backtrack]   %s: %d unexplored, %d exhausted",
-                shortenUri(uri), classified.unexploredAlternatives().size(), 
+                uri, classified.unexploredAlternatives().size(), 
                 classified.exhaustedAlternatives().size()));
         }
         
@@ -252,7 +265,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         CheckpointCandidate bestCheckpoint = rankedCheckpoints.get(0);
         
         logger.info(String.format("[Backtrack] Selected checkpoint: %s (source=%s, unexplored=%d, distance=%d, score=%.2f)",
-            shortenUri(bestCheckpoint.uri()), bestCheckpoint.source(),
+            bestCheckpoint.uri(), bestCheckpoint.source(),
             bestCheckpoint.unexploredAlternatives().size(), bestCheckpoint.graphDistance(),
             bestCheckpoint.validationScore()));
         
@@ -319,12 +332,12 @@ public class BacktrackStrategy implements CcrsStrategy {
     private List<CheckpointCandidate> collectRdfCheckpoints(String currentResource, CcrsContext context) {
         List<RdfTriple> incomingLinks = context.query(null, null, currentResource);
         logger.finer(String.format("[Backtrack] Found %d incoming RDF links to %s",
-            incomingLinks.size(), shortenUri(currentResource)));
+            incomingLinks.size(), currentResource));
         
         return incomingLinks.stream()
             .map(t -> t.subject)
             .filter(uri -> uri != null && !uri.isEmpty())
-            .filter(uri -> uri.startsWith("http"))  // Valid URI
+            .filter(this::isValidUri)
             .filter(uri -> !uri.equals(currentResource))  // Not self-loop
             .distinct()
             .map(uri -> createCandidate(uri, CheckpointCandidate.Source.RDF, context))
@@ -348,6 +361,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 .anyMatch(triple -> currentResource.equals(triple.object)))
             .map(i -> i.requestUri())
             .filter(uri -> uri != null && !uri.isEmpty())
+            .filter(this::isValidUri) // Ensure valid URI
             .filter(uri -> !uri.equals(currentResource))
             .distinct()
             .map(uri -> createCandidateWithRecency(uri, CheckpointCandidate.Source.HISTORY, 
@@ -625,8 +639,8 @@ public class BacktrackStrategy implements CcrsStrategy {
     private String buildRationale(String current, CheckpointCandidate checkpoint, 
                                    int totalCandidates, int depth) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Blocked at ").append(shortenUri(current)).append(". ");
-        sb.append("Backtracking to checkpoint ").append(shortenUri(checkpoint.uri()));
+        sb.append("Blocked at ").append(current).append(". ");
+        sb.append("Backtracking to checkpoint ").append(checkpoint.uri());
         sb.append(" with ").append(checkpoint.unexploredAlternatives().size())
           .append(" unexplored alternative(s)");
         
@@ -709,10 +723,36 @@ public class BacktrackStrategy implements CcrsStrategy {
     
     // ========== Utility Methods ==========
     
+    /**
+     * Validates if a URI is suitable for checkpoint consideration.
+     * Excludes fragments and ensures proper URI format.
+     * 
+     * @param uri The URI to validate
+     * @return true if URI is valid (starts with http and has no fragments)
+     */
+    private boolean isValidUri(String uri) {
+        if (uri == null || uri.isEmpty()) {
+            return false;
+        }
+        
+        // Must be HTTP(S) URI
+        if (!uri.startsWith("http://") && !uri.startsWith("https://")) {
+            return false;
+        }
+        
+        // Exclude URIs with fragments (contain #)
+        if (uri.contains("#")) {
+            return false;
+        }
+        
+        return true;
+    }
+    
     private List<String> queryOutgoingLinks(String uri, CcrsContext context) {
         return context.query(uri, null, null).stream()
             .map(t -> t.object)
             .filter(o -> o != null && !o.isEmpty())
+            .filter(this::isValidUri)
             .distinct()
             .toList();
     }
@@ -724,16 +764,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             .max()
             .orElse(0L);
     }
-    
-    private String shortenUri(String uri) {
-        if (uri == null) return "null";
-        int lastSlash = uri.lastIndexOf('/');
-        if (lastSlash > 0 && lastSlash < uri.length() - 1) {
-            return uri.substring(lastSlash + 1);
-        }
-        return uri;
-    }
-    
+        
     // ========== Configuration ==========
     
     public BacktrackStrategy maxDepth(int depth) {

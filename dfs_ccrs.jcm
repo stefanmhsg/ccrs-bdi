@@ -22,7 +22,7 @@ mas ccrs_bdi {
       ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
       // Belief Base
-      ag-bb-class: jason.bb.TextPersistentBB // Load and persist beliefs from file: <agent name>.bb
+      //ag-bb-class: jason.bb.TextPersistentBB // Load and persist beliefs from file: <agent name>.bb
 
       // Instances (default is 1, can also list the names)
       // instances: 5 // agent1, agent2, agent3, ... 
