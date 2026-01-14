@@ -11,7 +11,7 @@ public class OpportunisticResult {
     public final String type;      // High-level type (e.g. "signifier", "stigmergy")
     public final String target;    // The actionable target URI or value
     public final String patternId; // The specific pattern definition URI or ID
-    public final double utility;   // Calculated utility (0.0 to 1.0+)
+    public final double utility;   // Calculated utility
     public final Map<String, String> metadata;
     
     /**
@@ -65,8 +65,17 @@ public class OpportunisticResult {
     
     @Override
     public String toString() {
-        return String.format("OpportunisticResult[target=%s, type=%s, utility=%.2f]", 
-            target, type, utility);
+        StringBuilder sb = new StringBuilder();
+        sb.append("OpportunisticResult{");
+        sb.append("type='").append(type).append('\'');
+        sb.append(", target='").append(target).append('\'');
+        sb.append(", patternId='").append(patternId).append('\'');
+        sb.append(", utility=").append(utility);
+        if (!metadata.isEmpty()) {
+            sb.append(", metadata=").append(metadata);
+        }
+        sb.append('}');
+        return sb.toString();
     }
 
 }

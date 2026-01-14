@@ -171,13 +171,15 @@ public class VocabularyMatcher implements OpportunisticCcrs {
         double utility = scoringStrategy.calculateUtility(def.priority, relContext);
         
         OpportunisticResult res = new OpportunisticResult(def.type, target, def.id, utility);
+
+        // Add Metadata: match position and provided context
         res.withMetadata("match_position", def.position);
         addContext(res, ctx);
         return res;
     }
     
     private void addContext(OpportunisticResult res, Map<String, Object> ctx) {
-        if (ctx != null) ctx.forEach((k, v) -> res.withMetadata("ctx_" + k, v.toString()));
+        if (ctx != null) ctx.forEach((k, v) -> res.withMetadata(k, v.toString()));
     }
 
 

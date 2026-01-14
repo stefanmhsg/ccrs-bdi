@@ -209,8 +209,8 @@ public class CcrsAgentArch extends CAgentArch {
 
         logger.fine("Abolishing previous opportunistic CCRS beliefs before processing new batches.");
 
-        // Remove ONLY ccrs/3 beliefs WITH artifact_name annotation (from opportunistic scanning)
-        // Preserve ccrs/3 beliefs WITHOUT artifact_name (from contingency-CCRS strategies)
+        // Remove ONLY ccrs/3 beliefs WITH origin(opportunistic-ccrs) annotation (from opportunistic scanning)
+        // Preserve ccrs/3 beliefs WITHOUT origin or with origin(contingency) (from contingency-CCRS strategies)
         Iterator<Literal> it = getTS().getAg().getBB().getCandidateBeliefs(
             new PredicateIndicator("ccrs", 3));
         
@@ -218,9 +218,16 @@ public class CcrsAgentArch extends CAgentArch {
             List<Literal> toRemove = new ArrayList<>();
             while (it.hasNext()) {
                 Literal ccrs = it.next();
-                // Check if it has artifact_name annotation (opportunistic)
-                if (ccrs.getAnnot("artifact_name") != null) {
-                    toRemove.add(ccrs);
+                // Check if it has origin(opportunistic-ccrs) annotation
+                Term originAnnot = ccrs.getAnnot("origin");
+                if (originAnnot != null && originAnnot.isStructure()) {
+                    Structure s = (Structure) originAnnot;
+                    if (s.getArity() > 0) {
+                        String originValue = s.getTerm(0).toString().replace("\"", "");
+                        if ("opportunistic-ccrs".equals(originValue)) {
+                            toRemove.add(ccrs);
+                        }
+                    }
                 }
             }
             
@@ -252,22 +259,21 @@ public class CcrsAgentArch extends CAgentArch {
     private void processSingleBatch(List<RdfTriple> triples, String sourceKey, ArtifactId artifactId) throws JasonException {
         if (ccrsScanner == null) return;
 
+        // context gets passed to the scanner and results in OpportunisticResult metadata map. Metadata here gets converted to Belief annotations 1:1.
         Map<String, Object> context = new HashMap<>();
         context.put("source", sourceKey);
         context.put("artifact_name", artifactId.getName());
         context.put("workspace", artifactId.getWorkspaceId().getName());
+        context.put("origin", "opportunistic-ccrs");
 
         List<OpportunisticResult> results = ccrsScanner.scanAll(triples, context);
 
         for (OpportunisticResult r : results) {
             // Create the CCRS belief: ccrs(Target, PatternType, Utility)[source(Source), metadata(Key, Value), ...]
+            // All annotations come from the context map via JasonRdfAdapter
             Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(
                r, sourceKey
             );
-            
-            // Add artifact_name annotation to mark as opportunistic (will be wiped next cycle)
-            ccrsBelief.addAnnot(ASSyntax.createStructure("artifact_name", 
-                ASSyntax.createString(artifactId.getName())));
 
             // Inject into Belief Base
             if (getTS().getAg().getBB().add(ccrsBelief)) {
