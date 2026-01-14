@@ -182,13 +182,13 @@ REACTING TO EVENTS
 /*******************
 HELPER PLANS
 *******************/
-+!crawl(URI) :
-    agent_name(Name)
++!crawl(RequestURI) :
+    agent_name(Name) & h.target(RequestURI, TargetURI)
     <-
         +crawling ;
-        .print("Retrieving ", URI) ;
+        .print("Retrieving ", TargetURI) ;
         .abolish(affords(_, _)) ; // Forget previous affordances
-        get(URI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
+        get(TargetURI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
         !!checkEndCrawl ;
   .
 
@@ -204,8 +204,8 @@ HELPER PLANS
         !crawl(URI) ;
     .
 
-+!request_access(TargetURI) :
-    at(URI) & agent_name(AgentName)
++!request_access(RequestURI) :
+    at(URI) & agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
         .print("POST to target URI - requesting MOVE to: ", TargetURI) ;
         post(TargetURI, [rdf(AgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", URI)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", AgentName)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
@@ -214,13 +214,12 @@ HELPER PLANS
         .print("Access approved: ", CreatedResourceURI) ;
     .
 
-  +!post(URI, Body) :
-    agent_name(AgentName)
+  +!post(RequestURI, Body) :
+    agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
-        h.target(URI, TargetURI) ;
-        .print("POST to: ", URI, " with body: ", Body) ;
-        post(URI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
-        ?(rdf(URI, related, CreatedResourceURI)) ;
+        .print("POST to: ", TargetURI, " with body: ", Body) ;
+        post(TargetURI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        ?(rdf(TargetURI, related, CreatedResourceURI)) ;
         .print("Created resource: ", CreatedResourceURI) ;
     .
 

@@ -140,18 +140,37 @@ MAIN LOOP
             // Opportunistic-CCRS
             // Attempting to re-order the list of options based on detected opportunities / threats associated with them.
             //
-            //  DefaultList:    CCRS-beliefs:               CcrsList:
-            //  Option A        -                           Option B
-            //  Option B        ccrs(B, signifier, 0.9)     Option C
-            //  Option C        ccrs(C, stigmergy, 0.2)     Option A
+            //  DefaultList:    CCRS-beliefs:               PlainCcrsList:  DetailedCcrsList:
+            //  "Option A"      -                           "Option B"      uri(Option B)[signifier, 0.9]
+            //  "Option B"      ccrs(B, signifier, 0.9)     "Option C"      uri(Option C)[stigmergy, 0.2]
+            //  "Option C"      ccrs(C, stigmergy, 0.2)     "Option A"      uri(Option A)[null, 0]
             //
-            ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, CcrsList) ;
+            ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList) ;
+            // 
+            // Use DetailedCcrsList for custom handling and interpretation of ccrs output based on annotations.
+            !interpret_ccrs_prioritization(DetailedCcrsList) ;
+            //
+            // Or directly proceed with PlainCcrsList. 
+            +remaining(Location, PlainCcrsList) ; // Add belief of unexplored options based from current Location. Make sure to pass a list of Strings.
+            //
             // Instead of following the default first option, DFS will now follow the first option of a prioritized list.
-            +remaining(Location, CcrsList) ; // Add belief of unexplored options based from current Location.
+            //
         } else {
             .print("Tracking list of unexplored affordances already available.") ;
             // Optional: Re-prioritize the list of remaining options based on latests CCRS-beliefs
         }
+    .
+
++!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility),strategy(Strategy)] | Tail ] ) :
+        true
+    <-
+        .print("DetailedCcrsList: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility,", strategy=",Strategy) ;
+    .
+
++!interpret_ccrs_prioritization( [ Head | Tail ] ) :
+        true
+    <-
+        .print("PlainCcrsList: interpret ccrs prioritization output: Target=",Head) ;
     .
 
 // Next move if Exit in sight
@@ -256,13 +275,13 @@ REACTING TO EVENTS
 /*******************
 HELPER PLANS
 *******************/
-+!crawl(URI) :
-    agent_name(Name)
++!crawl(RequestURI) :
+    agent_name(Name) & h.target(RequestURI, TargetURI)
     <-
         +crawling ;
-        .print("Retrieving ", URI) ;
+        .print("Retrieving ", TargetURI) ;
         .abolish(affords(_, _)) ; // Forget previous affordances
-        get(URI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
+        get(TargetURI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
         !!checkEndCrawl ;
   .
 
@@ -278,8 +297,8 @@ HELPER PLANS
         !crawl(URI) ;
     .
 
-+!request_access(TargetURI) :
-    at(URI) & agent_name(AgentName)
++!request_access(RequestURI) :
+    at(URI) & agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
         .print("POST to target URI - requesting MOVE to: ", TargetURI) ;
         post(TargetURI, [rdf(AgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", URI)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", AgentName)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
@@ -288,13 +307,12 @@ HELPER PLANS
         .print("Access approved: ", CreatedResourceURI) ;
     .
 
-  +!post(URI, Body) :
-    agent_name(AgentName)
+  +!post(RequestURI, Body) :
+    agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
-        h.target(URI, TargetURI) ;
-        .print("POST to: ", URI, " with body: ", Body) ;
-        post(URI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
-        ?(rdf(URI, related, CreatedResourceURI)) ;
+        .print("POST to: ", TargetURI, " with body: ", Body) ;
+        post(TargetURI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        ?(rdf(TargetURI, related, CreatedResourceURI)) ;
         .print("Created resource: ", CreatedResourceURI) ;
     .
 
