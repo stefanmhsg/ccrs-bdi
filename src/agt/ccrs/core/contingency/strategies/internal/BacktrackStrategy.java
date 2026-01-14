@@ -575,18 +575,19 @@ public class BacktrackStrategy implements CcrsStrategy {
     }
     
     /**
-     * Compute backtrack path: sequence of resources from current back to checkpoint.
-     * Returns list in forward order (first element = immediate previous, last = checkpoint).
+     * Compute backtrack path: sequence of resources from most recent to checkpoint.
+     * Returns list in forward order (first element = history[0], last = checkpoint).
+     * Consecutive duplicates are removed to eliminate retry artifacts.
      */
     private List<String> computeBacktrackPath(String current, String checkpoint, CcrsContext context) {
         if (current.equals(checkpoint)) {
-            return List.of();
+            return List.of(checkpoint);
         }
         
         List<Interaction> history = context.getRecentInteractions(1000);
         List<String> path = new ArrayList<>();
         
-        // Collect requestUri from most recent until checkpoint
+        // Collect requestUri from most recent (history[0]) until checkpoint (inclusive)
         for (Interaction interaction : history) {
             String uri = interaction.requestUri();
             path.add(uri);
@@ -595,9 +596,33 @@ public class BacktrackStrategy implements CcrsStrategy {
             }
         }
         
-        // Reverse to get forward order (current → checkpoint)
+        // Reverse to get forward order (history[0] → checkpoint)
         Collections.reverse(path);
-        return path;
+        
+        // Remove consecutive duplicates (artifacts from retries)
+        return removeConsecutiveDuplicates(path);
+    }
+    
+    /**
+     * Remove consecutive duplicate URIs from path while preserving order.
+     * Keeps first occurrence of each consecutive sequence.
+     */
+    private List<String> removeConsecutiveDuplicates(List<String> path) {
+        if (path.isEmpty()) {
+            return path;
+        }
+        
+        List<String> result = new ArrayList<>();
+        String previous = null;
+        
+        for (String uri : path) {
+            if (!uri.equals(previous)) {
+                result.add(uri);
+                previous = uri;
+            }
+        }
+        
+        return result;
     }
     
     /**

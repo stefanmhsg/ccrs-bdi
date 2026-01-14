@@ -47,6 +47,15 @@ public class evaluate extends DefaultInternalAction {
         CcrsContext context = getContext(ts);
 
         Situation situation = parseSituation(args);
+        
+        // Track current resource explicitly when Focus parameter is provided
+        if (args.length == 4) {
+            String focus = JasonRdfAdapter.termToString(args[2]);
+            if (!focus.isEmpty() && context instanceof ccrs.jacamo.jason.contingency.JasonCcrsContext) {
+                ((ccrs.jacamo.jason.contingency.JasonCcrsContext) context).setCurrentResource(focus);
+                logger.log(Level.FINE, "[ContingencyCcrs] Set current resource to: " + focus);
+            }
+        }
 
         logger.log(Level.INFO,
             "[ContingencyCcrs] Evaluating situation: " + situation + " with context: " + context.toString());

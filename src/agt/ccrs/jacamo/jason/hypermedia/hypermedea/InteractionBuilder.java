@@ -58,9 +58,7 @@ final class InteractionBuilder {
 
     static InteractionBuilder fromRequest(Operation op, long timestamp) {
 
-        String method = String.valueOf(
-            op.getForm().getOrDefault("method", "unknown")
-        );
+        String method = extractMethod(op);
 
         Map<String, String> headers = extractHeaders(op.getForm());
 
@@ -118,6 +116,38 @@ final class InteractionBuilder {
     // =========================
     // Helpers
     // =========================
+
+    /**
+     * Extract HTTP method from Operation.
+     * Tries multiple strategies:
+     * 1. Explicit 'method' key in form
+     * 2. URN-style keys like 'urn:hypermedea:http:mthd'
+     * 3. Infer from payload: POST if has body, GET otherwise
+     */
+    private static String extractMethod(Operation op) {
+        Map<String, Object> form = op.getForm();
+        
+        // Strategy 1: Check simple 'method' key
+        if (form.containsKey("method")) {
+            return String.valueOf(form.get("method")).toUpperCase();
+        }
+        
+        // Strategy 2: Check URN-style method key
+        for (Map.Entry<String, Object> e : form.entrySet()) {
+            String key = e.getKey().toLowerCase();
+            if (key.contains(":mthd") || key.contains(":method")) {
+                return String.valueOf(e.getValue()).toUpperCase();
+            }
+        }
+        
+        // Strategy 3: Infer from payload
+        if (op.getPayload() != null && !op.getPayload().isEmpty()) {
+            return "POST";
+        }
+        
+        // Default to GET for read operations
+        return "GET";
+    }
 
     private static Interaction.Outcome mapOutcome(Response.ResponseStatus status) {
         if (status == null) {
