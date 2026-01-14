@@ -49,6 +49,9 @@ public class evaluate extends DefaultInternalAction {
 
         List<StrategyResult> results =
             ccrs.evaluate(situation, context);
+        
+        // Inject OpportunisticResult mental notes as ccrs/3 beliefs (B2)
+        injectOpportunisticNotes(ts, results);
 
         ListTerm resultList = buildResultList(results);
 
@@ -144,6 +147,43 @@ public class evaluate extends DefaultInternalAction {
         return list;
     }
 
+    // ------------------------------------------------------------------
+    // OpportunisticResult injection (B2)
+    // ------------------------------------------------------------------
+    
+    /**
+     * Inject OpportunisticResult mental notes from contingency strategies as ccrs/3 beliefs.
+     * These beliefs do NOT have artifact_name annotation, so they persist across perception cycles.
+     */
+    private void injectOpportunisticNotes(TransitionSystem ts, List<StrategyResult> results) {
+        for (StrategyResult r : results) {
+            if (!r.isSuggestion()) continue;
+            
+            StrategyResult.Suggestion s = r.asSuggestion();
+            if (!s.hasOpportunisticGuidance()) continue;
+            
+            for (ccrs.core.opportunistic.OpportunisticResult opp : s.getOpportunisticGuidance()) {
+                try {
+                    // Use JasonRdfAdapter to create consistent ccrs/3 belief structure
+                    // Source "contingency" marks as contingency-generated (no artifact_name = persists)
+                    Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(opp, "contingency");
+                    
+                    // Add to belief base (no artifact_name annotation = persists)
+                    if (ts.getAg().getBB().add(ccrsBelief)) {
+                        // Generate +ccrs(...) event for agent plans
+                        Trigger te = new Trigger(Trigger.TEOperator.add, 
+                            Trigger.TEType.belief, ccrsBelief.copy());
+                        ts.getC().addEvent(new jason.asSemantics.Event(te));
+                        
+                        logger.fine("[CCRS] Injected contingency mental note: " + ccrsBelief);
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Failed to inject opportunistic note: " + opp, e);
+                }
+            }
+        }
+    }
+    
     // ------------------------------------------------------------------
     // CCRS wiring
     // ------------------------------------------------------------------

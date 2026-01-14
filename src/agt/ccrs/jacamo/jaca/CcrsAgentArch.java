@@ -207,10 +207,25 @@ public class CcrsAgentArch extends CAgentArch {
             flushScheduled = false;
         }
 
-        logger.fine("Abolishing previous CCRS beliefs before processing new batches.");
+        logger.fine("Abolishing previous opportunistic CCRS beliefs before processing new batches.");
 
-        // Remove all previous ccrs/3 beliefs to start fresh each cycle
-        getTS().getAg().getBB().abolish(new PredicateIndicator("ccrs", 3));
+        // Remove ONLY ccrs/3 beliefs WITH artifact_name annotation (from opportunistic scanning)
+        // Preserve ccrs/3 beliefs WITHOUT artifact_name (from contingency-CCRS strategies)
+        Iterator<Literal> it = getTS().getAg().getBB().getCandidateBeliefs(
+            new PredicateIndicator("ccrs", 3));
+        
+        List<Literal> toRemove = new ArrayList<>();
+        while (it.hasNext()) {
+            Literal ccrs = it.next();
+            // Check if it has artifact_name annotation (opportunistic)
+            if (ccrs.getAnnot("artifact_name") != null) {
+                toRemove.add(ccrs);
+            }
+        }
+        
+        for (Literal l : toRemove) {
+            getTS().getAg().getBB().remove(l);
+        }
         
         logger.fine("Processing new batch of properties.");
         
@@ -247,6 +262,10 @@ public class CcrsAgentArch extends CAgentArch {
             Literal ccrsBelief = JasonRdfAdapter.createCcrsBelief(
                r, sourceKey
             );
+            
+            // Add artifact_name annotation to mark as opportunistic (will be wiped next cycle)
+            ccrsBelief.addAnnot(ASSyntax.createStructure("artifact_name", 
+                ASSyntax.createString(artifactId.getName())));
 
             // Inject into Belief Base
             if (getTS().getAg().getBB().add(ccrsBelief)) {
