@@ -14,23 +14,26 @@ import java.util.logging.Logger;
  * <p>
  * Internal action for prioritizing hypermedia options based on CCRS utilities.
  * 
- * Usage: ccrs.prioritize(OptionsIn, OptionsOut)
+ * Usage: ccrs.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList)
  * 
  * Arguments:
- * - OptionsIn: List of URIs representing available hypermedia options
- * - OptionsOut: Re-ordered list based on CCRS utilities
+ * - DefaultList: Input list of URIs (original order, unmodified)
+ * - PlainCcrsList: Re-ordered URIs based on CCRS utilities (no annotations)
+ * - DetailedCcrsList: Re-ordered URIs with CCRS annotations (origin, type, utility, etc.)
  * 
  * Algorithm:
  * 1. Finds all beliefs matching ccrs(Target, PatternType, Utility)
  * 2. Matches each URI with corresponding CCRS targets
  * 3. Re-orders list:  highest utility first, unmatched in middle (original order),
  *    negative utility last
+ * 4. Returns both plain (backward compatible) and detailed (annotated) versions
  * 
  * Example:
  * +! select_action(Options) :  true
- *   <- ccrs.prioritize(Options, PrioritizedOptions);
- *      . print("Prioritized options:  ", PrioritizedOptions);
- *      ! execute(.nth(0, PrioritizedOptions, BestOption)).
+ *   <- ccrs.prioritize(Options, PlainList, DetailedList);
+ *      .print("Plain prioritized: ", PlainList);
+ *      .print("Detailed: ", DetailedList);
+ *      !execute(.nth(0, PlainList, BestOption)).
  * </p>
  */
 public class prioritize extends DefaultInternalAction {
@@ -41,9 +44,9 @@ public class prioritize extends DefaultInternalAction {
     public Object execute(TransitionSystem ts, Unifier un, Term[] args) throws Exception {
         try {
             // 1. Validate arguments
-            if (args.length != 2) {
-                throw new JasonException("ccrs.prioritize expects exactly 2 arguments:  " +
-                        "prioritize(InputList, OutputList)");
+            if (args.length != 3) {
+                throw new JasonException("ccrs.prioritize expects exactly 3 arguments:  " +
+                        "prioritize(DefaultList, PlainCcrsList, DetailedCcrsList)");
             }
             
             // 2. Get the input list of URIs
@@ -56,10 +59,11 @@ public class prioritize extends DefaultInternalAction {
 
             logger.log(Level.INFO, "[CCRS-Prioritize] Input options: " + inputList);
 
-            // Return early if input list is empty or has one element (no prioritization needed)
-            if (inputList.isEmpty() || inputList.size() == 1) {
-                logger.log(Level.INFO, "[CCRS-Prioritize] Input list has 0 or 1 element, no prioritization needed.");
-                return un.unifies(inputList, args[1]);
+            // Return early if input list is empty. Even for 1 option it can be useful to know associated utility e.g. to avoid certain options.
+            if (inputList.isEmpty()) {
+                logger.log(Level.INFO, "[CCRS-Prioritize] Input list has 0 elements, no prioritization needed.");
+                // Return same list for both outputs
+                return un.unifies(inputList, args[1]) && un.unifies(inputList, args[2]);
             }
             
             // 3. Extract CCRS beliefs from the belief base
@@ -70,16 +74,20 @@ public class prioritize extends DefaultInternalAction {
 
             logger.log(Level.INFO, "[CCRS-Prioritize] Categorized options: " + prioritizedOptions.toString());
             
-            // 5. Build the result list
-            ListTerm resultList = buildResultList(prioritizedOptions);
-
-            logger.log(Level.FINE, "[CCRS-Prioritize] Prioritized options (output): " + resultList);
+            // 5. Build the plain result list (backward compatible)
+            ListTerm plainList = buildPlainList(prioritizedOptions);
             
-            // 6. Unify with the output parameter
-            return un.unifies(resultList, args[1]);
+            // 6. Build the detailed result list (with annotations)
+            ListTerm detailedList = buildDetailedList(prioritizedOptions);
+
+            logger.log(Level.FINE, "[CCRS-Prioritize] Plain list (output): " + plainList);
+            logger.log(Level.FINE, "[CCRS-Prioritize] Detailed list (output): " + detailedList);
+            
+            // 7. Unify with the output parameters
+            return un.unifies(plainList, args[1]) && un.unifies(detailedList, args[2]);
             
         } catch (ArrayIndexOutOfBoundsException e) {
-            throw new JasonException("ccrs.prioritize requires 2 arguments");
+            throw new JasonException("ccrs.prioritize requires 3 arguments");
         } catch (ClassCastException e) {
             throw new JasonException("Invalid argument types for ccrs.prioritize");
         } catch (Exception e) {
@@ -224,11 +232,26 @@ public class prioritize extends DefaultInternalAction {
     }
     
     /**
-     * Builds a Jason ListTerm from the prioritized options.
-     * Enriches each term with annotations from ccrs/3 beliefs:
-     * - origin(), type(), pattern_id(), utility(), source(), original_index(), strategy() (if present)
+     * Builds a plain Jason ListTerm from the prioritized options (no annotations).
+     * Backward compatible with previous behavior.
      */
-    private ListTerm buildResultList(List<PrioritizedOption> options) {
+    private ListTerm buildPlainList(List<PrioritizedOption> options) {
+        ListTerm result = new ListTermImpl();
+        
+        for (PrioritizedOption po : options) {
+            result.add(po.term);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Builds a detailed Jason ListTerm from the prioritized options.
+     * Enriches each term with annotations from ccrs/3 beliefs:
+     * - origin(), type(), pattern_id(), utility(), source(), original_index(), strategy()
+     * Unmatched options get fallback values: utility=0, others="null"
+     */
+    private ListTerm buildDetailedList(List<PrioritizedOption> options) {
         ListTerm result = new ListTermImpl();
         
         for (PrioritizedOption po : options) {
@@ -240,6 +263,15 @@ public class prioritize extends DefaultInternalAction {
                     enriched = enrichWithAnnotations(po);
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Failed to enrich option: " + po.uri, e);
+                    // Fallback: use original term
+                    enriched = po.term;
+                }
+            } else {
+                // Enrich unmatched options with fallback values
+                try {
+                    enriched = enrichWithFallbackValues(po);
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Failed to enrich unmatched option: " + po.uri, e);
                     // Fallback: use original term
                     enriched = po.term;
                 }
@@ -290,10 +322,13 @@ public class prioritize extends DefaultInternalAction {
         // source() - always present
         copyAnnotation(belief, enriched, "source");
         
-        // strategy() - only for contingency-ccrs (conditional)
+        // strategy() - add with null placeholder if not present (for stable result list)
         Term strategyAnnot = belief.getAnnot("strategy");
         if (strategyAnnot != null) {
             enriched.addAnnot(strategyAnnot);
+        } else {
+            // Add null placeholder for opportunistic-ccrs beliefs
+            enriched.addAnnot(ASSyntax.createStructure("strategy", new Atom("null")));
         }
         
         return enriched;
@@ -307,6 +342,40 @@ public class prioritize extends DefaultInternalAction {
         if (annot != null) {
             target.addAnnot(annot);
         }
+    }
+    
+    /**
+     * Enriches an unmatched term with fallback annotation values.
+     * Sets utility=0 and uses "null" placeholders for all other fields.
+     */
+    private Term enrichWithFallbackValues(PrioritizedOption po) throws Exception {
+        // Wrap URI in a structure so annotations don't corrupt the URI value
+        Literal enriched = ASSyntax.createLiteral("uri", po.term);
+        
+        // Always add original_index
+        enriched.addAnnot(ASSyntax.createStructure("original_index", 
+            ASSyntax.createNumber(po.originalIndex)));
+        
+        // Add fallback values for unmatched options
+        enriched.addAnnot(ASSyntax.createStructure("utility", 
+            ASSyntax.createNumber(0)));
+        
+        enriched.addAnnot(ASSyntax.createStructure("origin", 
+            new Atom("null")));
+        
+        enriched.addAnnot(ASSyntax.createStructure("type", 
+            new Atom("null")));
+        
+        enriched.addAnnot(ASSyntax.createStructure("pattern_id", 
+            new Atom("null")));
+        
+        enriched.addAnnot(ASSyntax.createStructure("source", 
+            new Atom("null")));
+        
+        enriched.addAnnot(ASSyntax.createStructure("strategy", 
+            new Atom("null")));
+        
+        return enriched;
     }
     
     /**

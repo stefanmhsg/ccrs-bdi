@@ -140,22 +140,21 @@ MAIN LOOP
             // Opportunistic-CCRS
             // Attempting to re-order the list of options based on detected opportunities / threats associated with them.
             //
-            //  DefaultList:    CCRS-beliefs:               CcrsList:
-            //  Option A        -                           Option B
-            //  Option B        ccrs(B, signifier, 0.9)     Option C
-            //  Option C        ccrs(C, stigmergy, 0.2)     Option A
+            //  DefaultList:    CCRS-beliefs:               PlainCcrsList:  DetailedCcrsList:
+            //  "Option A"      -                           "Option B"      uri(Option B)[signifier, 0.9]
+            //  "Option B"      ccrs(B, signifier, 0.9)     "Option C"      uri(Option C)[stigmergy, 0.2]
+            //  "Option C"      ccrs(C, stigmergy, 0.2)     "Option A"      uri(Option A)[null, 0]
             //
-            ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, CcrsList) ;
+            ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList) ;
             // 
-            // Ensure to separate Uri literals from annotations
-            // - use annotations for custom handling of ccrs output based on annotations
-            // - pass cleand list to remaining(_,PrioritizedList)
-            !interpret_ccrs_prioritization(CcrsList) ;
-
-            // Issues: .prioritize either returns list of strings or list of rdf()[] structures with varying annotations. +remaining() must be filled with list of strings.
-
+            // Use DetailedCcrsList for custom handling and interpretation of ccrs output based on annotations.
+            !interpret_ccrs_prioritization(DetailedCcrsList) ;
+            //
+            // Or directly proceed with PlainCcrsList. 
+            +remaining(Location, PlainCcrsList) ; // Add belief of unexplored options based from current Location. Make sure to pass a list of Strings.
+            //
             // Instead of following the default first option, DFS will now follow the first option of a prioritized list.
-            +remaining(Location, CcrsList) ; // Add belief of unexplored options based from current Location.
+            //
         } else {
             .print("Tracking list of unexplored affordances already available.") ;
             // Optional: Re-prioritize the list of remaining options based on latests CCRS-beliefs
@@ -165,23 +164,13 @@ MAIN LOOP
 +!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility),strategy(Strategy)] | Tail ] ) :
         true
     <-
-        .print("Plan 1: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility,", strategy=",Strategy) ;
-    .
-
-//uri("http://127.0.1.1:8080/cells/22")[origin("opportunistic-ccrs"),original_index(0),pattern_id("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green"),source("http://127.0.1.1:8080/cells/21"),type("signifier"),utility(1)]
-+!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility)] | Tail ] ) :
-        true
-    <-
-        .print("Plan 2: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility) ;
-    // Plan 2: interpret ccrs prioritization output: Target=http://127.0.1.1:8080/cells/22 --- Annotations: , origin=opportunistic-ccrs, original_index=0, pattern_id=https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green, source=http://127.0.1.1:8080/cells/21, type=signifier, utility=1
-
+        .print("DetailedCcrsList: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility,", strategy=",Strategy) ;
     .
 
 +!interpret_ccrs_prioritization( [ Head | Tail ] ) :
         true
     <-
-        .print("Plan 3: interpret ccrs prioritization output: Target=",Head) ;
-        // Plan 3: interpret ccrs prioritization output: Target=http://127.0.1.1:8080/cells/5
+        .print("PlainCcrsList: interpret ccrs prioritization output: Target=",Head) ;
     .
 
 // Next move if Exit in sight
