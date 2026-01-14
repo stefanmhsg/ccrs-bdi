@@ -25,7 +25,6 @@ ccrs/core/contingency/
 
 ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 ├── evaluate.java               # Internal action: ccrs.contingency.evaluate(...)
-├── track.java                  # Internal action: ccrs.contingency.track(...)
 └── report_outcome.java         # Internal action: ccrs.contingency.report_outcome(...)
 ```
 
