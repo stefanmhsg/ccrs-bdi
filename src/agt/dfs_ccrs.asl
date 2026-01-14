@@ -146,12 +146,42 @@ MAIN LOOP
             //  Option C        ccrs(C, stigmergy, 0.2)     Option A
             //
             ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, CcrsList) ;
+            // 
+            // Ensure to separate Uri literals from annotations
+            // - use annotations for custom handling of ccrs output based on annotations
+            // - pass cleand list to remaining(_,PrioritizedList)
+            !interpret_ccrs_prioritization(CcrsList) ;
+
+            // Issues: .prioritize either returns list of strings or list of rdf()[] structures with varying annotations. +remaining() must be filled with list of strings.
+
             // Instead of following the default first option, DFS will now follow the first option of a prioritized list.
             +remaining(Location, CcrsList) ; // Add belief of unexplored options based from current Location.
         } else {
             .print("Tracking list of unexplored affordances already available.") ;
             // Optional: Re-prioritize the list of remaining options based on latests CCRS-beliefs
         }
+    .
+
++!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility),strategy(Strategy)] | Tail ] ) :
+        true
+    <-
+        .print("Plan 1: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility,", strategy=",Strategy) ;
+    .
+
+//uri("http://127.0.1.1:8080/cells/22")[origin("opportunistic-ccrs"),original_index(0),pattern_id("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green"),source("http://127.0.1.1:8080/cells/21"),type("signifier"),utility(1)]
++!interpret_ccrs_prioritization( [ uri(Target)[origin(Origin),original_index(O),pattern_id(Pattern),source(Source),type(Type),utility(Utility)] | Tail ] ) :
+        true
+    <-
+        .print("Plan 2: interpret ccrs prioritization output: Target=",Target," --- Annotations: , origin=",Origin,", original_index=",O,", pattern_id=",Pattern,", source=",Source,", type=",Type,", utility=",Utility) ;
+    // Plan 2: interpret ccrs prioritization output: Target=http://127.0.1.1:8080/cells/22 --- Annotations: , origin=opportunistic-ccrs, original_index=0, pattern_id=https://kaefer3000.github.io/2021-02-dagstuhl/vocab#green, source=http://127.0.1.1:8080/cells/21, type=signifier, utility=1
+
+    .
+
++!interpret_ccrs_prioritization( [ Head | Tail ] ) :
+        true
+    <-
+        .print("Plan 3: interpret ccrs prioritization output: Target=",Head) ;
+        // Plan 3: interpret ccrs prioritization output: Target=http://127.0.1.1:8080/cells/5
     .
 
 // Next move if Exit in sight
@@ -256,13 +286,13 @@ REACTING TO EVENTS
 /*******************
 HELPER PLANS
 *******************/
-+!crawl(URI) :
-    agent_name(Name)
++!crawl(RequestURI) :
+    agent_name(Name) & h.target(RequestURI, TargetURI)
     <-
         +crawling ;
-        .print("Retrieving ", URI) ;
+        .print("Retrieving ", TargetURI) ;
         .abolish(affords(_, _)) ; // Forget previous affordances
-        get(URI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
+        get(TargetURI, [header("urn:hypermedea:http:authorization", Name), header("urn:hypermedea:http:accept", "text/turtle")]) ; // Pass a header for identifying the agent which enforces acceess control on the maze server
         !!checkEndCrawl ;
   .
 
@@ -278,8 +308,8 @@ HELPER PLANS
         !crawl(URI) ;
     .
 
-+!request_access(TargetURI) :
-    at(URI) & agent_name(AgentName)
++!request_access(RequestURI) :
+    at(URI) & agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
         .print("POST to target URI - requesting MOVE to: ", TargetURI) ;
         post(TargetURI, [rdf(AgentName, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#entersFrom", URI)[rdf_type_map(uri,uri,uri)]], [header("urn:hypermedea:http:authorization", AgentName)]) ; // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
@@ -288,13 +318,12 @@ HELPER PLANS
         .print("Access approved: ", CreatedResourceURI) ;
     .
 
-  +!post(URI, Body) :
-    agent_name(AgentName)
+  +!post(RequestURI, Body) :
+    agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
-        h.target(URI, TargetURI) ;
-        .print("POST to: ", URI, " with body: ", Body) ;
-        post(URI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
-        ?(rdf(URI, related, CreatedResourceURI)) ;
+        .print("POST to: ", TargetURI, " with body: ", Body) ;
+        post(TargetURI, Body, [header("urn:hypermedea:http:authorization", AgentName)]); // Be aware that the Hypermedea artifact deletes the outdated representation (in Agents BB) of target URI when the call returns.
+        ?(rdf(TargetURI, related, CreatedResourceURI)) ;
         .print("Created resource: ", CreatedResourceURI) ;
     .
 

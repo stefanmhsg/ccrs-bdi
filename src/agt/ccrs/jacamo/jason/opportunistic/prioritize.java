@@ -253,19 +253,14 @@ public class prioritize extends DefaultInternalAction {
     
     /**
      * Enriches a term with annotations from its ccrs belief.
+     * Wraps the URI in a uri() structure to preserve the URI value while adding annotations.
      * Always adds: origin, type, pattern_id, utility, source, original_index
      * Conditionally adds: strategy (only for contingency-ccrs)
      */
     private Term enrichWithAnnotations(PrioritizedOption po) throws Exception {
-        // Clone the original term to avoid mutation
-        Literal enriched;
-        if (po.term.isString()) {
-            enriched = ASSyntax.createLiteral(((StringTerm) po.term).getString());
-        } else if (po.term.isAtom()) {
-            enriched = new LiteralImpl((Atom) po.term);
-        } else {
-            enriched = new LiteralImpl(new Atom(po.uri));
-        }
+        // Wrap URI in a structure so annotations don't corrupt the URI value
+        // uri("http://...")[annotations] instead of "http://..."[annotations]
+        Literal enriched = ASSyntax.createLiteral("uri", po.term);
         
         // Always add original_index
         enriched.addAnnot(ASSyntax.createStructure("original_index", 

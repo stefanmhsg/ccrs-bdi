@@ -14,14 +14,20 @@
 
 mas ccrs_bdi {
 
-    agent dfs_ccrs_2: dfs_ccrs.asl {
+    agent dfs_ccrs_14: dfs_ccrs.asl {
       // Jason Agent Class
       ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
       // JaCaMo Agent Architecture
       ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 
-        debug: mindinspector(gui(cycle,html,history))
+      // Belief Base
+      ag-bb-class: jason.bb.TextPersistentBB // Load and persist beliefs from file: <agent name>.bb
+
+      // Instances (default is 1, can also list the names)
+      // instances: 5 // agent1, agent2, agent3, ... 
+
+      //  debug: mindinspector(gui(cycle,html,history))
       verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }    
