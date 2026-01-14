@@ -282,6 +282,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 CheckpointCandidate::graphDistance));
         
         // B2: Generate OpportunisticResult mental notes
+        // TODO: Correct the opportunistic result, following the standard structure.
         List<OpportunisticResult> opportunisticGuidance = generateOpportunisticNotes(
             current, bestCheckpoint, attemptKey);
         logger.info(String.format("[Backtrack] Generated %d opportunistic notes (%d unexplored options, %d dead ends)",
@@ -668,7 +669,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 attemptKey,
                 0.2
             )
-            .withMetadata("source", "contingency-ccrs")
+            .withMetadata("origin", "contingency-ccrs")
             .withMetadata("strategy", "backtrack")
             .withMetadata("checkpoint", checkpointUri);
             
@@ -682,7 +683,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             attemptKey,
             -0.9
         )
-        .withMetadata("source", "contingency-ccrs")
+        .withMetadata("origin", "contingency-ccrs")
         .withMetadata("strategy", "backtrack")
         .withMetadata("checkpoint", checkpointUri);
         
@@ -696,7 +697,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 attemptKey,
                 -0.9
             )
-            .withMetadata("source", "contingency-ccrs")
+            .withMetadata("origin", "contingency-ccrs")
             .withMetadata("strategy", "backtrack")
             .withMetadata("checkpoint", checkpointUri);
             

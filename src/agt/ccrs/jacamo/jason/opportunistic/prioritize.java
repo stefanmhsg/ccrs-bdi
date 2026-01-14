@@ -124,6 +124,7 @@ public class prioritize extends DefaultInternalAction {
                             double utility = ((NumberTerm) utilityTerm).solve();
                             
                             // If multiple beliefs exist for the same target, keep the highest utility
+                            // TODO: Smarter policy for handling duplicates? if conflicting utilities (positive vs negative) are present. E.g. favour most recent?
                             Literal existing = beliefMap.get(target);
                             if (existing == null) {
                                 beliefMap.put(target, belief);
@@ -224,15 +225,93 @@ public class prioritize extends DefaultInternalAction {
     
     /**
      * Builds a Jason ListTerm from the prioritized options.
+     * Enriches each term with annotations from ccrs/3 beliefs:
+     * - origin(), type(), pattern_id(), utility(), source(), original_index(), strategy() (if present)
      */
     private ListTerm buildResultList(List<PrioritizedOption> options) {
         ListTerm result = new ListTermImpl();
         
         for (PrioritizedOption po : options) {
-            result.add(po.term);
+            Term enriched = po.term;
+            
+            // Enrich matched options with CCRS annotations
+            if (po.ccrsBelief != null) {
+                try {
+                    enriched = enrichWithAnnotations(po);
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Failed to enrich option: " + po.uri, e);
+                    // Fallback: use original term
+                    enriched = po.term;
+                }
+            }
+            
+            result.add(enriched);
         }
         
         return result;
+    }
+    
+    /**
+     * Enriches a term with annotations from its ccrs belief.
+     * Always adds: origin, type, pattern_id, utility, source, original_index
+     * Conditionally adds: strategy (only for contingency-ccrs)
+     */
+    private Term enrichWithAnnotations(PrioritizedOption po) throws Exception {
+        // Clone the original term to avoid mutation
+        Literal enriched;
+        if (po.term.isString()) {
+            enriched = ASSyntax.createLiteral(((StringTerm) po.term).getString());
+        } else if (po.term.isAtom()) {
+            enriched = new LiteralImpl((Atom) po.term);
+        } else {
+            enriched = new LiteralImpl(new Atom(po.uri));
+        }
+        
+        // Always add original_index
+        enriched.addAnnot(ASSyntax.createStructure("original_index", 
+            ASSyntax.createNumber(po.originalIndex)));
+        
+        // Extract and add annotations from ccrs belief
+        Literal belief = po.ccrsBelief;
+        
+        // type() - from belief term(1)
+        Term typeTerm = belief.getTerm(1);
+        if (typeTerm != null) {
+            enriched.addAnnot(ASSyntax.createStructure("type", typeTerm));
+        }
+        
+        // utility() - from belief term(2)
+        Term utilityTerm = belief.getTerm(2);
+        if (utilityTerm != null && utilityTerm.isNumeric()) {
+            enriched.addAnnot(ASSyntax.createStructure("utility", utilityTerm));
+        }
+        
+        // origin() - always present according to user
+        copyAnnotation(belief, enriched, "origin");
+        
+        // pattern_id() - always present
+        copyAnnotation(belief, enriched, "pattern_id");
+        
+        // source() - always present
+        copyAnnotation(belief, enriched, "source");
+        
+        // strategy() - only for contingency-ccrs (conditional)
+        Term strategyAnnot = belief.getAnnot("strategy");
+        if (strategyAnnot != null) {
+            enriched.addAnnot(strategyAnnot);
+        }
+        
+        return enriched;
+    }
+    
+    /**
+     * Safely copies an annotation from source belief to target term.
+     */
+    private void copyAnnotation(Literal source, Literal target, String annotKey) {
+        Term annot = source.getAnnot(annotKey);
+        if (annot != null) {
+            target.addAnnot(annot);
+        }
     }
     
     /**
@@ -256,6 +335,15 @@ public class prioritize extends DefaultInternalAction {
 
         @Override
         public String toString() {
+            if (ccrsBelief == null) {
+                return "PrioritizedOption{" +
+                        "term=" + term +
+                        ", uri='" + uri + '\'' +
+                        ", utility=null" +
+                        ", originalIndex=" + originalIndex +
+                        ", ccrsBelief=null (unmatched)" +
+                        '}';
+            }
             return "PrioritizedOption{" +
                     "term=" + term +
                     ", uri='" + uri + '\'' +
