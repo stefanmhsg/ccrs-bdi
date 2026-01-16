@@ -272,3 +272,90 @@
     .print("  Params:     ", Params);
     !debug_suggestions(Rest);
 .
+
+
+// -------------------------------------------------------------------------
+// TESTED:
+// -------------------------------------------------------------------------
+
+// Pattern 1: Get first suggestion
+//
+.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _, _)) ;
+.print("[CCRS] First Suggestion is: Executing '", ActionType, "' to ", Target) ;
+
+
+    // Pattern 2: Iterate through all suggestions
+    //
+    for (.member(Sug, Suggestions)) {
+        !process_suggestion(Sug) ;
+    }
+    
+    // Pattern 3: Select best suggestion by confidence
+    //
+    !select_confident_suggestion(Suggestions, BestSuggestion) ;
+
+    // Pattern 4: Decompose a single suggestion
+    //
+    !process_suggestion(BestSuggestion) ;
+
+// Pattern 4: Decompose suggestion structure with all fields
++!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Cost, Rationale, Params)) :
+    true
+    <-
+        .print("[CCRS Suggestion]") ;
+        .print("  Strategy ID: ", StrategyId) ;
+        .print("  Action: ", ActionType, " -> Target: ", Target) ;
+        .print("  Confidence: ", Confidence, ", Cost: ", Cost) ;
+        .print("  Rationale: ", Rationale) ;
+        
+        // Extract specific parameters
+        !extract_params(Params) ;
+    .
+
+// Extract useful parameters from the list
++!extract_params(Params) :
+    true
+    <-
+        // Check for specific parameters
+        // .member(paramName(Value), Params)
+        if (.member(reason(R), Params)) {
+            .print("  Reason: ", R) ;
+        }
+        
+        if (.member(checkpoint(C), Params)) {
+            .print("  Checkpoint: ", C) ;
+        }
+        
+        if (.member(unexploredCount(UC), Params)) {
+            .print("  Unexplored options: ", UC) ;
+        }
+        
+        if (.member(backtrackPath(Path), Params)) {
+            .print("  Backtrack path: ", Path) ;
+            -+backtracking(Path) ;
+            !follow_backtrack ;
+        }
+        
+        if (.member(alternativesByCheckpoint(Alts), Params)) {
+            .print("  Alternatives: ", Alts) ;
+        }
+        
+        // Print all parameters for debugging
+        .print("  All params: ", Params) ;
+    .
+
+// Pattern 3: Select best suggestion by confidence
++!select_confident_suggestion([Sug], Sug) : true.
+
+// Pattern 3: Select best suggestion by confidence
++!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) | Rest], Best) :
+    true
+    <-
+        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2)) ;
+        
+        if (C1 > C2) {
+            Best = suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) ;
+        } else {
+            Best = suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2) ;
+        }
+    .    
