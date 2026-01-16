@@ -1,44 +1,43 @@
+
 # Hypermedia Interaction Logging for CCRS
 
-This package provides a transparent instrumentation layer for Hypermedea-based hypermedia agents, enabling Contingency-CCRS strategies to reason over full HTTP interactions without modifying the Hypermedea library itself.
+This package provides a transparent instrumentation layer for Hypermedea-based hypermedia agents, enabling Contingency-CCRS strategies to reason over full HTTP interactions without modifying the core Hypermedea library.
 
-The design relies on Java SPI, subclassing, and a shared interaction log to capture requests and responses as first-class domain objects.
+The design relies on a shared interaction log and a proxy-based artifact wrapper to capture requests and responses as first-class domain objects, attributed correctly to each agent even in multi-threaded environments.
 
 ---
 
 ## Purpose
 
 Hypermedia agents act exclusively through HTTP interactions.  
-For CCRS, these interactions are the atomic unit of history.
+For CCRS, these interactions are the atomic unit of history used to diagnose failures (e.g., 404s, loops).
 
 This module captures:
-- outgoing HTTP requests
-- incoming responses
-- timestamps and logical sources
-- structured RDF payloads
-
-and exposes them via `CcrsContext` for strategy evaluation.
+- Outgoing HTTP requests (method, URI, headers)
+- Incoming responses (status, payload)
+- Timestamps
+- Agent Attribution (who made the request)
 
 ---
 
 ## Architecture Overview
 
 ```
-AgentSpeak Plan
+Agent (Jason)
      ↓
-HypermedeaArtifact
+CcrsHypermedeaArtifact (Wrapper)
      ↓
-ProtocolBindings (SPI)
+[Proxy Sink] → (ThreadLocal) → [CcrsGlobalRegistry]
      ↓
-CcrsHttpBinding
+HypermedeaArtifact (Superclass)
      ↓
-CcrsHttpOperation
+CcrsHttpBinding (Java SPI) reads ThreadLocal
      ↓
-InteractionLogSink
+CcrsHttpOperation (Captures Sink)
      ↓
-JasonInteractionLog
+[Shared Log] (JasonInteractionLog) ← (Writes via Proxy)
      ↓
-CcrsContext
+CcrsContext (Reads for specific Agent)
 ```
 
 ---
@@ -46,127 +45,69 @@ CcrsContext
 ## Components
 
 ### CcrsGlobalRegistry
-A static, thread-safe registry used to expose the active `InteractionLogSink` to SPI-instantiated protocol bindings.
-
-Reason:
-SPI bindings are created by `ServiceLoader` and cannot receive constructor parameters.
-
----
-
-### CcrsHttpBinding
-A custom `ProtocolBinding` discovered via Java SPI.
-
-Responsibilities:
-- claims support for `http` and `https`
-- intercepts operation creation
-- returns `CcrsHttpOperation` when a sink is installed
-- falls back to standard Hypermedea behavior otherwise
-
-This enables transparent interception without subclassing `HypermedeaArtifact`.
-
----
-
-### CcrsHttpOperation
-A subclass of Hypermedea’s `HttpOperation`.
-
-Hooks:
-- `sendRequest()` → logs request metadata
-- `onResponse()` → logs response payload and timestamp
-- `onError()` → logs failed interactions
-
-Important:
-This class is instantiated directly, avoiding double HTTP client creation.
-
----
-
-### InteractionBuilder
-Internal mutable builder used to assemble an `Interaction` across request and response callbacks.
-
-Responsibilities:
-- extract method, headers, payload
-- convert response payload to `RdfTriple`
-- assign timestamps
-- build immutable `Interaction` DTO
-
-Not exposed outside the logging layer.
-
----
-
-### InteractionLogSink
-A small interface defining lifecycle hooks:
-
-- `onRequest(Operation, timestamp)`
-- `onResponse(Operation, Response, timestamp)`
-- `onError(Operation, timestamp)`
-
-This decouples logging from storage and platform specifics.
-
----
+A static registry that holds two key components:
+1. **Shared Log Instance:** A singleton `JasonInteractionLog` accessible by all artifacts (writers) and agents (readers).
+2. **ThreadLocal Sink:** A `ThreadLocal` storage used to pass a logging context (Proxy) from the artifact layer to the SPI layer.
 
 ### JasonInteractionLog
-Jason-specific implementation of `InteractionLogSink`.
+A centralized, thread-safe log implementation.
+- **Partitioned Storage:** Stores interaction history separated by Agent Name (`Map<AgentName, Deque<Interaction>>`).
+- **Shared Access:** Allows multiple agents to write to the same log instance concurrently without mixing data.
+- **Unified Querying:** Allows CCRS strategies to query "my recent history" by simply passing the current agent's name.
 
-Responsibilities:
-- maintain a bounded, ordered interaction list
-- ensure thread safety
-- expose read-only accessors:
-  - `getRecentInteractions(int)`
-  - `getLastInteraction()`
+### CcrsHypermedeaArtifact
+A wrapper around the standard `HypermedeaArtifact`.
+- **Interception:** Overrides all `@OPERATION` methods (get, post, put, etc.).
+- **Context Injection:** Before delegating to the superclass, it creates a **Proxy Sink** bound to the current agent's name (`getCurrentOpAgentId()`) and registers it in the `CcrsGlobalRegistry`.
+- **Transparency:** The agent plans use this artifact exactly like the standard one (`h.get(...)`), but side-effects are automatically logged.
 
-This is the single source of truth for interaction history.
+### CcrsHttpBinding (SPI)
+A standard Java SPI implementation of Hypermedea's `ProtocolBinding`.
+- **Discovery:** Registered via `META-INF/services/org.hypermedea.op.ProtocolBinding`.
+- **Logic:** It checks `CcrsGlobalRegistry.getSink()` (the ThreadLocal). If a sink is present (meaning the call came from our wrapper artifact), it returns an instrumented `CcrsHttpOperation`. Otherwise, it falls back to standard behavior.
+
+### CcrsHttpOperation
+Subclass of Hypermedea's `HttpOperation`.
+- **State:** Captures the Proxy Sink from the registry during creation.
+- **Hooks:** Overrides `sendRequest`, `onResponse`, and `onError` to report events back to the shared log via the captured proxy.
+
+### JasonCcrsContext
+The bridge between the Jason Agent and the Shared Log.
+- Initialized by `CcrsAgentArch` at startup.
+- Automatically connects to the `SHARED_LOG` in the registry.
+- When queried (e.g., via `evaluate`), it retrieves history specifically for the agent defined in its constructor.
 
 ---
 
 ## Integration
 
-### SPI Registration
-The binding is registered via:
+### 1. Artifact Setup
+In your `.jcm` project file, use the custom artifact instead of the standard one:
 
 ```
-META-INF/services/org.hypermedea.op.ProtocolBinding
+artifact h: ccrs.jacamo.jason.hypermedia.hypermedea.CcrsHypermedeaArtifact()
 ```
 
-Containing:
+### 2. Agent Architecture
+Ensure your agents use `CcrsAgentArch` in the project file. This initializes the context at startup:
+
 ```
-ccrs.jason.hypermedia.hypermedea.CcrsHttpBinding
-```
-
----
-
-### Agent Architecture Setup
-
-The interaction log is installed during agent startup:
-
-```java
-@Override
-public void init() {
-    super.init();
-    JasonInteractionLog log = new JasonInteractionLog();
-    CcrsGlobalRegistry.setSink(log);
+agent bob : ccrs_agent.asl {
+    ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
 }
 ```
+
+### 3. Usage in Plans
+No changes required in AgentSpeak code!
 
 ---
 
 ## Design Rationale
 
-- No modification of Hypermedea library
-- No belief base pollution
-- No duplication of response data
-- Interaction is the single historical unit
-- Platform-agnostic CCRS reasoning
-
-This keeps CCRS strategies independent of Jason, HTTP details, and artifact internals.
+- **Decoupling:** The Agent logic (Jason) doesn't need to know about HTTP bindings. The HTTP logic doesn't need to know about Jason. The `CcrsGlobalRegistry` bridges them via ThreadLocal.
+- **Thread Safety:** `ThreadLocal` ensures that concurrent requests from different agents do not overwrite each other's logging context.
+- **Isolation:** The shared log partitions data by agent name, ensuring that Agent A never sees Agent B's interaction history during contingency reasoning.
+- **Wrapper + SPI:** We use `CcrsHypermedeaArtifact` (Wrapper) to set the context, and a standard Hypermedea SPI Binding (`CcrsHttpBinding`) to execute the logging hooks. This works around the restricted visibility of standard Hypermedea internals.
 
 ---
-
-## Intended Usage
-
-CCRS strategies query interactions via `CcrsContext`:
-
-- detect failed requests
-- analyze missing affordances
-- reason over temporal interaction patterns
-- support backtracking and retry strategies
-
----
+```
