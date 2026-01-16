@@ -44,7 +44,7 @@ public record Interaction(
         sb.append("  response:\n");
         sb.append("    status: ").append(outcome).append('\n');
         sb.append("    perceivedStateSize: ")
-          .append(perceivedState == null ? 0 : perceivedState.size()).append('\n');
+          .append(perceivedState == null ? 0 : perceivedState.size()).append(" triples").append('\n');
         sb.append("  details:\n");
         sb.append("    requestTs: ").append(requestTimestamp).append('\n');
         sb.append("    responseTs: ").append(responseTimestamp).append('\n');

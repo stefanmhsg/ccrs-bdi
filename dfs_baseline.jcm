@@ -27,6 +27,7 @@ mas ccrs_bdi {
     }    
 
     workspace w {
+    //  artifact h: ccrs.jacamo.jason.hypermedia.hypermedea.CcrsHypermedeaArtifact()
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
     }

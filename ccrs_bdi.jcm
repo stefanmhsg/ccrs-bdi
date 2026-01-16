@@ -37,7 +37,7 @@ mas ccrs_bdi {
 
 */
  
-    agent contingency_ccrs_5: contingency_ccrs.asl {
+    agent contingency_ccrs_6: contingency_ccrs.asl {
       // Jason Agent Class
       ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
@@ -57,7 +57,8 @@ mas ccrs_bdi {
 
 
     workspace w {
-      artifact h: org.hypermedea.HypermedeaArtifact() 
+      artifact h: ccrs.jacamo.jason.hypermedia.hypermedea.CcrsHypermedeaArtifact()
+    //  artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
     }  
 
