@@ -58,6 +58,7 @@ public abstract class StrategyResult {
     
     /**
      * A concrete recovery suggestion from a strategy.
+     * TODO: Document fields.
      */
     public static class Suggestion extends StrategyResult {
         

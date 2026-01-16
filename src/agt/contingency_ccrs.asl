@@ -175,8 +175,18 @@ MAIN LOOP
     <-
         jia.pick(List, Result) ;
         .print("Random IA resultet in: ", Result) ;
-        -+next(Result) ;
-        .print("Selecting random resulted in: ", Result) ;
+
+        // Go to Contingency-CCRS prefered options via Opportunistic-CCRS IA
+        ccrs.jacamo.jason.opportunistic.prioritize(List, PlainCcrsList, DetailedCcrsList) ;
+        .nth(0, DetailedCcrsList, uri(Target)[origin(Origin),_,_,_,_,utility(Utility),_] ) ;
+        .print("CCRS detected Target: ", Target, " with Utility: ", Utility, " Origin=", Origin) ;
+
+        if (Utility > 0.5) {
+            -+next(Target) ;
+        } else {
+            -+next(Result) ;
+        }
+        
     .
 /**
 ********** Contigency-CCRS **********
@@ -184,7 +194,7 @@ MAIN LOOP
 +!escalate(Type, Trigger, Location) :
     true
     <-
-        .print("Escalte to CCRS") ;
+        .print("Escalate to CCRS") ;
         // Contingency-CCRS
         ccrs.jacamo.jason.contingency.evaluate("Failure", "Low performance", Location, Suggestions) ;
 
@@ -282,7 +292,7 @@ MAIN LOOP
     backtracking([])
     <-
         .print("Backtracking complete") ;
-        -backtracking([]) ;
+        -backtracking(_) ;
     .
 
 

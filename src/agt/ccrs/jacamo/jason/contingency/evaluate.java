@@ -265,13 +265,37 @@ public class evaluate extends DefaultInternalAction {
         for (Map.Entry<String, Object> e : params.entrySet()) {
             Structure pair = ASSyntax.createStructure(
                 e.getKey(),
-                ASSyntax.createString(String.valueOf(e.getValue()))
+                buildValue(e.getValue())
             );
             tail = tail.append(pair);
         }
 
         return list;
     }
+    
+    private Term buildValue(Object value) {
+        if (value == null) {
+            return ASSyntax.createAtom("null");
+        }
+    
+        if (value instanceof List<?> list) {
+            ListTerm jasonList = new ListTermImpl();
+            ListTerm tail = jasonList;
+        
+            for (Object o : list) {
+                Term t = ASSyntax.createString(String.valueOf(o));
+                tail = tail.append(t);
+            }
+            return jasonList;
+        }
+    
+        if (value instanceof Number n) {
+            return ASSyntax.createNumber(n.doubleValue());
+        }
+    
+        return ASSyntax.createString(String.valueOf(value));
+    }
+
 
     // ------------------------------------------------------------------
     // OpportunisticResult injection (B2)
