@@ -66,7 +66,7 @@ public class evaluate extends DefaultInternalAction {
         }
 
         ContingencyCcrs ccrs = getCcrs();
-        CcrsContext context = getContext(ts);
+        CcrsContext context = getOrCreateContext(ts);
 
         Situation situation = parseSituation(args);
         
@@ -378,7 +378,7 @@ public class evaluate extends DefaultInternalAction {
         return contingencyCcrs;
     }
 
-    private CcrsContext getContext(TransitionSystem ts) {
+    private CcrsContext getOrCreateContext(TransitionSystem ts) {
         Object ctx =
             ts.getAg()
               .getTS()
@@ -390,8 +390,9 @@ public class evaluate extends DefaultInternalAction {
             return (CcrsContext) ctx;
         }
 
-        throw new IllegalStateException(
-            "CCRS context not found for agent: " + ts.getAgArch().getAgName()
-        );
+        JasonCcrsContext newCtx = new JasonCcrsContext(ts.getAg());
+        ts.getAg().getTS().getSettings().addOption("ccrs_context", newCtx);
+        return newCtx;
+
     }
 }

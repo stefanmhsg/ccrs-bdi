@@ -5,6 +5,7 @@ import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
 import ccrs.jacamo.jason.JasonRdfAdapter;
+import ccrs.jacamo.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
 import ccrs.jacamo.jason.hypermedia.hypermedea.JasonInteractionLog;
 import jason.asSemantics.Agent;
 import jason.asSemantics.Unifier;
@@ -28,6 +29,7 @@ public class JasonCcrsContext implements CcrsContext {
     private final Agent agent;
     private final String agentId;
 
+    // Direct reference to the shared log
     private final JasonInteractionLog interactionLog;
     
     // Only track CCRS invocations (not in BB)
@@ -37,11 +39,11 @@ public class JasonCcrsContext implements CcrsContext {
     // Current state cache
     private String currentResource;
     
-    public JasonCcrsContext(Agent agent, JasonInteractionLog interactionLog) {
+    public JasonCcrsContext(Agent agent) {
         this.agent = agent;
-        this.agentId = agent.getTS() != null ? 
-            agent.getTS().getAgArch().getAgName() : "unknown";
-        this.interactionLog = interactionLog;
+        this.agentId = agent.getTS().getAgArch().getAgName();
+        // Automatically link to the shared log
+        this.interactionLog = CcrsGlobalRegistry.getSharedLog();
     }
     
     // ========== RDF Query Implementation ==========
@@ -103,26 +105,18 @@ public class JasonCcrsContext implements CcrsContext {
     
     @Override
     public List<Interaction> getRecentInteractions(int maxCount) {
-        if (interactionLog == null) {
-            return Collections.emptyList();
-        }
-        return interactionLog.getRecentInteractions(maxCount);
+        // Query log using THIS agent's ID
+        return interactionLog.getRecentInteractions(agentId, maxCount);
     }
 
     @Override
     public Optional<Interaction> getLastInteraction() {
-        if (interactionLog == null) {
-            return Optional.empty();
-        }
-        return interactionLog.getLastInteraction();
+        return interactionLog.getLastInteraction(agentId);
     }
 
     @Override
-    public List<Interaction> getInteractionsFor(String logicalSource) {
-        if (interactionLog == null) {
-            return Collections.emptyList();
-        }
-        return interactionLog.getInteractionsFor(logicalSource);
+    public List<Interaction> getInteractionsFor(String source) {
+        return interactionLog.getInteractionsFor(agentId, source);
     }
     
     @Override
@@ -140,10 +134,9 @@ public class JasonCcrsContext implements CcrsContext {
         }
     }
     
-    @Override
-    public boolean hasHistory() {
-        return interactionLog != null && !interactionLog.getRecentInteractions(1).isEmpty();
-    }
+    @Override public boolean hasHistory() { return !getRecentInteractions(1).isEmpty(); }
+    @Override public String getAgentId() { return agentId; }
+
     
     /**
      * Record a CCRS invocation trace.
@@ -221,11 +214,6 @@ public class JasonCcrsContext implements CcrsContext {
         }
         
         return Optional.empty();
-    }
-    
-    @Override
-    public String getAgentId() {
-        return agentId;
     }
     
     /**
