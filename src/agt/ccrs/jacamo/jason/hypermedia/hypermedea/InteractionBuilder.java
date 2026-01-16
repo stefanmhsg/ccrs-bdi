@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.*;
 
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.RdfTriple;
@@ -20,6 +21,8 @@ import org.hypermedea.op.Response;
  * to CCRS strategies directly.
  */
 final class InteractionBuilder {
+
+    private static final Logger logger = Logger.getLogger(InteractionBuilder.class.getName());
 
     // ===== Request side =====
 
@@ -126,6 +129,8 @@ final class InteractionBuilder {
      */
     private static String extractMethod(Operation op) {
         Map<String, Object> form = op.getForm();
+
+        logger.fine("Extracting HTTP method from Operation form: " + form);
         
         // Strategy 1: Check simple 'method' key
         if (form.containsKey("method")) {
@@ -145,6 +150,8 @@ final class InteractionBuilder {
             return "POST";
         }
         
+        logger.fine("No method found in Operation; defaulting to GET.");
+
         // Default to GET for read operations
         return "GET";
     }

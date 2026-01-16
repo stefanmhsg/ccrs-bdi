@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
  */
 public class JasonCcrsContext implements CcrsContext {
     
+    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(JasonCcrsContext.class.getName());
+
     private static final String RDF_FUNCTOR = "rdf";
     private static final String ADD_TIME_ANNOT = "add_time";
     
@@ -105,17 +107,19 @@ public class JasonCcrsContext implements CcrsContext {
     
     @Override
     public List<Interaction> getRecentInteractions(int maxCount) {
-        // Query log using THIS agent's ID
+        logger.fine("[JasonCcrsContext] Getting recent interactions for agent: " + agentId);
         return interactionLog.getRecentInteractions(agentId, maxCount);
     }
 
     @Override
     public Optional<Interaction> getLastInteraction() {
+        logger.fine("[JasonCcrsContext] Getting last interaction for agent: " + agentId);
         return interactionLog.getLastInteraction(agentId);
     }
 
     @Override
     public List<Interaction> getInteractionsFor(String source) {
+        logger.fine("[JasonCcrsContext] Getting interactions for agent: " + agentId + " and source: " + source);
         return interactionLog.getInteractionsFor(agentId, source);
     }
     
@@ -239,6 +243,15 @@ public class JasonCcrsContext implements CcrsContext {
 
     @Override
     public String toString() {
-        return "JasonCcrsContext{agentId='" + agentId + ", currentResource='" + currentResource + ", interactionLog=" + interactionLog.toString() + "}";
+        return "[JasonCcrsContext] {agentId='" + agentId + ", currentResource='" + currentResource + "'}";
     }
+
+    public String toDebugString() {
+    return "[JasonCcrsContext] {agentId='" + agentId
+        + "', currentResource='" + currentResource
+        + "', interactionLog="
+        + interactionLog.formatAgentHistory(agentId)
+        + "}";
+    }
+
 }

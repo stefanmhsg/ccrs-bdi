@@ -31,4 +31,29 @@ public record Interaction(
         SERVER_FAILURE,
         UNKNOWN
     }
+    
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Interaction {\n");
+        sb.append("  request:\n");
+        sb.append("    method: ").append(method).append('\n');
+        sb.append("    uri: ").append(requestUri).append('\n');
+        sb.append("    headers: ").append(requestHeaders).append('\n');
+        sb.append("    body: ").append(requestBody).append('\n');
+        sb.append("  response:\n");
+        sb.append("    status: ").append(outcome).append('\n');
+        sb.append("    perceivedStateSize: ")
+          .append(perceivedState == null ? 0 : perceivedState.size()).append('\n');
+        sb.append("  details:\n");
+        sb.append("    requestTs: ").append(requestTimestamp).append('\n');
+        sb.append("    responseTs: ").append(responseTimestamp).append('\n');
+        sb.append("    durationMs: ")
+          .append(responseTimestamp - requestTimestamp).append('\n');
+        sb.append("    source: ").append(logicalSource).append('\n');
+        sb.append("}");
+        return sb.toString();
+    }
+
+
 }

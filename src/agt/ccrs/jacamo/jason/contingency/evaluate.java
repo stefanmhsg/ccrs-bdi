@@ -66,7 +66,19 @@ public class evaluate extends DefaultInternalAction {
         }
 
         ContingencyCcrs ccrs = getCcrs();
-        CcrsContext context = getOrCreateContext(ts);
+
+        // Retrieve the pre-initialized context
+        Object ctxParam = ts.getAg().getTS().getSettings().getUserParameters().get("ccrs_context");
+        if (!(ctxParam instanceof CcrsContext)) {
+             throw new JasonException("CCRS Context not found in agent settings. Ensure JasonCcrsContext is initialized.");
+        }
+        CcrsContext context = (CcrsContext) ctxParam;
+
+        if (context instanceof JasonCcrsContext jCtx) {
+            logger.fine("[ContingencyCcrs] Current context: " + jCtx.toString());
+            logger.fine("[ContingencyCcrs] Context details: " + jCtx.toDebugString());
+            return jCtx;
+        }
 
         Situation situation = parseSituation(args);
         
@@ -378,21 +390,4 @@ public class evaluate extends DefaultInternalAction {
         return contingencyCcrs;
     }
 
-    private CcrsContext getOrCreateContext(TransitionSystem ts) {
-        Object ctx =
-            ts.getAg()
-              .getTS()
-              .getSettings()
-              .getUserParameters()
-              .get("ccrs_context");
-
-        if (ctx instanceof CcrsContext) {
-            return (CcrsContext) ctx;
-        }
-
-        JasonCcrsContext newCtx = new JasonCcrsContext(ts.getAg());
-        ts.getAg().getTS().getSettings().addOption("ccrs_context", newCtx);
-        return newCtx;
-
-    }
 }

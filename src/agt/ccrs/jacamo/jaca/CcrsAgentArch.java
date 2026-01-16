@@ -63,6 +63,24 @@ public class CcrsAgentArch extends CAgentArch {
     }
     
     /**
+     * Initialize the CCRS Context immediately upon Agent startup.
+     * This ensures the context is available before any artifact interaction occurs.
+     */
+    @Override
+    public void init() throws Exception {
+        super.init();
+
+        // Initialize the Context. 
+        // Note: The context automatically connects to the CcrsGlobalRegistry.SHARED_LOG
+        JasonCcrsContext context = new JasonCcrsContext(getTS().getAg());
+        
+        // Store it in Agent Settings so 'evaluate' can find it later
+        getTS().getSettings().addOption("ccrs_context", context);
+        
+        logger.info("[CcrsAgentArch] Initialized CCRS Context linked to Shared Interaction Log.");
+    }
+
+    /**
      * Set custom vocabulary.
      * 
      * @param vocabulary The vocabulary to use

@@ -37,7 +37,7 @@ mas ccrs_bdi {
 
 */
  
-    agent contingency_ccrs_7: contingency_ccrs.asl {
+    agent contingency_ccrs_5: contingency_ccrs.asl {
       // Jason Agent Class
       ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
@@ -51,7 +51,7 @@ mas ccrs_bdi {
       // instances: 5 // agent1, agent2, agent3, ... 
 
     //  debug: mindinspector(gui(cycle,html,history))
-      verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
+      verbose: 2 // 0=minimal, 1=actions/messages, 2=debugging
       focus: w.h 
     }    
 
