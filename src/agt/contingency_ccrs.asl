@@ -66,6 +66,13 @@ MAIN LOOP
         !!stop ;
     .
 
++!naviagte(Location) :
+    backtracking(_)
+    <-
+        !follow_backtrack ;
+    .
+
+
 // Move on
 +!naviagte(Location) :
     not requires_action(Location) & not exit(Location)
@@ -77,7 +84,7 @@ MAIN LOOP
 
 // Progress heuristic
 +!track_progress(Location) : 
-    next(PreviousURI) & distance(D) 
+    distance(D) 
     <-
         D2 = D + 1 ;
         -+distance(D2) ;
@@ -100,7 +107,7 @@ MAIN LOOP
     <-
         +discovered(0) ;
         +distance(0) ;
-        +progress(1) ;
+        +progress(10) ;
     .
 
 // Must perform action
@@ -156,18 +163,20 @@ MAIN LOOP
             // *** Contingency-CCRS: Trigger ***
             !escalate("Stuck", "performance", Location) ;
         } else {
-            !select_first(List) ;
+            !select_random(List) ;
         }
 
         ?next(URI) ;
         !access(URI) ;   
     .
 
-+!select_first([Head | Tail]) :
++!select_random(List) :
     true
     <-
-        -+next(Head) ;
-        .print("Selecting First resulted in: ", Head) ;
+        jia.pick(List, Result) ;
+        .print("Random IA resultet in: ", Result) ;
+        -+next(Result) ;
+        .print("Selecting random resulted in: ", Result) ;
     .
 /**
 ********** Contigency-CCRS **********
@@ -177,7 +186,7 @@ MAIN LOOP
     <-
         .print("Escalte to CCRS") ;
         // Contingency-CCRS
-        ccrs.jacamo.jason.contingency.evaluate("Failure", "Error", Location, Suggestions) ;
+        ccrs.jacamo.jason.contingency.evaluate("Failure", "Low performance", Location, Suggestions) ;
 
         // Pattern 1: Get first suggestion
         //
@@ -233,6 +242,8 @@ MAIN LOOP
         
         if (.member(backtrackPath(Path), Params)) {
             .print("  Backtrack path: ", Path) ;
+            -+backtracking(Path) ;
+            !follow_backtrack ;
         }
         
         if (.member(alternativesByCheckpoint(Alts), Params)) {
@@ -259,18 +270,34 @@ MAIN LOOP
         }
     .
 
--!select_next(Location) :
-    true
++!follow_backtrack :
+    backtracking([Next | Rest])
     <-
-        .print("Plan-Failure -!select_next") ;
-        // Contingency-CCRS
-        ccrs.jacamo.jason.contingency.evaluate("Failure", "Error", Location, Suggestions) ;
-        // Pattern 2: Iterate through all suggestions
-        //
-        for (.member(Sug, Suggestions)) {
-            !process_suggestion(Sug) ;
-        }
+        .print("Backtracking step to: ", Next) ;
+        -+backtracking(Rest) ;
+        !access(Next) ;
     .
+
++!follow_backtrack :
+    backtracking([])
+    <-
+        .print("Backtracking complete") ;
+        -backtracking([]) ;
+    .
+
+
+//-!select_next(Location) :
+//    true
+//    <-
+//        .print("Plan-Failure -!select_next") ;
+//        // Contingency-CCRS
+//        ccrs.jacamo.jason.contingency.evaluate("Failure", "Error", Location, Suggestions) ;
+//        // Pattern 2: Iterate through all suggestions
+//        //
+//        for (.member(Sug, Suggestions)) {
+//            !process_suggestion(Sug) ;
+//        }
+//    .
 
 /**
 ********** Contigency-CCRS **********

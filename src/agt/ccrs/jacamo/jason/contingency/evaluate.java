@@ -78,8 +78,8 @@ public class evaluate extends DefaultInternalAction {
             logger.log(Level.FINE, "[ContingencyCcrs] Set current resource to: " + currentResource);
         }
 
-        logger.log(Level.INFO,
-            "[ContingencyCcrs] Evaluating situation: " + situation + " with context: " + context.toString());
+        logger.log(Level.FINE,
+            "[ContingencyCcrs] Evaluating situation: " + situation + " with context");
 
         // Evaluate Contingency Strategies
         List<StrategyResult> results = ccrs.evaluate(situation, context);
