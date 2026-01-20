@@ -2,6 +2,8 @@ package ccrs.capabilities.llm.langchain4j;
 
 import java.time.Duration;
 
+import ccrs.capabilities.ConfigResolver;
+
 /**
  * Configuration for Langchain4j-based LLM clients.
  * 
@@ -122,41 +124,43 @@ public class Langchain4jConfig {
      */
     public static Builder fromEnvironment() {
         Builder builder = new Builder();
+    
+        String apiKey =
+            firstNonNull(
+                ConfigResolver.resolve("OPENAI_API_KEY"),
+                ConfigResolver.resolve("LLM_API_KEY")
+            );
         
-        // API Key (try multiple env vars)
-        String apiKey = System.getenv("OPENAI_API_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            apiKey = System.getenv("LLM_API_KEY");
+        if (apiKey == null) {
+            throw new IllegalStateException(
+                "No API key found in environment, system properties, or .env"
+            );
         }
-        if (apiKey != null && !apiKey.isBlank()) {
-            builder.apiKey(apiKey);
-        }
+    
+        builder.apiKey(apiKey);
+    
+        String baseUrl =
+            firstNonNull(
+                ConfigResolver.resolve("OPENAI_BASE_URL"),
+                ConfigResolver.resolve("LLM_BASE_URL")
+            );
+        if (baseUrl != null) builder.baseUrl(baseUrl);
         
-        // Base URL
-        String baseUrl = System.getenv("OPENAI_BASE_URL");
-        if (baseUrl == null || baseUrl.isBlank()) {
-            baseUrl = System.getenv("LLM_BASE_URL");
-        }
-        if (baseUrl != null && !baseUrl.isBlank()) {
-            builder.baseUrl(baseUrl);
-        }
+        String model =
+            firstNonNull(
+                ConfigResolver.resolve("OPENAI_MODEL"),
+                ConfigResolver.resolve("LLM_MODEL")
+            );
+        if (model != null) builder.modelName(model);
         
-        // Model name
-        String model = System.getenv("OPENAI_MODEL");
-        if (model == null || model.isBlank()) {
-            model = System.getenv("LLM_MODEL");
-        }
-        if (model != null && !model.isBlank()) {
-            builder.modelName(model);
-        }
-        
-        // Organization ID
-        String orgId = System.getenv("OPENAI_ORGANIZATION_ID");
-        if (orgId != null && !orgId.isBlank()) {
-            builder.organizationId(orgId);
-        }
+        String orgId = ConfigResolver.resolve("OPENAI_ORGANIZATION_ID");
+        if (orgId != null) builder.organizationId(orgId);
         
         return builder;
+    }
+    
+    private static String firstNonNull(String a, String b) {
+        return a != null ? a : b;
     }
     
     /**
