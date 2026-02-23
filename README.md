@@ -6,8 +6,20 @@ gradle run
 ```
 
 To run a specific JaCaMo configuration file, use:
+
+- Depth-First Search Basline Agent:
 ```powershell
-gradle run "-Pjcm=test.jcm"
+gradle run "-Pjcm=dfs_baseline.jcm"
+```
+
+- DFS Baseline Agent extended with opportunistic CCRS:
+```powershell
+gradle run "-Pjcm=dfs_opportunistic_ccrs.jcm"
+```
+
+- DFS Baseline Agent extended with both, opportunistic and contingency CCRS:
+```powershell
+gradle run "-Pjcm=dfs_ccrs.jcm"
 ```
 
 ### Agents
