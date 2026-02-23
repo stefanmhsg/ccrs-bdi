@@ -1,3 +1,7 @@
+# CCRS BDI Repository
+
+---
+
 ### Run
 
 Defaults to [ccrs_bdi.jcm](ccrs_bdi.jcm):
@@ -7,33 +11,31 @@ gradle run
 
 To run a specific JaCaMo configuration file, use:
 
-- Depth-First Search Basline Agent:
+##### Depth-First Search (DFS) Baseline Agent:
+
+* [dfs_baseline.asl](src\agt\dfs_baseline.asl) implements a Depth-First Search to navigate the maze. This is a possible solution without considering any CCRS features. Can handle 'unlock' actions.
+
 ```powershell
 gradle run "-Pjcm=dfs_baseline.jcm"
 ```
 
-- DFS Baseline Agent extended with opportunistic CCRS:
+##### DFS Baseline Agent extended with opportunistic CCRS:
+
+* [dfs_opportunistic_ccrs.asl](src\agt\dfs_opportunistic_ccrs.asl) extends the DFS baseline agent with opportunistic CCRS features. It defaults to DFS but prioritizes options at every step based on opportunistic CCRS outcomes.
+
 ```powershell
 gradle run "-Pjcm=dfs_opportunistic_ccrs.jcm"
 ```
 
-- DFS Baseline Agent extended with both, opportunistic and contingency CCRS:
+##### DFS Baseline Agent extended with opportunistic and contingency CCRS:
+
+* [dfs_ccrs.asl](src\agt\dfs_ccrs.asl) extends the DFS baseline agent with opportunistic CCRS features. It defaults to DFS but prioritizes options at every step based on opportunistic CCRS outcomes. Additionally, it incorporates contingency CCRS features that provide a set of strategies to guide the agent's actions in case of predefined situations.
+
 ```powershell
 gradle run "-Pjcm=dfs_ccrs.jcm"
 ```
 
-### Agents
-
-#### Up-to-date
-* [baseline_agent.asl](src\agt\baseline_agent.asl) implements a Depth-First Search to navigate the maze. This is a possible solution without considering any CCRS features. Can handle 'unlock' actions.
-* [random_agent.asl](src\agt\random_agent.asl) implements an agent that explores the maze randomly. It can handle 'unlock' actions and eventually finds the exit.
-* [minimal_agent.asl](src\agt\minimal_agent.asl) implements a minimal agent that only explores the maze randomly. It cannot handle 'unlock' actions. Succeeds only if unlock actions are already performed by other agents.
-
-
-#### Rather outdated
-
-#### Customizations
-* [BRF in AgCcrs.java](src\agt\ccrs\AgCcrs.java) customizes the belief revision function to handle CCRS-specific beliefs.
+---
 
 ### Mindinspector URL:
 http://192.168.68.53:3272/
