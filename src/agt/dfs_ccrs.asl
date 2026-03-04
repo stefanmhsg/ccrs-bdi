@@ -130,8 +130,9 @@ MAIN LOOP
     .
 
 // DFS: Create DFS structure if not existing (for tracking which options have been explored from current Location).
+// CCRS: Opportunisitc-CCRS is scanning incoming percepts for opportunities & threats -> Enabled via customized CArtAgO architecture extension with opportunistic CCRS for artifact observables
 +!track_unexplored_affordances(Location) :
-    true 
+    true
     <-
         if (not remaining(Location, _)) { // Ensure this is only added once to keep track of explored affordances
             .findall(X, affords(_,X)[valid_affordance("True")], DefaultList) ; // Retruns DefaultList as list of all X = Options from affordance beliefs that are annotated as valid.
@@ -147,7 +148,7 @@ MAIN LOOP
             //  ----------------------------------------------------------------------------------------------
             //
             ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList) ;
-            // 
+            //
             // Use DetailedCcrsList for custom handling and interpretation of ccrs output based on annotations.
             !interpret_ccrs_prioritization(DetailedCcrsList) ;
             //

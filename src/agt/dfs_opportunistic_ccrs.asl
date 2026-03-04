@@ -130,6 +130,7 @@ MAIN LOOP
     .
 
 // DFS: Create DFS structure if not existing (for tracking which options have been explored from current Location).
+// CCRS: Opportunisitc-CCRS is scanning incoming percepts for opportunities & threats -> Enabled via customized CArtAgO architecture extension with opportunistic CCRS for artifact observables
 +!track_unexplored_affordances(Location) :
     true 
     <-
