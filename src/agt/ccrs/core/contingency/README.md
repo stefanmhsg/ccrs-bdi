@@ -63,7 +63,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 |----------|-------|----------|-------------|
 | `RetryStrategy` | L1 | INTERNAL | Handles transient HTTP errors (408, 429, 5xx) with exponential backoff |
 | `BacktrackStrategy` | L2 | INTERNAL | Returns to parent resource using hypermedia link heuristic |
-| `PredictionLlmStrategy` | L2 | KNOWLEDGE | LLM-based prediction for optimal path selection |
+| `PredictionLlmStrategy` | L2 | INTERNAL | LLM-based prediction for optimal path selection |
 | `ConsultationStrategy` | L4 | SOCIAL | Requests external help via pluggable consultation channel |
 | `StopStrategy` | L0 | INTERNAL | Graceful failure when all options exhausted (always last resort) |
 
