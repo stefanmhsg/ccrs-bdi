@@ -134,7 +134,12 @@ MAIN LOOP
     true 
     <-
         if (not remaining(Location, _)) { // Ensure this is only added once to keep track of explored affordances
-            .findall(X, affords(_,X)[valid_affordance("True")], List) ; // Retruns List as list of all X = Options from affordance beliefs that are annotated as valid.
+            // Build the DFS list in a fixed direction priority: south -> east -> north -> west.
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#south",X)[valid_affordance("True")], SouthList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#east",X)[valid_affordance("True")], EastList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#north",X)[valid_affordance("True")], NorthList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#west",X)[valid_affordance("True")], WestList) ;
+            .concat(SouthList, EastList, NorthList, WestList, List) ;
             .print("Tracking unexplored affordances: ", List) ;
             +remaining(Location, List) ; // Add belief of unexplored options based from current Location.
         } else {
