@@ -135,7 +135,13 @@ MAIN LOOP
     true 
     <-
         if (not remaining(Location, _)) { // Ensure this is only added once to keep track of explored affordances
-            .findall(X, affords(_,X)[valid_affordance("True")], DefaultList) ; // Retruns DefaultList as list of all X = Options from affordance beliefs that are annotated as valid.
+            // Build the DFS default list in a fixed direction priority
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#north",X)[valid_affordance("True")], NorthList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#west",X)[valid_affordance("True")], WestList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#south",X)[valid_affordance("True")], SouthList) ;
+            .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#east",X)[valid_affordance("True")], EastList) ;
+            //.concat(NorthList, WestList, SouthList, EastList, List) ;
+            .concat(NorthList, EastList, SouthList, WestList, List) ;    
             .print("Tracking unexplored affordances: ", DefaultList) ;
 
             // Opportunistic-CCRS
@@ -150,7 +156,7 @@ MAIN LOOP
             ccrs.jacamo.jason.opportunistic.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList) ;
             // 
             // Use DetailedCcrsList for custom handling and interpretation of ccrs output based on annotations.
-            !interpret_ccrs_prioritization(DetailedCcrsList) ;
+            //!interpret_ccrs_prioritization(DetailedCcrsList) ;
             //
             // Or directly proceed with PlainCcrsList. 
             +remaining(Location, PlainCcrsList) ; // Add belief of unexplored options based from current Location. Make sure to pass a list of Strings.

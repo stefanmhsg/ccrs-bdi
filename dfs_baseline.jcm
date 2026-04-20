@@ -14,7 +14,7 @@
 
 mas ccrs_bdi {
 
-    agent dfs_baseline_1: dfs_baseline.asl {
+    agent dfs_baseline_nesw_1: dfs_baseline.asl {
       // Jason Agent Class
       // ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
