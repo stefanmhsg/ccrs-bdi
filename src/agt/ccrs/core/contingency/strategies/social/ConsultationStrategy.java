@@ -3,9 +3,11 @@ package ccrs.core.contingency.strategies.social;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.io.StringReader;
 
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.CcrsTrace;
@@ -14,6 +16,11 @@ import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
+import org.apache.jena.rdf.model.Literal;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Statement;
+import org.apache.jena.rdf.model.StmtIterator;
 
 /**
  * L4: Consultation Strategy (Social)
@@ -217,22 +224,38 @@ public class ConsultationStrategy implements CcrsStrategy {
             
             logger.info(String.format("[Consultation] Consultant suggests action '%s' to '%s' (confidence=%.2f, source=%s)",
                 response.action, response.target, response.confidence, response.source));
+
+            DerivedConsultationAction derivedAction = deriveActionFromConsultation(response, situation, context);
+            if (derivedAction != null) {
+                logger.info(String.format("[Consultation] Derived actionable projection from consultation: %s to '%s'",
+                    derivedAction.action(), derivedAction.target()));
+            }
+
+            String actionType = derivedAction != null ? derivedAction.action() : response.action;
+            String actionTarget = derivedAction != null ? derivedAction.target() : response.target;
+            Map<String, Object> actionParams = new LinkedHashMap<>();
+            actionParams.put("consulted", true);
+            actionParams.put("consultationSource", channel.getChannelType() +
+                (response.source != null ? ":" + response.source : ""));
+            actionParams.put("originalAdvice", response.suggestion);
+            if (response.metadata != null) {
+                actionParams.putAll(response.metadata);
+            }
+            if (derivedAction != null) {
+                actionParams.putAll(derivedAction.params());
+            }
             
             // Build result
-            StrategyResult result = StrategyResult.suggest(ID, response.action)
-                .target(response.target)
-                .param("consulted", true)
-                .param("consultationSource", channel.getChannelType() + 
-                    (response.source != null ? ":" + response.source : ""))
-                .param("originalAdvice", response.suggestion)
-                .params(response.metadata != null ? response.metadata : Map.of())
+            StrategyResult result = StrategyResult.suggest(ID, actionType)
+                .target(actionTarget)
+                .params(actionParams)
                 .confidence(response.confidence > 0 ? response.confidence : 0.5)
                 .cost(0.6)  // Higher cost - social/external dependency
-                .rationale(buildRationale(response))
+                .rationale(buildRationale(response, derivedAction))
                 .build();
             
             logger.info(String.format("[Consultation] Returning suggestion: %s to '%s' (confidence=%.2f)",
-                response.action, response.target, result.asSuggestion().getConfidence()));
+                actionType, actionTarget, result.asSuggestion().getConfidence()));
             return result;
             
         } catch (Exception e) {
@@ -440,17 +463,118 @@ public class ConsultationStrategy implements CcrsStrategy {
         return consultable;
     }
     
-    private String buildRationale(ConsultationResponse response) {
+    private DerivedConsultationAction deriveActionFromConsultation(
+        ConsultationResponse response,
+        Situation situation,
+        CcrsContext context
+    ) {
+        if (response == null || response.metadata == null) {
+            return null;
+        }
+
+        Object contentType = response.metadata.get("artifactContentType");
+        Object rawResponse = response.metadata.get("rawResponse");
+        if (!(contentType instanceof String ct) || !(rawResponse instanceof String rdfText)) {
+            return null;
+        }
+
+        if (!"text/turtle".equalsIgnoreCase(ct.trim())) {
+            return null;
+        }
+
+        String focus = situation.getCurrentResource() != null
+            ? situation.getCurrentResource()
+            : context.getCurrentResource().orElse(null);
+        if (focus == null || focus.isBlank()) {
+            logger.info("[Consultation] No focus resource available for consultation projection");
+            return null;
+        }
+
+        try {
+            Model model = ModelFactory.createDefaultModel();
+            model.read(new StringReader(rdfText), null, "TURTLE");
+
+            StmtIterator statements = model.listStatements();
+            try {
+                while (statements.hasNext()) {
+                    Statement stmt = statements.nextStatement();
+                    if (!stmt.getObject().isLiteral()) {
+                        continue;
+                    }
+                    Literal literal = stmt.getObject().asLiteral();
+                    logger.info(String.format(
+                        "[Consultation] Found literal-valued RDF statement for projection: <%s> \"%s\"",
+                        stmt.getPredicate().getURI(), literal.getLexicalForm()));
+                    return buildProjectedConsultationAction(focus, stmt);
+                }
+            } finally {
+                statements.close();
+            }
+
+            logger.info("[Consultation] No literal-valued RDF statement found for consultation projection");
+            return null;
+
+        } catch (Exception e) {
+            logger.warning("[Consultation] Failed to project consultation RDF artifact into action: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private DerivedConsultationAction buildProjectedConsultationAction(String focus, Statement statement) {
+        Literal literal = statement.getObject().asLiteral();
+        String predicate = statement.getPredicate().getURI();
+        String lexicalForm = literal.getLexicalForm();
+        String body = String.format("<%s> <%s> \"%s\" .",
+            focus,
+            predicate,
+            escapeTurtleLiteral(lexicalForm));
+
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("projectionHeuristic", "first_literal_projection");
+        params.put("subject", focus);
+        params.put("predicate", predicate);
+        params.put("object", lexicalForm);
+        params.put("objectType", "literal");
+        params.put("body", body);
+        params.put("bodyContentType", "text/turtle");
+        params.put("extractedFromSubject", statement.getSubject().isURIResource()
+            ? statement.getSubject().getURI()
+            : statement.getSubject().toString());
+
+        if (literal.getDatatypeURI() != null) {
+            params.put("objectDatatype", literal.getDatatypeURI());
+        }
+        if (literal.getLanguage() != null && !literal.getLanguage().isBlank()) {
+            params.put("objectLanguage", literal.getLanguage());
+        }
+
+        logger.info(String.format(
+            "[Consultation] Projected first literal from consultation artifact onto focus '%s': <%s> \"%s\"",
+            focus, predicate, lexicalForm));
+
+        return new DerivedConsultationAction("post", focus, params,
+            "Projected first literal-valued statement from consultation artifact onto current focus resource");
+    }
+
+    private String buildRationale(ConsultationResponse response, DerivedConsultationAction derivedAction) {
         StringBuilder sb = new StringBuilder();
         sb.append("External consultation via ").append(channel.getChannelType());
         if (response.source != null) {
             sb.append(" (").append(response.source).append(")");
         }
-        sb.append(" suggests: ").append(response.action);
-        if (response.target != null) {
-            sb.append(" to ").append(response.target);
+        if (derivedAction != null) {
+            sb.append(" projected into action: ").append(derivedAction.action());
+            if (derivedAction.target() != null) {
+                sb.append(" to ").append(derivedAction.target());
+            }
+            sb.append(". ").append(derivedAction.rationale()).append(". ");
+        } else {
+            sb.append(" suggests: ").append(response.action);
+            if (response.target != null) {
+                sb.append(" to ").append(response.target);
+            }
+            sb.append(". ");
         }
-        sb.append(". ");
         if (response.suggestion != null && !response.suggestion.isEmpty()) {
             String advice = response.suggestion;
             if (advice.length() > 150) {
@@ -472,4 +596,19 @@ public class ConsultationStrategy implements CcrsStrategy {
         this.maxConsultationsPerSituation = max;
         return this;
     }
+
+    private String escapeTurtleLiteral(String value) {
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r");
+    }
+
+    private record DerivedConsultationAction(
+        String action,
+        String target,
+        Map<String, Object> params,
+        String rationale
+    ) {}
 }

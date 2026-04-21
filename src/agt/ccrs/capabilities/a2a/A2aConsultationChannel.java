@@ -81,8 +81,101 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
             throw new IllegalStateException("A2A consultation channel is not properly configured");
         }
 
-        Map<String, Object> selectedTarget = resolveSelectedTarget(context)
-            .orElseThrow(() -> new IllegalStateException("No A2A consultation target available in consultation context"));
+        List<Map<String, Object>> candidateTargets = resolveCandidateTargets(context);
+        if (candidateTargets.isEmpty()) {
+            throw new IllegalStateException("No A2A consultation target available in consultation context");
+        }
+
+        logger.info("[A2A] Consultation target candidates (" + candidateTargets.size() + "): " + candidateTargets);
+
+        List<String> failures = new ArrayList<>();
+        for (int i = 0; i < candidateTargets.size(); i++) {
+            Map<String, Object> candidateTarget = candidateTargets.get(i);
+            String agentUri = asString(candidateTarget.get(AGENT_URI_KEY));
+            String targetLabel = agentUri != null ? agentUri : candidateTarget.toString();
+            logger.info("[A2A] Trying consultation target " + (i + 1) + "/" + candidateTargets.size() + ": " + candidateTarget);
+
+            try {
+                ConsultationStrategy.ConsultationResponse response = querySingleTarget(candidateTarget);
+                logger.info("[A2A] Consultation succeeded via target: " + targetLabel);
+                return response;
+            } catch (Exception e) {
+                String failure = targetLabel + " -> " + e.getMessage();
+                failures.add(failure);
+                logger.warning("[A2A] Consultation target failed, trying next if available: " + failure);
+            }
+        }
+
+        throw new IllegalStateException(
+            "All A2A consultation targets failed: " + String.join(" | ", failures)
+        );
+    }
+
+    @Override
+    public String getChannelType() {
+        return "a2a";
+    }
+
+    private List<Map<String, Object>> resolveCandidateTargets(Map<String, Object> context) {
+        List<Map<String, Object>> targets = new ArrayList<>();
+        List<String> seenKeys = new ArrayList<>();
+
+        Object directAgentUri = context.get(AGENT_URI_KEY);
+        if (directAgentUri instanceof String uri && !uri.isBlank()) {
+            Map<String, Object> target = new LinkedHashMap<>();
+            target.put(AGENT_URI_KEY, uri);
+            Object directCardUri = context.get(AGENT_CARD_URI_KEY);
+            if (directCardUri instanceof String cardUri && !cardUri.isBlank()) {
+                target.put(AGENT_CARD_URI_KEY, cardUri);
+            }
+            addCandidateTarget(targets, seenKeys, target);
+        }
+
+        Object configuredTargets = context.get(CONSULTATION_TARGETS_KEY);
+        if (configuredTargets instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> map) {
+                    String agentUri = asString(map.get(AGENT_URI_KEY));
+                    if (agentUri != null) {
+                        Map<String, Object> target = new LinkedHashMap<>();
+                        target.put(AGENT_URI_KEY, agentUri);
+                        String agentCardUri = asString(map.get(AGENT_CARD_URI_KEY));
+                        if (agentCardUri != null) {
+                            target.put(AGENT_CARD_URI_KEY, agentCardUri);
+                        }
+                        addCandidateTarget(targets, seenKeys, target);
+                    }
+                }
+            }
+        }
+
+        return targets;
+    }
+
+    private void addCandidateTarget(List<Map<String, Object>> targets, List<String> seenKeys, Map<String, Object> target) {
+        String key = buildTargetKey(target);
+        if (key == null || seenKeys.contains(key)) {
+            return;
+        }
+        seenKeys.add(key);
+        targets.add(target);
+    }
+
+    private String buildTargetKey(Map<String, Object> target) {
+        String agentUri = asString(target.get(AGENT_URI_KEY));
+        String agentCardUri = asString(target.get(AGENT_CARD_URI_KEY));
+        if (agentUri != null && agentCardUri != null) {
+            return agentUri + "|" + agentCardUri;
+        }
+        if (agentUri != null) {
+            return agentUri;
+        }
+        return agentCardUri;
+    }
+
+    private ConsultationStrategy.ConsultationResponse querySingleTarget(Map<String, Object> selectedTarget)
+        throws Exception {
+
         String agentUri = asString(selectedTarget.get(AGENT_URI_KEY));
         logger.info("[A2A] Selected consultation target: " + selectedTarget);
         String agentCardUri = resolveAgentCardUri(selectedTarget)
@@ -175,44 +268,6 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
 
         response.metadata = metadata;
         return response;
-    }
-
-    @Override
-    public String getChannelType() {
-        return "a2a";
-    }
-
-    private Optional<Map<String, Object>> resolveSelectedTarget(Map<String, Object> context) {
-        Object directAgentUri = context.get(AGENT_URI_KEY);
-        if (directAgentUri instanceof String uri && !uri.isBlank()) {
-            Map<String, Object> target = new LinkedHashMap<>();
-            target.put(AGENT_URI_KEY, uri);
-            Object directCardUri = context.get(AGENT_CARD_URI_KEY);
-            if (directCardUri instanceof String cardUri && !cardUri.isBlank()) {
-                target.put(AGENT_CARD_URI_KEY, cardUri);
-            }
-            return Optional.of(target);
-        }
-
-        Object targets = context.get(CONSULTATION_TARGETS_KEY);
-        if (targets instanceof List<?> list) {
-            for (Object item : list) {
-                if (item instanceof Map<?, ?> map) {
-                    String agentUri = asString(map.get(AGENT_URI_KEY));
-                    if (agentUri != null) {
-                        Map<String, Object> target = new LinkedHashMap<>();
-                        target.put(AGENT_URI_KEY, agentUri);
-                        String agentCardUri = asString(map.get(AGENT_CARD_URI_KEY));
-                        if (agentCardUri != null) {
-                            target.put(AGENT_CARD_URI_KEY, agentCardUri);
-                        }
-                        logger.info("[A2A] Picked first consultation target from list: " + target);
-                        return Optional.of(target);
-                    }
-                }
-            }
-        }
-        return Optional.empty();
     }
 
     private Optional<String> resolveAgentCardUri(Map<String, Object> target) throws Exception {
