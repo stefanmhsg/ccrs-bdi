@@ -4,27 +4,22 @@ import ccrs.core.contingency.dto.LlmActionResponse;
 
 /**
  * Parser for LLM responses in CCRS recovery scenarios.
- * 
- * Centralizes response parsing logic and schema assumptions,
- * making strategies cleaner and allowing better error handling.
- * 
- * Implementations should handle:
- * - Multiple response formats (JSON, plain text fallbacks)
- * - Field name variations (reasoning/advice/explanation)
- * - Malformed or incomplete responses
- * - Extraction of action, target, and rationale
+ *
+ * This interface is intentionally LLM-specific. It is used by CCRS strategies
+ * that ask an LLM to return an action recommendation and then need to parse
+ * that response into a structured form.
  */
 @FunctionalInterface
 public interface LlmResponseParser {
-    
+
     /**
-     * Parse an LLM response into a structured action response.
-     * 
-     * @param rawResponse The raw text response from the LLM
-     * @return Parsed action response, or invalid response if parsing fails
+     * Parse a raw LLM response into a structured action response.
+     *
+     * @param rawResponse The raw text returned by the LLM
+     * @return Parsed LLM action response, or invalid response if parsing fails
      */
     LlmActionResponse parse(String rawResponse);
-    
+
     /**
      * Get a description of this parser (for debugging/logging).
      */

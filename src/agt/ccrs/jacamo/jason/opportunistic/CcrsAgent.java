@@ -145,7 +145,7 @@ public class CcrsAgent extends Agent {
                     l = ASSyntax.createLiteral(l.getFunctor(), l.getTermsArray());
                     l.addAnnot(BeliefBase.TPercept);
                     te.setLiteral(l);
-                    ts.getC().addEvent(new Event(te));
+                    ts.getC().addEvent(new Event(te, Intention.EmptyInt));
                 }
                 
             }
@@ -165,7 +165,7 @@ public class CcrsAgent extends Agent {
                         adds++;
                         logger.fine("BUF added percept " + lp);
                         Trigger te = new Trigger(TEOperator.add, TEType.belief, lp);
-                        ts.updateEvents(new Event(te));
+                        ts.updateEvents(new Event(te, Intention.EmptyInt));
                         logger.fine("BUF generated event for added percept " + lp);
                     }
                 } catch (RevisionFailedException e) {

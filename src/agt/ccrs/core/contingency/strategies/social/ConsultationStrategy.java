@@ -1,37 +1,37 @@
 package ccrs.core.contingency.strategies.social;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.LlmClient;
-import ccrs.core.contingency.LlmResponseParser;
-import ccrs.core.contingency.PromptBuilder;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
-import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
-import ccrs.capabilities.llm.TemplatePromptBuilder;
+import ccrs.core.rdf.RdfTriple;
 
 /**
  * L4: Consultation Strategy (Social)
  * 
  * Requests help from external agents when internal strategies are insufficient.
- * For POC: Can be mocked with an LLM acting as an external advisor.
- * 
- * Key difference from Prediction-LLM:
- * - Prediction: "What would I do?" - quick, uses agent's own context
- * - Consultation: "Help me please" - framed as asking for help, includes
- *   admission of prior failures, may involve richer context sharing
+ * Uses a pluggable consultation channel. For the current A2A flow, the
+ * strategy discovers available agent cards from RDF context and delegates
+ * the actual invocation to the configured channel.
  */
 public class ConsultationStrategy implements CcrsStrategy {
     
     private static final Logger logger = Logger.getLogger(ConsultationStrategy.class.getName());
-    
+    private static final String MAZE_CONTAINS = "https://kaefer3000.github.io/2021-02-dagstuhl/vocab#contains";
+    private static final String A2A_AGENT_CARD = "https://example.org/a2a#agentCard";
+    private static final String A2A_PROVIDES_TYPE = "https://example.org/a2a#providesType";
+    private static final String A2A_PROVIDES_PROPERTY = "https://example.org/a2a#providesProperty";
+    private static final int MAX_AGENT_CANDIDATES = 3;
+
     public static final String ID = "consultation";
     
     /**
@@ -144,6 +144,13 @@ public class ConsultationStrategy implements CcrsStrategy {
             return Applicability.NOT_APPLICABLE;
         }
         
+        // Require at least one discovered consultation target from recent interactions.
+        List<Map<String, Object>> consultationTargets = discoverConsultationTargets(context);
+        if (consultationTargets.isEmpty()) {
+            logger.info("[Consultation] Not applicable - no consultation target discovered in context");
+            return Applicability.NOT_APPLICABLE;
+        }
+
         // Only consult for complex situations (after simpler strategies tried)
         if (situation.getAttemptedStrategies().isEmpty()) {
             // Could be applicable but should try simpler things first
@@ -180,8 +187,8 @@ public class ConsultationStrategy implements CcrsStrategy {
         }
         
         try {
-            // Build consultation request
-            String question = buildQuestion(situation, context); //TODO: remove llm-mock channel and query building.
+            // Build consultation request for the configured channel implementation.
+            String question = buildQuestion(situation, context);
             Map<String, Object> consultContext = buildContext(situation, context);
             
             logger.fine("[Consultation] Prepared consultation request (" + question.length() + " chars)");
@@ -218,6 +225,7 @@ public class ConsultationStrategy implements CcrsStrategy {
                 .param("consultationSource", channel.getChannelType() + 
                     (response.source != null ? ":" + response.source : ""))
                 .param("originalAdvice", response.suggestion)
+                .params(response.metadata != null ? response.metadata : Map.of())
                 .confidence(response.confidence > 0 ? response.confidence : 0.5)
                 .cost(0.6)  // Higher cost - social/external dependency
                 .rationale(buildRationale(response))
@@ -280,7 +288,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     }
     
     private Map<String, Object> buildContext(Situation situation, CcrsContext context) {
-        Map<String, Object> ctx = new java.util.HashMap<>();
+        Map<String, Object> ctx = new HashMap<>();
         
         ctx.put("situationType", situation.getType().name());
         ctx.put("currentResource", situation.getCurrentResource());
@@ -319,7 +327,117 @@ public class ConsultationStrategy implements CcrsStrategy {
         ctx.put("neighborhood", neighborhood);
         ctx.put("neighborhoodSize", neighborhood.size());
         
+        List<Map<String, Object>> consultationTargets = discoverConsultationTargets(context);
+        ctx.put("consultationTargets", consultationTargets);
+        if (!consultationTargets.isEmpty()) {
+            ctx.put("agentUri", consultationTargets.get(0).get("agentUri"));
+            Object agentCardUri = consultationTargets.get(0).get("agentCardUri");
+            if (agentCardUri != null) {
+                ctx.put("agentCardUri", agentCardUri);
+            }
+        }
+        
         return ctx;
+    }
+
+    private List<Map<String, Object>> discoverConsultationTargets(CcrsContext context) {
+        List<String> candidates = discoverRecentAgentCandidates(context);
+        logger.info("[Consultation] Recent agent candidates: " + candidates);
+        List<Map<String, Object>> targets = new ArrayList<>();
+
+        for (String agentUri : candidates) {
+            Map<String, Object> target = new HashMap<>();
+            target.put("agentUri", agentUri);
+
+            List<RdfTriple> cardTriples = context.query(agentUri, A2A_AGENT_CARD, null);
+            if (!cardTriples.isEmpty()) {
+                target.put("agentCardUri", cardTriples.get(0).object);
+                logger.info("[Consultation] Found in-context agent card for " + agentUri + ": " + cardTriples.get(0).object);
+            } else {
+                logger.info("[Consultation] No in-context agent card for " + agentUri + " - channel must dereference");
+            }
+
+            List<RdfTriple> providesTypeTriples = context.query(agentUri, A2A_PROVIDES_TYPE, null);
+            if (!providesTypeTriples.isEmpty()) {
+                target.put("providesType", providesTypeTriples.stream()
+                    .map(t -> t.object)
+                    .distinct()
+                    .collect(Collectors.toList()));
+            }
+
+            List<RdfTriple> providesPropertyTriples = context.query(agentUri, A2A_PROVIDES_PROPERTY, null);
+            if (!providesPropertyTriples.isEmpty()) {
+                target.put("providesProperty", providesPropertyTriples.stream()
+                    .map(t -> t.object)
+                    .distinct()
+                    .collect(Collectors.toList()));
+            }
+
+            targets.add(target);
+            logger.info("[Consultation] Added consultation target: " + target);
+
+            if (targets.size() >= MAX_AGENT_CANDIDATES) {
+                logger.info("[Consultation] Reached consultation candidate limit of " + MAX_AGENT_CANDIDATES);
+                break;
+            }
+        }
+
+        return targets;
+    }
+
+    private List<String> discoverRecentAgentCandidates(CcrsContext context) {
+        if (!context.hasHistory()) {
+            return List.of();
+        }
+
+        List<String> orderedAgents = new ArrayList<>();
+        String selfAgentId = context.getAgentId();
+        List<Interaction> interactions = context.getRecentInteractions(10);
+
+        for (Interaction interaction : interactions) {
+            if (interaction == null || interaction.perceivedState() == null) {
+                continue;
+            }
+
+            logger.info("[Consultation] Inspecting interaction from " + interaction.requestUri()
+                + " with " + interaction.perceivedState().size() + " perceived triples");
+
+            for (RdfTriple triple : interaction.perceivedState()) {
+                if (triple == null || !MAZE_CONTAINS.equals(triple.predicate)) {
+                    continue;
+                }
+
+                String candidate = triple.object;
+                logger.info("[Consultation] Encountered peer candidate via maze:contains: " + candidate);
+                if (!isConsultableAgent(candidate, selfAgentId)) {
+                    logger.info("[Consultation] Skipping non-consultable candidate: " + candidate);
+                    continue;
+                }
+
+                if (!orderedAgents.contains(candidate)) {
+                    orderedAgents.add(candidate);
+                    logger.info("[Consultation] Added candidate in recency order: " + candidate);
+                }
+            }
+        }
+
+        return orderedAgents;
+    }
+
+    private boolean isConsultableAgent(String agentUri, String selfAgentId) {
+        if (agentUri == null || agentUri.isBlank()) {
+            return false;
+        }
+
+        if (selfAgentId == null || selfAgentId.isBlank()) {
+            return true;
+        }
+
+        boolean consultable = !agentUri.equals(selfAgentId) && !agentUri.endsWith("/" + selfAgentId);
+        if (!consultable) {
+            logger.info("[Consultation] Filtering self candidate " + agentUri + " for agentId=" + selfAgentId);
+        }
+        return consultable;
     }
     
     private String buildRationale(ConsultationResponse response) {
@@ -353,54 +471,5 @@ public class ConsultationStrategy implements CcrsStrategy {
     public ConsultationStrategy maxConsultations(int max) {
         this.maxConsultationsPerSituation = max;
         return this;
-    }
-    
-    /**
-     * Create an LLM-based consultation channel (mock for POC).
-     */
-    public static ConsultationChannel llmChannel(LlmClient llmClient, LlmResponseParser parser) {
-        return llmChannel(llmClient, TemplatePromptBuilder.create(), parser);
-    }
-    
-    /**
-     * Create an LLM-based consultation channel with custom prompt builder and parser.
-     */
-    public static ConsultationChannel llmChannel(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser parser) {
-        return new ConsultationChannel() {
-            @Override
-            public boolean isAvailable() {
-                return llmClient != null && promptBuilder != null && parser != null;
-            }
-            
-            @Override
-            public ConsultationResponse query(String question, Map<String, Object> context) throws Exception {
-                String prompt = promptBuilder.buildConsultationPrompt(question, context);
-                String rawResponse = llmClient.complete(prompt);
-                
-                // Use centralized parser
-                LlmActionResponse parsed = parser.parse(rawResponse);
-                
-                // Convert to ConsultationResponse
-                if (!parsed.isValid()) {
-                    return ConsultationResponse.failure("Parse error: " + parsed.getParseError());
-                }
-                
-                ConsultationResponse r = ConsultationResponse.success(
-                    parsed.getAction(),
-                    parsed.getTarget(),
-                    parsed.getExplanation()
-                );
-                r.source = "llm-advisor";
-                r.confidence = parsed.hasConfidence() ? parsed.getConfidence() : 0.5;
-                r.metadata = parsed.getMetadata();
-                
-                return r;
-            }
-            
-            @Override
-            public String getChannelType() {
-                return "llm(" + promptBuilder.getDescription() + ", " + parser.getDescription() + ")";
-            }
-        };
     }
 }

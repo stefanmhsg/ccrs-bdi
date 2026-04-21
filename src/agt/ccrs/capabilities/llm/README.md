@@ -65,24 +65,6 @@ TemplatePromptBuilder promptBuilder = TemplatePromptBuilder.create()
 PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuilder);
 ```
 
-### Consultation Strategy
-
-```java
-// Create consultation channel with LLM backend
-LlmResponseParser parser = JsonActionParser.create();
-ConsultationStrategy.ConsultationChannel channel = 
-    ConsultationStrategy.llmChannel(llmClient, parser);
-
-// With custom prompts
-PromptBuilder customPrompts = TemplatePromptBuilder.create()
-    .withConsultationTemplate("...");
-ConsultationStrategy.ConsultationChannel channel = 
-    ConsultationStrategy.llmChannel(llmClient, customPrompts, parser);
-
-ConsultationStrategy strategy = new ConsultationStrategy(channel);
-```
-Components
-
 ### Custom Prompt Builders
 
 Implement the `PromptBuilder` interface for experiment-specific or domain-specific prompts:

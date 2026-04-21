@@ -1,5 +1,7 @@
 package ccrs.jacamo.jason.contingency;
 
+import ccrs.capabilities.a2a.A2aConfig;
+import ccrs.capabilities.a2a.A2aConsultationChannel;
 import ccrs.capabilities.llm.JsonActionParser;
 import ccrs.capabilities.llm.TemplatePromptBuilder;
 import ccrs.capabilities.llm.langchain4j.Langchain4jLlmClient;
@@ -77,7 +79,6 @@ public class evaluate extends DefaultInternalAction {
         if (context instanceof JasonCcrsContext jCtx) {
             logger.fine("[ContingencyCcrs] Current context: " + jCtx.toString());
             logger.fine("[ContingencyCcrs] Context details: " + jCtx.toDebugString());
-            return jCtx;
         }
 
         Situation situation = parseSituation(args);
@@ -335,7 +336,7 @@ public class evaluate extends DefaultInternalAction {
                         // Generate +ccrs(...) event for agent plans
                         Trigger te = new Trigger(Trigger.TEOperator.add, 
                             Trigger.TEType.belief, ccrsBelief.copy());
-                        ts.getC().addEvent(new jason.asSemantics.Event(te));
+                        ts.getC().addEvent(new jason.asSemantics.Event(te, jason.asSemantics.Intention.EmptyInt));
                         
                         logger.fine("[ContingencyCcrs] Injected contingency mental note: " + ccrsBelief);
                     }
@@ -354,7 +355,7 @@ public class evaluate extends DefaultInternalAction {
         if (contingencyCcrs == null) {
             contingencyCcrs = ContingencyCcrs.withDefaults();
             
-            // Register LLM-based strategies if available
+            // Register LLM-based prediction strategy if available
             try {
                 LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
                 
@@ -366,23 +367,29 @@ public class evaluate extends DefaultInternalAction {
                         JsonActionParser.create()
                     );
                     contingencyCcrs.getRegistry().register(predictionStrategy);
-                    
-                    // Register ConsultationStrategy (L4)
-                    ConsultationStrategy.ConsultationChannel channel = 
-                        ConsultationStrategy.llmChannel(
-                            llmClient,
-                            TemplatePromptBuilder.create(),
-                            JsonActionParser.create()
-                        );
-                    ConsultationStrategy consultationStrategy = new ConsultationStrategy(channel);
-                    contingencyCcrs.getRegistry().register(consultationStrategy);
-                    
-                    logger.info("[ContingencyCcrs] LLM strategies enabled (PredictionLlm, Consultation)");
+
+                    logger.info("[ContingencyCcrs] LLM strategy enabled (PredictionLlm)");
                 } else {
                     logger.warning("[ContingencyCcrs] LLM client not available");
                 }
             } catch (Exception e) {
                 logger.log(Level.WARNING, "[ContingencyCcrs] LLM initialization failed: " + e.getMessage());
+            }
+
+            // Register A2A-based consultation strategy if configured
+            try {
+                ConsultationStrategy.ConsultationChannel channel =
+                    new A2aConsultationChannel(A2aConfig.fromEnvironment().build());
+
+                if (channel.isAvailable()) {
+                    ConsultationStrategy consultationStrategy = new ConsultationStrategy(channel);
+                    contingencyCcrs.getRegistry().register(consultationStrategy);
+                    logger.info("[ContingencyCcrs] A2A consultation strategy enabled");
+                } else {
+                    logger.info("[ContingencyCcrs] A2A consultation channel not configured");
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "[ContingencyCcrs] A2A consultation initialization failed: " + e.getMessage());
             }
             
             logger.info("[ContingencyCcrs] Contingency CCRS initialized");

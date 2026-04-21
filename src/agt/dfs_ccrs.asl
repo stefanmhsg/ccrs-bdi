@@ -113,6 +113,21 @@ MAIN LOOP
         .print("Unable to cope with actions in: ", Location) ;
     .
 
+-!evaluate_actions(Location) :
+    true
+    <-
+        .print("CATCH ERROR: -!evaluate_actions(Location)") ;
+        .print("CONTIGENCY CCRS: evaluate()") ;
+        // Constructor with: (4 args): evaluate(Type, Trigger, Focus, Result) Result is the output of evaluate()
+        ccrs.jacamo.jason.contingency.evaluate("failure", "!evaluate_actions(Location) failed", Location, Suggestions) ;
+
+        !handle_suggestions(Suggestions) ;
+    .
+
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|_]) : true <-
+    .print("CCRS suggests: ", Type, " target=", Target, " reason=", Reason) ;
+    .print("Params: ", Params) ;
+.
 
 // DFS: Annotate valid affordances
 +!evaluate_affordances(Location) :
@@ -140,8 +155,8 @@ MAIN LOOP
             .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#west",X)[valid_affordance("True")], WestList) ;
             .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#south",X)[valid_affordance("True")], SouthList) ;
             .findall(X, affords("https://kaefer3000.github.io/2021-02-dagstuhl/vocab#east",X)[valid_affordance("True")], EastList) ;
-            //.concat(NorthList, WestList, SouthList, EastList, List) ;
-            .concat(NorthList, EastList, SouthList, WestList, List) ;      
+            //.concat(NorthList, WestList, SouthList, EastList, DefaultList) ;
+            .concat(NorthList, EastList, SouthList, WestList, DefaultList) ;      
             .print("Tracking unexplored affordances: ", DefaultList) ;
 
             // Opportunistic-CCRS

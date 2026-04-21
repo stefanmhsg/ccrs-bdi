@@ -107,7 +107,7 @@ public class ContingencyConfiguration {
         private Set<String> enabledStrategies = new HashSet<>();
         private Set<String> disabledStrategies = new HashSet<>();
         private Set<CcrsStrategy.Category> enabledCategories = new HashSet<>();
-        private EscalationPolicy escalationPolicy = EscalationPolicy.SEQUENTIAL;
+        private EscalationPolicy escalationPolicy = EscalationPolicy.PARALLEL; // Default to evaluating all levels and picking best
         private int maxEscalationLevel = 4;
         private int maxSuggestions = 3;
         private boolean traceEnabled = true;

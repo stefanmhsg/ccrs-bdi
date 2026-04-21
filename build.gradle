@@ -42,6 +42,10 @@ dependencies {
     implementation('dev.langchain4j:langchain4j-open-ai:1.10.0')
     implementation('dev.langchain4j:langchain4j:1.10.0')
     implementation('io.github.cdimascio:dotenv-java:3.0.0')
+        // Agent-to-Agent A2A
+    implementation "io.github.a2asdk:a2a-java-sdk-reference-rest:0.3.3.Final"
+    implementation 'io.github.a2asdk:a2a-java-sdk-client:0.3.3.Final'
+    implementation 'io.github.a2asdk:a2a-java-sdk-client-transport-rest:0.3.3.Final'
 }
 
 sourceSets {
