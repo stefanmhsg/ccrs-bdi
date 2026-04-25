@@ -64,6 +64,7 @@ public class ContingencyCcrs {
     public List<StrategyResult> evaluate(Situation situation, CcrsContext context) {
         CcrsTrace trace = evaluateWithTrace(situation, context);
         context.recordCcrsInvocation(trace);
+        logger.info("[ContingencyCcrs] Recorded trace:\n" + trace.toDetailedReport());
         return trace.getSelectedResults();
     }
     

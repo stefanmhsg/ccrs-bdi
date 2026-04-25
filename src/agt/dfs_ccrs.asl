@@ -113,6 +113,7 @@ MAIN LOOP
         .print("Unable to cope with actions in: ", Location) ;
     .
 
+// CONTINGENCY CCRS HOOK
 -!evaluate_actions(Location) :
     true
     <-
@@ -124,10 +125,15 @@ MAIN LOOP
         !handle_suggestions(Suggestions) ;
     .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|_]) : true <-
-    .print("CCRS suggests: ", Type, " target=", Target, " reason=", Reason) ;
-    .print("Params: ", Params) ;
-.
+// Logs the first suggestion (which is the highest ranking)
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|_]) : 
+    true 
+    <-
+        .print(" --- ") ;
+        .print("CCRS OUTPUT RECEIVED") ;
+        .print("CCRS suggests: ", Type, " target=", Target, " reason=", Reason) ;
+        .print("Params: ", Params) ;
+    .
 
 // DFS: Annotate valid affordances
 +!evaluate_affordances(Location) :
