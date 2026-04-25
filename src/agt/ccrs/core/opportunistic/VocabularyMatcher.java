@@ -5,6 +5,8 @@ import ccrs.core.rdf.CcrsVocabularyLoader;
 import ccrs.core.rdf.RdfTriple;
 import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.*;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -37,6 +39,8 @@ public class VocabularyMatcher implements OpportunisticCcrs {
 
     @Override
     public List<OpportunisticResult> scanAll(Collection<RdfTriple> triples, Map<String, Object> context) {
+        integrateDiscoveredVocabulary(triples);
+
         List<OpportunisticResult> results = new ArrayList<>();
 
         // 1. Structural Patterns (Higher Priority)
@@ -54,6 +58,162 @@ public class VocabularyMatcher implements OpportunisticCcrs {
         }
 
         return results;
+    }
+
+    /**
+     * Detects CCRS pattern definitions embedded in an incoming RDF batch and
+     * integrates them before matching the same batch. This keeps vocabulary
+     * discovery inside the core scanner and independent from any agent runtime.
+     */
+    private void integrateDiscoveredVocabulary(Collection<RdfTriple> triples) {
+        Model discovered = extractVocabularyDefinitions(triples);
+        if (!discovered.isEmpty()) {
+            try {
+                vocabulary.integrateVocabulary(discovered);
+            } catch (RuntimeException e) {
+                logger.warning("Ignoring discovered CCRS vocabulary because it failed to compile: " + e.getMessage());
+            }
+        }
+    }
+
+    private Model extractVocabularyDefinitions(Collection<RdfTriple> triples) {
+        Model discovered = ModelFactory.createDefaultModel();
+        if (triples == null || triples.isEmpty()) {
+            return discovered;
+        }
+
+        Map<String, List<RdfTriple>> bySubject = new HashMap<>();
+        Set<String> patternSubjects = new HashSet<>();
+
+        for (RdfTriple triple : triples) {
+            bySubject.computeIfAbsent(triple.subject, k -> new ArrayList<>()).add(triple);
+            if (isPatternTypeTriple(triple)) {
+                patternSubjects.add(triple.subject);
+            }
+        }
+
+        for (String subject : patternSubjects) {
+            if (vocabulary.hasPattern(subject)) {
+                logger.fine("Ignoring already known CCRS pattern: " + subject);
+                continue;
+            }
+
+            List<RdfTriple> definitionTriples = bySubject.getOrDefault(subject, Collections.emptyList());
+            if (!isValidDiscoveredDefinition(subject, definitionTriples)) {
+                continue;
+            }
+
+            for (RdfTriple triple : definitionTriples) {
+                if (CcrsVocabulary.DEFINITION_PREDICATE_URIS.contains(triple.predicate)) {
+                    addTripleToModel(discovered, triple);
+                }
+            }
+        }
+
+        return discovered;
+    }
+
+    private boolean isPatternTypeTriple(RdfTriple triple) {
+        return RDF.type.getURI().equals(triple.predicate)
+            && (CcrsVocabulary.SIMPLE_PATTERN_URI.equals(triple.object)
+                || CcrsVocabulary.STRUCTURAL_PATTERN_URI.equals(triple.object));
+    }
+
+    private boolean isValidDiscoveredDefinition(String subject, List<RdfTriple> triples) {
+        boolean simple = false;
+        boolean structural = false;
+        boolean hasPatternType = false;
+        boolean hasMatchesPosition = false;
+        boolean hasSparql = false;
+        boolean hasPriority = false;
+
+        for (RdfTriple triple : triples) {
+            if (!CcrsVocabulary.DEFINITION_PREDICATE_URIS.contains(triple.predicate)) {
+                continue;
+            }
+
+            if (RDF.type.getURI().equals(triple.predicate)) {
+                simple |= CcrsVocabulary.SIMPLE_PATTERN_URI.equals(triple.object);
+                structural |= CcrsVocabulary.STRUCTURAL_PATTERN_URI.equals(triple.object);
+            } else if (CcrsVocabulary.PATTERN_TYPE_URI.equals(triple.predicate)) {
+                hasPatternType = !triple.object.isBlank();
+            } else if (CcrsVocabulary.MATCHES_POSITION_URI.equals(triple.predicate)) {
+                hasMatchesPosition = isValidMatchPosition(triple.object);
+            } else if (CcrsVocabulary.SPARQL_PATTERN_URI.equals(triple.predicate)) {
+                hasSparql = !triple.object.isBlank();
+            } else if (CcrsVocabulary.PRIORITY_URI.equals(triple.predicate)) {
+                hasPriority = isValidPriority(triple.object);
+            }
+        }
+
+        if (!hasPatternType) {
+            logger.warning("Ignoring discovered CCRS pattern without patternType: " + subject);
+            return false;
+        }
+        if (!hasPriority) {
+            logger.warning("Ignoring discovered CCRS pattern without valid priority: " + subject);
+            return false;
+        }
+        if (simple && !hasMatchesPosition) {
+            logger.warning("Ignoring discovered SimplePattern without valid matchesPosition: " + subject);
+            return false;
+        }
+        if (structural && !hasSparql) {
+            logger.warning("Ignoring discovered StructuralPattern without sparqlPattern: " + subject);
+            return false;
+        }
+        if (!simple && !structural) {
+            logger.warning("Ignoring discovered CCRS pattern without supported rdf:type: " + subject);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isValidMatchPosition(String position) {
+        return "subject".equals(position) || "predicate".equals(position) || "object".equals(position);
+    }
+
+    private boolean isValidPriority(String priority) {
+        try {
+            double value = Double.parseDouble(priority);
+            return value >= -1.0 && value <= 1.0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private void addTripleToModel(Model model, RdfTriple triple) {
+        Resource subject = model.createResource(triple.subject);
+        Property predicate = model.createProperty(triple.predicate);
+        RDFNode object = toRdfNode(model, triple);
+        model.add(subject, predicate, object);
+    }
+
+    private RDFNode toRdfNode(Model model, RdfTriple triple) {
+        if (RDF.type.getURI().equals(triple.predicate)) {
+            return model.createResource(triple.object);
+        }
+        if (CcrsVocabulary.PRIORITY_URI.equals(triple.predicate)) {
+            return model.createTypedLiteral(Double.parseDouble(triple.object));
+        }
+        if (isUri(triple.object) && !isLiteralDefinitionPredicate(triple.predicate)) {
+            return model.createResource(triple.object);
+        }
+        return model.createLiteral(triple.object);
+    }
+
+    private boolean isLiteralDefinitionPredicate(String predicate) {
+        return CcrsVocabulary.PATTERN_TYPE_URI.equals(predicate)
+            || CcrsVocabulary.MATCHES_POSITION_URI.equals(predicate)
+            || CcrsVocabulary.SPARQL_PATTERN_URI.equals(predicate)
+            || CcrsVocabulary.EXTRACT_TARGET_VARIABLE_URI.equals(predicate)
+            || CcrsVocabulary.EXTRACT_RELEVANCE_VARIABLE_URI.equals(predicate)
+            || RDFS.label.getURI().equals(predicate)
+            || RDFS.comment.getURI().equals(predicate);
+    }
+
+    private boolean isUri(String value) {
+        return value.startsWith("http://") || value.startsWith("https://");
     }
 
     /**

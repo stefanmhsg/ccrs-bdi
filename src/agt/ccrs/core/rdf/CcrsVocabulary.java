@@ -28,16 +28,35 @@ public class CcrsVocabulary {
 
     private static final Logger logger = Logger.getLogger(CcrsVocabulary.class.getName());
     public static final String CCRS_NS = "https://example.org/ccrs#";
+    public static final String SIMPLE_PATTERN_URI = CCRS_NS + "SimplePattern";
+    public static final String STRUCTURAL_PATTERN_URI = CCRS_NS + "StructuralPattern";
+    public static final String PATTERN_TYPE_URI = CCRS_NS + "patternType";
+    public static final String MATCHES_POSITION_URI = CCRS_NS + "matchesPosition";
+    public static final String PRIORITY_URI = CCRS_NS + "priority";
+    public static final String SPARQL_PATTERN_URI = CCRS_NS + "sparqlPattern";
+    public static final String EXTRACT_TARGET_VARIABLE_URI = CCRS_NS + "extractTargetVariable";
+    public static final String EXTRACT_RELEVANCE_VARIABLE_URI = CCRS_NS + "extractedRelevanceVariable";
+    public static final Set<String> DEFINITION_PREDICATE_URIS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            RDF.type.getURI(),
+            PATTERN_TYPE_URI,
+            MATCHES_POSITION_URI,
+            PRIORITY_URI,
+            SPARQL_PATTERN_URI,
+            EXTRACT_TARGET_VARIABLE_URI,
+            EXTRACT_RELEVANCE_VARIABLE_URI,
+            RDFS.label.getURI(),
+            RDFS.comment.getURI()
+    )));
 
     // RDF Constants
-    private static final Resource SIMPLE_PATTERN = ResourceFactory.createResource(CCRS_NS + "SimplePattern");
-    private static final Resource STRUCTURAL_PATTERN = ResourceFactory.createResource(CCRS_NS + "StructuralPattern");
-    private static final Property PATTERN_TYPE = ResourceFactory.createProperty(CCRS_NS + "patternType");
-    private static final Property MATCHES_POSITION = ResourceFactory.createProperty(CCRS_NS + "matchesPosition");
-    private static final Property PRIORITY = ResourceFactory.createProperty(CCRS_NS + "priority");
-    private static final Property SPARQL_PATTERN = ResourceFactory.createProperty(CCRS_NS + "sparqlPattern");
-    private static final Property EXTRACT_TARGET_VARIABLE = ResourceFactory.createProperty(CCRS_NS + "extractTargetVariable");
-    private static final Property EXTRACT_RELEVANCE_VARIABLE = ResourceFactory.createProperty(CCRS_NS + "extractedRelevanceVariable");
+    private static final Resource SIMPLE_PATTERN = ResourceFactory.createResource(SIMPLE_PATTERN_URI);
+    private static final Resource STRUCTURAL_PATTERN = ResourceFactory.createResource(STRUCTURAL_PATTERN_URI);
+    private static final Property PATTERN_TYPE = ResourceFactory.createProperty(PATTERN_TYPE_URI);
+    private static final Property MATCHES_POSITION = ResourceFactory.createProperty(MATCHES_POSITION_URI);
+    private static final Property PRIORITY = ResourceFactory.createProperty(PRIORITY_URI);
+    private static final Property SPARQL_PATTERN = ResourceFactory.createProperty(SPARQL_PATTERN_URI);
+    private static final Property EXTRACT_TARGET_VARIABLE = ResourceFactory.createProperty(EXTRACT_TARGET_VARIABLE_URI);
+    private static final Property EXTRACT_RELEVANCE_VARIABLE = ResourceFactory.createProperty(EXTRACT_RELEVANCE_VARIABLE_URI);
 
     // Runtime Structures
     private final Map<String, Set<SimplePatternDefinition>> simplePatternIndex = new ConcurrentHashMap<>();
@@ -51,8 +70,45 @@ public class CcrsVocabulary {
     }
 
     private void compile() {
+        simplePatternIndex.clear();
+        structuralPatterns.clear();
+        discoveredTypes.clear();
         compileSimplePatterns();
         compileStructuralPatterns();
+    }
+
+    /**
+     * Merge newly discovered CCRS vocabulary triples into this vocabulary and
+     * rebuild the compiled lookup structures. The active vocabulary is only
+     * updated after the merged model compiles successfully.
+     *
+     * @param additions CCRS pattern definition triples discovered at runtime
+     * @return true if new triples were integrated
+     */
+    public synchronized boolean integrateVocabulary(Model additions) {
+        if (additions == null || additions.isEmpty()) {
+            return false;
+        }
+
+        Model newTriples = ModelFactory.createDefaultModel();
+        newTriples.add(additions);
+        newTriples.remove(model);
+        if (newTriples.isEmpty()) {
+            return false;
+        }
+
+        Model candidate = ModelFactory.createDefaultModel();
+        candidate.add(model);
+        candidate.add(newTriples);
+
+        // Compile the candidate first so the active vocabulary remains intact
+        // if a discovered pattern is malformed.
+        new CcrsVocabulary(candidate);
+
+        model.add(newTriples);
+        compile();
+        logger.info("Integrated runtime CCRS vocabulary triples: " + newTriples.size());
+        return true;
     }
 
     /**
@@ -240,6 +296,12 @@ public class CcrsVocabulary {
 
     public Set<String> getDiscoveredTypes() {
         return Collections.unmodifiableSet(discoveredTypes);
+    }
+
+    public boolean hasPattern(String id) {
+        Resource pattern = ResourceFactory.createResource(id);
+        return model.contains(pattern, RDF.type, SIMPLE_PATTERN)
+            || model.contains(pattern, RDF.type, STRUCTURAL_PATTERN);
     }
 
 
