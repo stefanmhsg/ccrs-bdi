@@ -239,7 +239,7 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
                 "A2A consultation completed without a text response"
             );
         }
-        logger.info("[A2A] Received consultation payload (" + responseText.length() + " chars)");
+        logger.info("[A2A] Received consultation payload: " + responseText);
 
         ConsultationStrategy.ConsultationResponse response =
             ConsultationStrategy.ConsultationResponse.success(
