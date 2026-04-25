@@ -239,7 +239,22 @@ ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", CurrentURI, 
 
 ## Handling Suggestions
 
-All `evaluate` calls return a list of `suggestion/7` structures:
+All `evaluate` calls return a list of `suggestion/7` structures. When multiple suggestions are returned, the list is ordered by strategy score, not by raw confidence alone.
+
+The score is calculated as:
+
+```text
+score = confidence * (1.0 - estimatedCost)
+```
+
+This means a lower-confidence suggestion can be ranked ahead of a higher-confidence suggestion when it has a much lower estimated cost.
+
+```text
+Suggestion A: confidence=0.9, estimatedCost=0.5 -> score=0.45
+Suggestion B: confidence=0.7, estimatedCost=0.1 -> score=0.63
+```
+
+In this example, Suggestion B is returned before Suggestion A.
 
 ```asl
 suggestion(
