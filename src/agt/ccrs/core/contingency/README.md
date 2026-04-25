@@ -47,7 +47,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
     *   `appliesTo()`: Quick applicability check (APPLICABLE, NOT_APPLICABLE, MAYBE).
     *   `evaluate()`: Full evaluation returning StrategyResult.
 
-*   **`ContingencyCcrs.java`**: Main orchestrator that evaluates strategies in escalation order. Supports both simple `evaluate()` and `evaluateWithTrace()` for debugging/learning.
+*   **`ContingencyCcrs.java`**: Main orchestrator that evaluates strategies in escalation order. `evaluate()` is the default path and always delegates to `evaluateWithTrace()`, records the resulting trace through `CcrsContext`, and returns the selected results. `evaluateWithTrace()` remains available for callers that want the full trace object directly.
 
 *   **`StrategyRegistry.java`**: Manages strategy registration with filtering by category and escalation level. Supports custom escalation policies.
 
@@ -69,7 +69,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 
 ### Jason Adapters
 
-*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, Attempted, ResultList)` that invokes contingency evaluation and returns suggestions as a list of literals.
+*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, Attempted, ResultList)` that invokes the default `ContingencyCcrs.evaluate(...)` path. This returns suggestions as a list of literals and also records trace history in the background.
 
 *   **`track.java`**: Internal action for history tracking:
     *   `ccrs.contingency.track(action, Type, Target, Outcome)` — record an action.
@@ -125,7 +125,7 @@ Implementations can be injected via configuration, allowing adaptation to differ
 
 ### 4. Trace-Based Learning
 
-Every evaluation can produce a `CcrsTrace` capturing:
+Every evaluation produces a `CcrsTrace` capturing:
 *   All strategies consulted and their results
 *   The selected suggestion (if any)
 *   Timestamp and situation context
@@ -135,6 +135,8 @@ This enables:
 *   **Debugging:** Understanding why a particular strategy was chosen
 *   **Learning:** Collecting data for improving strategy selection
 *   **Auditing:** Recording decision rationale for review
+
+The default `ContingencyCcrs.evaluate(...)` path records this trace through `CcrsContext`. Adapters can expose that history using the reusable in-memory helper in `ccrs.core.rdf.InMemoryCcrsTraceHistory`.
 
 ### 5. Context Integration
 
@@ -148,8 +150,10 @@ public interface CcrsContext {
     
     // History (for contingency)
     boolean hasHistory();
-    List<ActionRecord> getRecentActions(int maxCount);
-    List<StateSnapshot> getRecentStates(int maxCount);
+    List<Interaction> getRecentInteractions(int maxCount);
+    Optional<CcrsTrace> getLastCcrsInvocation();
+    List<CcrsTrace> getCcrsHistory(int maxCount);
+    void recordCcrsInvocation(CcrsTrace trace);
     
     // Capabilities
     boolean hasLlmAccess();
@@ -291,18 +295,23 @@ Situation situation = Situation.builder()
 ContingencyCcrs ccrs = new ContingencyCcrs();
 ccrs.registerDefaultStrategies();
 
-// Evaluate with trace
-CcrsTrace trace = ccrs.evaluateWithTrace(situation, context);
-StrategyResult result = trace.getSelectedResult().orElse(null);
+// Default evaluation path: records trace via context and returns selected results
+List<StrategyResult> results = ccrs.evaluate(situation, context);
+StrategyResult result = results.isEmpty() ? null : results.get(0);
 
 if (result instanceof StrategyResult.Suggestion suggestion) {
     System.out.println("Action: " + suggestion.actionType());
     System.out.println("Target: " + suggestion.actionTarget());
     System.out.println("Confidence: " + suggestion.confidence());
     
+    // Access recorded trace if needed
+    CcrsTrace trace = context.getLastCcrsInvocation().orElse(null);
+
     // Execute and report outcome
     boolean success = executeAction(suggestion);
-    trace.reportOutcome(success ? Outcome.SUCCESS : Outcome.FAILURE);
+    if (trace != null) {
+        trace.reportOutcome(success ? Outcome.SUCCESS : Outcome.FAILURE);
+    }
 }
 ```
 

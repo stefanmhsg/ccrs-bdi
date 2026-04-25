@@ -62,7 +62,9 @@ public class ContingencyCcrs {
      * @return List of suggestions, best first (may be empty)
      */
     public List<StrategyResult> evaluate(Situation situation, CcrsContext context) {
-        return evaluateWithTrace(situation, context).getSelectedResults();
+        CcrsTrace trace = evaluateWithTrace(situation, context);
+        context.recordCcrsInvocation(trace);
+        return trace.getSelectedResults();
     }
     
     /**

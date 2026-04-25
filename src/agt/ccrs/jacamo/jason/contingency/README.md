@@ -8,6 +8,8 @@ The `evaluate` internal action bridges AgentSpeak agents with Contingency-CCRS s
 
 Besides returning `suggestion/7` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events.
 
+The internal action uses the default `ContingencyCcrs.evaluate(...)` path. That path always delegates to `evaluateWithTrace(...)`, records the resulting `CcrsTrace` in the context history, and then returns the selected suggestions.
+
 ```asl
 ccrs(Target, PatternType, Utility)[
     source("contingency"),

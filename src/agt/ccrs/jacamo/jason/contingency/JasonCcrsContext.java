@@ -3,6 +3,7 @@ package ccrs.jacamo.jason.contingency;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.core.rdf.InMemoryCcrsTraceHistory;
 import ccrs.core.rdf.RdfTriple;
 import ccrs.jacamo.jason.JasonRdfAdapter;
 import ccrs.jacamo.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
@@ -33,10 +34,9 @@ public class JasonCcrsContext implements CcrsContext {
 
     // Direct reference to the shared log
     private final JasonInteractionLog interactionLog;
-    
-    // Only track CCRS invocations (not in BB)
-    private final LinkedList<CcrsTrace> ccrsHistory = new LinkedList<>();
+    // Ttrack CCRS invocations in ccrs-core-memory (not in BB)
     private static final int MAX_CCRS_HISTORY = 50;
+    private final InMemoryCcrsTraceHistory ccrsHistory = new InMemoryCcrsTraceHistory(MAX_CCRS_HISTORY);
     
     // Current state cache
     private String currentResource;
@@ -125,17 +125,12 @@ public class JasonCcrsContext implements CcrsContext {
     
     @Override
     public Optional<CcrsTrace> getLastCcrsInvocation() {
-        synchronized (ccrsHistory) {
-            return ccrsHistory.isEmpty() ? Optional.empty() : Optional.of(ccrsHistory.getFirst());
-        }
+        return ccrsHistory.getLast();
     }
     
     @Override
     public List<CcrsTrace> getCcrsHistory(int maxCount) {
-        synchronized (ccrsHistory) {
-            int count = Math.min(maxCount, ccrsHistory.size());
-            return new ArrayList<>(ccrsHistory.subList(0, count));
-        }
+        return ccrsHistory.getRecent(maxCount);
     }
     
     @Override public boolean hasHistory() { return !getRecentInteractions(1).isEmpty(); }
@@ -147,12 +142,7 @@ public class JasonCcrsContext implements CcrsContext {
      */
     @Override
     public void recordCcrsInvocation(CcrsTrace trace) {
-        synchronized (ccrsHistory) {
-            ccrsHistory.addFirst(trace);
-            while (ccrsHistory.size() > MAX_CCRS_HISTORY) {
-                ccrsHistory.removeLast();
-            }
-        }
+        ccrsHistory.record(trace);
     }
     
     // ========== Utility Methods ==========

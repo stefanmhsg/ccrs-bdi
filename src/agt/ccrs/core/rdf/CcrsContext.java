@@ -135,34 +135,32 @@ public interface CcrsContext {
     
     /**
      * Get the last CCRS invocation trace.
-     * 
+     *
+     * Trace history is part of the CCRS context contract because
+     * {@code ContingencyCcrs.evaluate(...)} records every evaluation.
+     *
      * @return Last trace, or empty if none
      */
-    default Optional<CcrsTrace> getLastCcrsInvocation() {
-        return Optional.empty();
-    }
+    Optional<CcrsTrace> getLastCcrsInvocation();
     
     /**
      * Get recent CCRS invocation history.
-     * 
+     *
+     * Trace history is maintained by the context and returned most-recent first.
+     *
      * @param maxCount Maximum number of traces to return
      * @return Recent traces, most recent first
      */
-    default List<CcrsTrace> getCcrsHistory(int maxCount) {
-        return Collections.emptyList();
-    }
+    List<CcrsTrace> getCcrsHistory(int maxCount);
 
     /**
      * Record a CCRS invocation trace.
      *
-     * Default implementation is a no-op so contexts that do not persist
-     * invocation history remain valid.
+     * Called by {@code ContingencyCcrs.evaluate(...)} for every evaluation.
      *
      * @param trace The trace to record
      */
-    default void recordCcrsInvocation(CcrsTrace trace) {
-        // Optional capability
-    }
+    void recordCcrsInvocation(CcrsTrace trace);
     
     // ========== Agent State (optional) ==========
     
