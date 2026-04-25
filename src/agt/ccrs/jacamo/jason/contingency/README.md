@@ -6,6 +6,32 @@ This document provides examples for using the `evaluate` internal action to invo
 
 The `evaluate` internal action bridges AgentSpeak agents with Contingency-CCRS strategies. It supports multiple signatures for different situation complexity levels.
 
+Besides returning `suggestion/7` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events.
+
+```asl
+ccrs(Target, PatternType, Utility)[
+    source("contingency"),
+    origin("contingency-ccrs"),
+    pattern_id(StrategyAttemptId),
+    strategy(StrategyName),
+    ...
+]
+```
+
+For example, `BacktrackStrategy` generates notes for unexplored alternatives and dead ends:
+
+```asl
+ccrs("http://example.org/cells/36/36", "dead_end", -0.9)[
+    checkpoint("http://example.org/cells/35/36"),
+    origin("contingency-ccrs"),
+    pattern_id("backtrack:http://example.org/cells/35/36"),
+    source("contingency"),
+    strategy("backtrack")
+]
+```
+
+These notes are added directly by the internal action via the Jason belief base, not through artifact perception. They are intentionally compatible with Opportunistic-CCRS: later calls to `ccrs.jacamo.jason.opportunistic.prioritize(...)` read all `ccrs/3` beliefs and can use these contingency notes to reorder options. Unlike transient opportunistic scanner beliefs tied to artifact observations, contingency notes do not receive an `artifact_name` annotation and are not removed during the normal percept-cycle cleanup.
+
 ## Supported Signatures
 
 ### 1. Basic (3 args) - Minimal Context
