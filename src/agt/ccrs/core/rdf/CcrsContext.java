@@ -151,6 +151,18 @@ public interface CcrsContext {
     default List<CcrsTrace> getCcrsHistory(int maxCount) {
         return Collections.emptyList();
     }
+
+    /**
+     * Record a CCRS invocation trace.
+     *
+     * Default implementation is a no-op so contexts that do not persist
+     * invocation history remain valid.
+     *
+     * @param trace The trace to record
+     */
+    default void recordCcrsInvocation(CcrsTrace trace) {
+        // Optional capability
+    }
     
     // ========== Agent State (optional) ==========
     

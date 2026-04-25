@@ -94,7 +94,7 @@ public class evaluate extends DefaultInternalAction {
         logger.log(Level.FINE,
             "[ContingencyCcrs] Evaluating situation: " + situation + " with context");
 
-        // Evaluate Contingency Strategies
+        // Evaluate Contingency Strategies via the default path, which also records trace history.
         List<StrategyResult> results = ccrs.evaluate(situation, context);
 
         logger.log(Level.INFO, "[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
