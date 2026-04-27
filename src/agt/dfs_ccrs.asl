@@ -125,6 +125,23 @@ MAIN LOOP
         !handle_suggestions(Suggestions) ;
     .
 
+// Executes a consultation suggestion if it can be projected to a POST body
++!handle_suggestions([suggestion("consultation", "post", Target, Conf, Reason, Params)|_]) :
+    .member(predicate(Predicate), Params) & .member(object(Object), Params)
+    <-
+        .print(" --- ") ;
+        .print("CCRS CONSULTATION OUTPUT RECEIVED") ;
+        .print("Id: consultation") ;
+        .print("Type: post") ;
+        .print("Target: ", Target) ;
+        .print("Confidence: ", Conf) ;
+        .print("Reason: ", Reason) ;
+        .print("Params: ", Params) ;
+        .print("CCRS executing consultation POST suggestion") ;
+        !post(Target, [rdf(Target, Predicate, Object)[rdf_type_map(uri,uri,literal)]]) ;
+        !crawl(Target) ;
+    .
+
 // Logs the first suggestion (which is the highest ranking)
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) : 
     true 
@@ -336,7 +353,7 @@ HELPER PLANS
         .print("Access approved: ", CreatedResourceURI) ;
     .
 
-  +!post(RequestURI, Body) :
++!post(RequestURI, Body) :
     agent_name(AgentName) & h.target(RequestURI, TargetURI)
     <-
         .print("POST to: ", TargetURI, " with body: ", Body) ;

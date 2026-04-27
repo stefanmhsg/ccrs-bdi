@@ -103,11 +103,16 @@ public class CcrsVocabulary {
 
         // Compile the candidate first so the active vocabulary remains intact
         // if a discovered pattern is malformed.
-        new CcrsVocabulary(candidate);
+        CcrsVocabulary compiledCandidate = new CcrsVocabulary(candidate);
+        if (compiledCandidate.getAllStructuralPatterns().isEmpty() && !compiledCandidate.hasAnySimplePattern()) {
+            return false;
+        }
+
+        logger.info("Detected runtime CCRS vocabulary additions (triples=" + newTriples.size() + ")");
+        logger.info("Runtime CCRS vocabulary additions:\n" + newTriples);
 
         model.add(newTriples);
         compile();
-        logger.info("Integrated runtime CCRS vocabulary triples: " + newTriples.size());
         return true;
     }
 
@@ -130,6 +135,7 @@ public class CcrsVocabulary {
                 SimplePatternDefinition def = new SimplePatternDefinition(r.getURI(), type, priority, pos);
                 simplePatternIndex.computeIfAbsent(type + ":" + pos, k -> ConcurrentHashMap.newKeySet())
                                   .add(def);
+                logger.info("Detected simple pattern: " + def.id + ", type=" + type + ", position=" + pos + ", priority=" + priority);
             }
         }
     }
@@ -165,8 +171,10 @@ public class CcrsVocabulary {
                     .orElseGet(() -> compileSlowPath(id, type, priority, target, relVar, sparql));
 
             structuralPatterns.add(def);
+            logger.info("Detected structural pattern: " + id + ", type=" + type + ", target=" + target +
+                    ", priority=" + priority + ", mode=" + (def.isFastPath() ? "FAST PATH" : "SLOW PATH"));
         }
-        
+
         // Ensure high priority patterns are matched first
         structuralPatterns.sort((a, b) -> Double.compare(b.priority, a.priority));
     }
@@ -296,6 +304,10 @@ public class CcrsVocabulary {
 
     public Set<String> getDiscoveredTypes() {
         return Collections.unmodifiableSet(discoveredTypes);
+    }
+
+    private boolean hasAnySimplePattern() {
+        return simplePatternIndex.values().stream().anyMatch(set -> !set.isEmpty());
     }
 
     public boolean hasPattern(String id) {
