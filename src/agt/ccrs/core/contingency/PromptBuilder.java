@@ -25,6 +25,7 @@ public interface PromptBuilder {
      * suggest an appropriate recovery action.
      * 
      * Expected context keys (all optional, builders should handle missing keys):
+     * - "situationDetails": Pre-formatted generic situation and invocation details
      * - "currentResource": Current location URI
      * - "targetResource": Target of failed action
      * - "failedAction": Name of the failed action
@@ -37,19 +38,6 @@ public interface PromptBuilder {
      * @return A complete prompt string ready for the LLM
      */
     String buildPredictionPrompt(Map<String, Object> contextMap);
-    
-    /**
-     * Build a prompt for consulting an external advisor.
-     * 
-     * Used by social consultation strategies. The prompt should frame
-     * the request as asking for help, including admission of prior failures
-     * and richer context sharing.
-     * 
-     * @param question The agent's question or problem description
-     * @param contextMap Additional context to help the advisor
-     * @return A complete prompt string ready for the LLM
-     */
-    String buildConsultationPrompt(String question, Map<String, Object> contextMap);
     
     /**
      * Get a description of this prompt builder for logging/debugging.

@@ -2,6 +2,8 @@ package ccrs.capabilities.llm;
 
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.dto.LlmActionResponse;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -10,7 +12,8 @@ import java.util.regex.Pattern;
  * Used by {@link ccrs.core.contingency.strategies.internal.PredictionLlmStrategy}
  * 
  * Handles the expected JSON schema:
- * {"action": "...", "target": "...", "reasoning|advice|explanation": "..."}
+ * {"action": "...", "target": "...", "request": {"method": "...", "headers": {...}, "body": "..."},
+ *  "reasoning|advice|explanation": "..."}
  * 
  * Features:
  * - Flexible field name matching (reasoning, advice, explanation)
@@ -78,6 +81,33 @@ public class JsonActionParser implements LlmResponseParser {
             
             LlmActionResponse response = LlmActionResponse.valid(action, target, explanation);
             response.withMetadata("parseMethod", "json");
+
+            String request = extractJsonObject(json, "request");
+            String requestSource = request != null ? request : json;
+
+            String method = firstNonBlank(
+                extractJsonField(requestSource, "method"),
+                inferMethodFromAction(action));
+            if (method != null) {
+                response.withMethod(method.toUpperCase());
+            }
+
+            Map<String, String> headers = extractStringMap(requestSource, "headers");
+            if (!headers.isEmpty()) {
+                response.withHeaders(headers);
+            }
+
+            String body = extractJsonField(requestSource, "body");
+            if (body != null) {
+                response.withBody(body);
+            }
+
+            String bodyContentType = firstNonBlank(
+                extractJsonField(requestSource, "bodyContentType"),
+                extractJsonField(requestSource, "contentType"));
+            if (bodyContentType != null) {
+                response.withBodyContentType(bodyContentType);
+            }
             
             // Try to extract confidence if present
             Double confidence = extractConfidence(json);
@@ -127,6 +157,85 @@ public class JsonActionParser implements LlmResponseParser {
         
         // Normalize "null" string to null
         return "null".equalsIgnoreCase(value.trim()) ? null : value;
+    }
+
+    private String extractJsonObject(String json, String fieldName) {
+        int keyIndex = json.indexOf("\"" + fieldName + "\"");
+        if (keyIndex < 0) {
+            keyIndex = json.indexOf(fieldName + ":");
+        }
+        if (keyIndex < 0) return null;
+
+        int colonIndex = json.indexOf(":", keyIndex);
+        if (colonIndex < 0) return null;
+
+        int objectStart = json.indexOf("{", colonIndex);
+        if (objectStart < 0) return null;
+
+        int depth = 0;
+        boolean inString = false;
+        for (int i = objectStart; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '"' && (i == 0 || json.charAt(i - 1) != '\\')) {
+                inString = !inString;
+            }
+            if (inString) {
+                continue;
+            }
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return json.substring(objectStart, i + 1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Map<String, String> extractStringMap(String json, String fieldName) {
+        Map<String, String> values = new LinkedHashMap<>();
+        String object = extractJsonObject(json, fieldName);
+        if (object == null) {
+            return values;
+        }
+
+        Pattern entryPattern = Pattern.compile(
+            "\\\"([^\\\"]+)\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"])*)\\\""
+        );
+        Matcher matcher = entryPattern.matcher(object);
+        while (matcher.find()) {
+            values.put(unescapeJsonString(matcher.group(1)), unescapeJsonString(matcher.group(2)));
+        }
+        return values;
+    }
+
+    private String inferMethodFromAction(String action) {
+        if (action == null) {
+            return null;
+        }
+        return switch (action.toLowerCase()) {
+            case "get", "post", "put", "patch", "delete" -> action;
+            default -> null;
+        };
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        return second != null && !second.isBlank() ? second : null;
+    }
+
+    private String unescapeJsonString(String value) {
+        return value
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t");
     }
     
     private int findClosingQuote(String str, int start) {

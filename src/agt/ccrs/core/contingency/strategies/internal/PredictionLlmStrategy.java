@@ -10,6 +10,7 @@ import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
+import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
@@ -162,6 +163,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 .target(response.getTarget())
                 .param("llmGenerated", true)
                 .param("originalReasoning", response.getExplanation())
+                .params(buildHttpActionParams(response))
                 .param("parseMethod", response.getMetadata().get("parseMethod"))
                 .confidence(confidence)
                 .rationale(buildRationale(response))
@@ -200,6 +202,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         ctx.put("failedAction", nullSafe(situation.getFailedAction()));
         ctx.put("errorInfo", formatError(situation));
         ctx.put("attemptedStrategies", situation.getAttemptedStrategies().toString());
+        ctx.put("situationDetails", formatSituationDetails(situation, context, currentResource));
         
         // Format history (bounded)
         ctx.put("recentActions", formatHistory(context));
@@ -208,6 +211,88 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         ctx.put("knowledge", formatKnowledge(context, currentResource));
         
         return ctx;
+    }
+
+    private String formatSituationDetails(Situation situation, CcrsContext context, String currentResource) {
+        StringBuilder sb = new StringBuilder();
+
+        appendLine(sb, "Situation type", situation.getType());
+        appendLine(sb, "Trigger", situation.getTrigger());
+        appendLine(sb, "Agent", context.getAgentId());
+        appendLine(sb, "Current resource", currentResource);
+        appendLine(sb, "Target resource", situation.getTargetResource());
+        appendLine(sb, "Requested or failed action", situation.getFailedAction());
+        appendLine(sb, "Error details", formatError(situation));
+        appendLine(sb, "Previously attempted recovery", situation.getAttemptedStrategies().isEmpty()
+            ? "none"
+            : situation.getAttemptedStrategies());
+
+        if (!situation.getMetadata().isEmpty()) {
+            appendLine(sb, "Situation metadata", situation.getMetadata());
+        }
+
+        context.getLastInteraction()
+            .ifPresentOrElse(
+                interaction -> appendLine(sb, "Last interaction", formatInteractionDetails(interaction)),
+                () -> appendLine(sb, "Last interaction", "none available"));
+
+        context.getLastCcrsInvocation()
+            .ifPresent(trace -> appendLine(sb, "Previous CCRS invocation", formatTraceSummary(trace)));
+
+        return sb.toString().trim();
+    }
+
+    private String formatInteractionDetails(Interaction interaction) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(interaction.method()).append(' ')
+            .append(interaction.requestUri())
+            .append(" -> ")
+            .append(interaction.outcome());
+
+        if (interaction.requestBody() != null) {
+            sb.append("; body=").append(interaction.requestBody());
+        }
+        if (interaction.logicalSource() != null) {
+            sb.append("; source=").append(interaction.logicalSource());
+        }
+        if (interaction.requestTimestamp() > 0 && interaction.responseTimestamp() > 0) {
+            sb.append("; durationMs=")
+                .append(interaction.responseTimestamp() - interaction.requestTimestamp());
+        }
+        return sb.toString();
+    }
+
+    private String formatTraceSummary(CcrsTrace trace) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(trace.getId())
+            .append(" at ")
+            .append(trace.getTimestamp())
+            .append("; situation=")
+            .append(trace.getSituation().getType())
+            .append("; evaluated=")
+            .append(trace.getEvaluations().size())
+            .append("; selected=")
+            .append(trace.getSelectedResults().size())
+            .append("; outcome=")
+            .append(trace.getOutcome());
+
+        if (trace.getSelectionReason() != null) {
+            sb.append("; selection=").append(trace.getSelectionReason());
+        }
+        return sb.toString();
+    }
+
+    private void appendLine(StringBuilder sb, String label, Object value) {
+        if (value == null) {
+            return;
+        }
+
+        String text = String.valueOf(value);
+        if (text.isBlank() || text.equals("unknown") || text.equals("none")) {
+            return;
+        }
+
+        sb.append(label).append(": ").append(text).append('\n');
     }
     
     private String formatHistory(CcrsContext context) {
@@ -286,6 +371,25 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             sb.append("Reasoning: ").append(explanation);
         }
         return sb.toString();
+    }
+
+    private Map<String, Object> buildHttpActionParams(LlmActionResponse response) {
+        Map<String, Object> params = new HashMap<>();
+
+        if (response.hasMethod()) {
+            params.put("method", response.getMethod());
+        }
+        if (response.hasHeaders()) {
+            params.put("headers", response.getHeaders());
+        }
+        if (response.hasBody()) {
+            params.put("body", response.getBody());
+        }
+        if (response.hasBodyContentType()) {
+            params.put("bodyContentType", response.getBodyContentType());
+        }
+
+        return params;
     }
     
     // Configuration methods

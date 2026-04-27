@@ -248,15 +248,19 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
                 responseText
             );
         response.source = buildSource(card, skillId);
-        Double artifactConfidence = extractConfidenceFromArtifacts(latestTask.get());
+        String agentName = card != null && card.name() != null ? card.name() : "unknown";
+        Double artifactConfidence = extractConfidenceFromArtifacts(latestTask.get(), skillId, agentName);
         if (artifactConfidence != null) {
             response.confidence = artifactConfidence;
             logger.info(String.format(
-                "[A2A] Mapping confidence from red-action artifact metadata: %.3f",
+                "[A2A] Mapping confidence from artifact metadata for skill '%s' / agent '%s': %.3f",
+                skillId,
+                agentName,
                 artifactConfidence));
         } else {
-            logger.info("[A2A] No confidence metadata found in red-action artifacts for agentCardUri="
-                + agentCardUri + "; leaving confidence unset for strategy fallback");
+            logger.info("[A2A] No confidence metadata found in task artifacts for skill='"
+                + skillId + "', agent='" + agentName + "' (agentCardUri=" + agentCardUri
+                + "); leaving confidence unset for strategy fallback");
         }
 
         Map<String, Object> metadata = new LinkedHashMap<>();
@@ -418,10 +422,23 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
         return cardName + "/" + skillId;
     }
 
-    private Double extractConfidenceFromArtifacts(Task task) {
+    private Double extractConfidenceFromArtifacts(Task task, String requestedSkill, String agentName) {
         if (task == null || task.getArtifacts() == null || task.getArtifacts().isEmpty()) {
             logger.info("[A2A] No task artifacts available for confidence extraction");
             return null;
+        }
+
+        Artifact matchingArtifact = findMatchingConfidenceArtifact(task.getArtifacts(), requestedSkill, agentName);
+        if (matchingArtifact != null) {
+            Object rawConfidence = matchingArtifact.metadata() != null ? matchingArtifact.metadata().get("confidence") : null;
+            Double parsed = parseConfidenceValue(rawConfidence);
+            if (parsed != null) {
+                return parsed;
+            }
+            if (rawConfidence != null) {
+                logger.warning("[A2A] Unable to parse confidence metadata value from matching artifact "
+                    + matchingArtifact.artifactId() + ": " + rawConfidence);
+            }
         }
 
         for (int i = task.getArtifacts().size() - 1; i >= 0; i--) {
@@ -440,6 +457,88 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
             }
         }
         return null;
+    }
+
+    private Artifact findMatchingConfidenceArtifact(List<Artifact> artifacts, String requestedSkill, String agentName) {
+        if (artifacts == null || artifacts.isEmpty()) {
+            return null;
+        }
+
+        for (int i = artifacts.size() - 1; i >= 0; i--) {
+            Artifact artifact = artifacts.get(i);
+            if (artifact == null || artifact.metadata() == null) {
+                continue;
+            }
+            if (!artifact.metadata().containsKey("confidence")) {
+                continue;
+            }
+
+            if (artifactMatchesContext(artifact, requestedSkill, agentName)) {
+                return artifact;
+            }
+        }
+        return null;
+    }
+
+    private boolean artifactMatchesContext(Artifact artifact, String requestedSkill, String agentName) {
+        if (artifact == null) {
+            return false;
+        }
+
+        String normalizedSkill = normalizeForMatch(requestedSkill);
+        String normalizedAgent = normalizeForMatch(agentName);
+        if (normalizedSkill == null && normalizedAgent == null) {
+            return false;
+        }
+
+        String artifactId = normalizeForMatch(artifact.artifactId());
+        if (artifactId != null) {
+            if (normalizedSkill != null && artifactId.contains(normalizedSkill)) {
+                return true;
+            }
+            if (normalizedAgent != null && artifactId.contains(normalizedAgent)) {
+                return true;
+            }
+        }
+
+        String artifactName = normalizeForMatch(artifact.name());
+        if (artifactName != null) {
+            if (normalizedSkill != null && artifactName.contains(normalizedSkill)) {
+                return true;
+            }
+            if (normalizedAgent != null && artifactName.contains(normalizedAgent)) {
+                return true;
+            }
+        }
+
+        Map<String, Object> artifactMetadata = artifact.metadata();
+        if (artifactMetadata != null) {
+            for (Map.Entry<String, Object> entry : artifactMetadata.entrySet()) {
+                if (entry.getValue() == null) {
+                    continue;
+                }
+                String metadataValue = normalizeForMatch(entry.getValue());
+                if (metadataValue == null) {
+                    continue;
+                }
+                if (normalizedSkill != null && metadataValue.contains(normalizedSkill)) {
+                    return true;
+                }
+                if (normalizedAgent != null && metadataValue.contains(normalizedAgent)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private String normalizeForMatch(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.toString().toLowerCase().trim();
+        return normalized.isBlank() ? null : normalized;
     }
 
     private Double parseConfidenceValue(Object rawConfidence) {

@@ -300,6 +300,21 @@ public class evaluate extends DefaultInternalAction {
             }
             return jasonList;
         }
+
+        if (value instanceof Map<?, ?> map) {
+            ListTerm jasonList = new ListTermImpl();
+            ListTerm tail = jasonList;
+
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                Structure pair = ASSyntax.createStructure(
+                    "entry",
+                    ASSyntax.createString(String.valueOf(e.getKey())),
+                    buildValue(e.getValue())
+                );
+                tail = tail.append(pair);
+            }
+            return jasonList;
+        }
     
         if (value instanceof Number n) {
             return ASSyntax.createNumber(n.doubleValue());

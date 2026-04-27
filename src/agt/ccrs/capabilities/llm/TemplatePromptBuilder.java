@@ -24,16 +24,15 @@ import ccrs.core.contingency.PromptBuilder;
 public class TemplatePromptBuilder implements PromptBuilder {
     
     private String predictionTemplate;
-    private String consultationTemplate;
     
     public TemplatePromptBuilder() {
         this.predictionTemplate = buildPredictionTemplate();
-        this.consultationTemplate = buildConsultationTemplate();
     }
     
     @Override
     public String buildPredictionPrompt(Map<String, Object> contextMap) {
         return predictionTemplate
+            .replace("{situationDetails}", getString(contextMap, "situationDetails", "No situation details available."))
             .replace("{currentResource}", getString(contextMap, "currentResource", "unknown"))
             .replace("{targetResource}", getString(contextMap, "targetResource", "unknown"))
             .replace("{failedAction}", getString(contextMap, "failedAction", "unknown"))
@@ -42,14 +41,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
             .replace("{recentActions}", getString(contextMap, "recentActions", "No action history available."))
             .replace("{knowledgeBase}", getString(contextMap, "knowledge", "No knowledge available."));
     }
-    
-    @Override
-    public String buildConsultationPrompt(String question, Map<String, Object> contextMap) {
-        return consultationTemplate
-            .replace("{question}", question)
-            .replace("{context}", formatContextMap(contextMap));
-    }
-    
+       
     @Override
     public String getDescription() {
         return "TemplatePromptBuilder[standard]";
@@ -100,13 +92,10 @@ public class TemplatePromptBuilder implements PromptBuilder {
     
     private String buildPredictionTemplate() {
         return """
-            You are a specialized assistant helping a hypermedia navigation agent recover from failures.
+            You are a specialized assistant helping a hypermedia navigation agent choose a recovery or next-step action.
             
             # Current Situation
-            Location: {currentResource}
-            Failed Action: {failedAction} on {targetResource}
-            Error Details: {errorInfo}
-            Previously Attempted Recovery: {attemptedStrategies}
+            {situationDetails}
             
             # Recent Action History
             {recentActions}
@@ -120,52 +109,35 @@ public class TemplatePromptBuilder implements PromptBuilder {
             1. What resources/links are available in the knowledge base
             2. What actions have already been tried (avoid repeating)
             3. Whether the error suggests a specific recovery path
+            4. Estimated confidence that the suggested action will succeed as is if the agent attempts it
             
             # Response Format
             Respond ONLY with valid JSON (no markdown, no explanations):
-            {"action": "<action_type>", "target": "<uri_or_null>", "reasoning": "<one_sentence>", "confidence": <0.0_to_1.0>}
+            {
+              "action": "<action_type>",
+              "target": "<uri_or_null>",
+              "request": {
+                "method": "<GET|POST|PUT|PATCH|DELETE|null>",
+                "headers": {"<header_name>": "<header_value>"},
+                "body": "<request_body_or_null>",
+                "bodyContentType": "<mime_type_or_null>"
+              },
+              "reasoning": "<one_sentence>",
+              "confidence": <0.0_to_1.0>
+            }
             
-            Valid action_type values: navigate, get, post, retry, stop
+            Use an empty headers object when no headers are needed. Use null for request fields that are not needed.
+            Valid action_type values: navigate, get, post, put, patch, delete, retry, stop
             """;
     }
-    
-    private String buildConsultationTemplate() {
-        return """
-            You are an expert consultant advising an autonomous navigation agent facing difficulties.
-            
-            # Agent's Problem
-            {question}
-            
-            # Context Information
-            {context}
-            
-            # Instructions
-            The agent has already tried several approaches and needs your expertise.
-            Provide clear, actionable advice considering:
-            1. The agent operates in a hypermedia environment (RESTful navigation)
-            2. It can navigate links, make GET/POST requests, or abandon the task
-            3. Your advice should be immediately executable
-            
-            # Response Format
-            Respond ONLY with valid JSON (no markdown, no explanations):
-            {"action": "<action_type>", "target": "<uri_or_null>", "advice": "<concrete_guidance>"}
-            
-            Valid action_type values: navigate, get, post, retry, backtrack, stop
-            """;
-    }
-    
+        
     // Configuration
     
     public TemplatePromptBuilder withPredictionTemplate(String template) {
         this.predictionTemplate = template;
         return this;
     }
-    
-    public TemplatePromptBuilder withConsultationTemplate(String template) {
-        this.consultationTemplate = template;
-        return this;
-    }
-    
+       
     /**
      * Create a new instance with standard templates.
      * This is the recommended prompt builder for most use cases.

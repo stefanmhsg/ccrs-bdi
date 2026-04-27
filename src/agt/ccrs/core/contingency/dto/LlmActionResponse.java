@@ -20,10 +20,15 @@ public class LlmActionResponse {
     private String target;
     private String explanation;
     private Double confidence;
+    private String method;
+    private Map<String, String> headers;
+    private String body;
+    private String bodyContentType;
     private Map<String, Object> metadata;
     private String parseError;
 
     public LlmActionResponse() {
+        this.headers = new HashMap<>();
         this.metadata = new HashMap<>();
     }
     
@@ -49,6 +54,28 @@ public class LlmActionResponse {
     
     public LlmActionResponse withConfidence(double confidence) {
         this.confidence = confidence;
+        return this;
+    }
+
+    public LlmActionResponse withMethod(String method) {
+        this.method = method;
+        return this;
+    }
+
+    public LlmActionResponse withHeaders(Map<String, String> headers) {
+        if (headers != null) {
+            this.headers.putAll(headers);
+        }
+        return this;
+    }
+
+    public LlmActionResponse withBody(String body) {
+        this.body = body;
+        return this;
+    }
+
+    public LlmActionResponse withBodyContentType(String bodyContentType) {
+        this.bodyContentType = bodyContentType;
         return this;
     }
 
@@ -82,6 +109,22 @@ public class LlmActionResponse {
         return confidence;
     }
 
+    public String getMethod() {
+        return method;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
+    public String getBody() {
+        return body;
+    }
+
+    public String getBodyContentType() {
+        return bodyContentType;
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -100,6 +143,22 @@ public class LlmActionResponse {
 
     public boolean hasConfidence() {
         return confidence != null;
+    }
+
+    public boolean hasMethod() {
+        return method != null && !method.isBlank() && !"null".equalsIgnoreCase(method);
+    }
+
+    public boolean hasHeaders() {
+        return headers != null && !headers.isEmpty();
+    }
+
+    public boolean hasBody() {
+        return body != null && !body.isBlank() && !"null".equalsIgnoreCase(body);
+    }
+
+    public boolean hasBodyContentType() {
+        return bodyContentType != null && !bodyContentType.isBlank() && !"null".equalsIgnoreCase(bodyContentType);
     }
 
     @Override
