@@ -143,7 +143,16 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             }
             
             // Determine confidence (use parser's if available, otherwise base)
-            double confidence = response.hasConfidence() ? response.getConfidence() : baseConfidence;
+            double confidence;
+            if (response.hasConfidence()) {
+                confidence = response.getConfidence();
+            } else {
+                confidence = baseConfidence;
+                logger.warning(String.format(
+                    "[PredictionLLM] LLM did not provide confidence; defaulting to configured baseConfidence=%.2f for action='%s' target='%s'",
+                    baseConfidence, response.getAction(), response.getTarget()
+                ));
+            }
             
             logger.info(String.format("[PredictionLLM] LLM suggests action '%s' to '%s' (confidence=%.2f)",
                 response.getAction(), response.getTarget(), confidence));

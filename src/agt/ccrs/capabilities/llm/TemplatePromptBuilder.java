@@ -123,7 +123,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
             
             # Response Format
             Respond ONLY with valid JSON (no markdown, no explanations):
-            {"action": "<action_type>", "target": "<uri_or_null>", "reasoning": "<one_sentence>"}
+            {"action": "<action_type>", "target": "<uri_or_null>", "reasoning": "<one_sentence>", "confidence": <0.0_to_1.0>}
             
             Valid action_type values: navigate, get, post, retry, stop
             """;

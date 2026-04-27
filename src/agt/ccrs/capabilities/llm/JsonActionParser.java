@@ -2,6 +2,8 @@ package ccrs.capabilities.llm;
 
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.dto.LlmActionResponse;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * JSON shaped response parser for LLM action responses.
@@ -78,14 +80,9 @@ public class JsonActionParser implements LlmResponseParser {
             response.withMetadata("parseMethod", "json");
             
             // Try to extract confidence if present
-            String confidenceStr = extractJsonField(json, "confidence");
-            if (confidenceStr != null) {
-                try {
-                    double conf = Double.parseDouble(confidenceStr);
-                    response.withConfidence(conf);
-                } catch (NumberFormatException e) {
-                    // Ignore invalid confidence
-                }
+            Double confidence = extractConfidence(json);
+            if (confidence != null) {
+                response.withConfidence(confidence);
             }
             
             return response;
@@ -144,6 +141,36 @@ public class JsonActionParser implements LlmResponseParser {
             }
         }
         return -1;
+    }
+
+    private Double extractConfidence(String json) {
+        String confidenceStr = extractJsonField(json, "confidence");
+        if (confidenceStr != null) {
+            return parseConfidence(confidenceStr);
+        }
+        return parseConfidence(extractUnquotedJsonField(json, "confidence"));
+    }
+
+    private Double parseConfidence(String confidenceStr) {
+        if (confidenceStr == null || confidenceStr.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(confidenceStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String extractUnquotedJsonField(String json, String fieldName) {
+        Pattern pattern = Pattern.compile(
+            "\\\"" + Pattern.quote(fieldName) + "\\\"\\s*:\\s*([+\\-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+\\-]?\\d+)?)"
+        );
+        Matcher matcher = pattern.matcher(json);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
     }
     
     // Plain text fallback
