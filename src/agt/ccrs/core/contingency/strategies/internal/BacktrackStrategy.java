@@ -10,7 +10,6 @@ import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.opportunistic.OpportunisticResult;
 import ccrs.core.rdf.CcrsContext;
-import ccrs.core.rdf.RdfTriple;
 
 /**
  * L2: Checkpoint-Based Backtrack Strategy
@@ -19,31 +18,31 @@ import ccrs.core.rdf.RdfTriple;
  * unexplored alternatives and computing optimal return paths when the current exploration
  * path becomes blocked.</p>
  * 
- * <h2>Checkpoint Detection (Dual-Source Evidence)</h2>
+ * <h2>Checkpoint Detection (Interaction Graph)</h2>
+ * <p>Builds a domain-independent graph from past hypermedia interactions:</p>
  * <ul>
- *   <li><b>RDF-based:</b> Resources with incoming links to current resource (graph topology)</li>
- *   <li><b>History-based:</b> Resources from SUCCESS interactions whose perceived state 
- *       contained links to current resource</li>
- *   <li><b>Evidence merging:</b> Same URI from both sources = stronger evidence (Source.BOTH)</li>
+ *   <li><b>Nodes:</b> requested resources</li>
+ *   <li><b>Observed edges:</b> consecutive requests in chronological history</li>
+ *   <li><b>Advertised edges:</b> URI objects found in the response description of a requested resource</li>
  * </ul>
  * 
  * <h2>Interaction-Based Exhaustion Detection</h2>
  * <p>Alternatives classified by interaction outcomes, not positions:</p>
  * <ul>
- *   <li><b>Exhausted:</b> Interaction failed OR (succeeded but agent later returned to 
- *       checkpoint or predecessor)</li>
- *   <li><b>Unexplored:</b> Never or partially visited in interaction history</li>
+ *   <li><b>Exhausted:</b> Interaction failed OR the alternative is the current blocked resource</li>
+ *   <li><b>Unexplored:</b> The advertised target was never requested in interaction history</li>
  * </ul>
  * 
- * <h2>Temporal Distance Metric</h2>
- * <p>Distance = number of interactions since last visit to checkpoint (not graph hops).
- * Favors recently visited checkpoints as they're closer in the temporal exploration sequence.</p>
+ * <h2>Backtrack Distance Metric</h2>
+ * <p>Distance = number of predecessor steps from the current resource back to the checkpoint
+ * in the observed interaction path. This favors nearby checkpoints over old branch points
+ * with many alternatives.</p>
  * 
  * <h2>Multi-Criteria Ranking</h2>
  * <p>Checkpoints ranked by priority:</p>
  * <ol>
- *   <li>Unexplored alternatives count (DESC) - more options = better</li>
- *   <li>Temporal distance (ASC) - closer = better</li>
+ *   <li>Backtrack distance (ASC) - closer checkpoints are cheaper to revisit</li>
+ *   <li>Unexplored alternatives count (DESC) - more options = better when distance is comparable</li>
  *   <li>Recency timestamp (DESC) - more recent = better</li>
  *   <li>Validation score (DESC) - higher quality = better</li>
  * </ol>
@@ -65,22 +64,14 @@ import ccrs.core.rdf.RdfTriple;
  * <p>Extracts navigation path from interaction history: sequence of unique requestUri values
  * showing steps from current location to checkpoint. Path excludes current location (only
  * includes steps to take). Each URI appears at most once. Uses predecessor map derived from
- * successful interactions to build implicit tree - no explicit graph search required.</p>
+ * chronological interaction transitions to build an implicit tree - no explicit graph search
+ * required.</p>
  * 
  * <h2>Opportunistic CCRS Mental Notes (B2)</h2>
  * <p>Generates structured mental notes for integration with prioritization:</p>
  * <ul>
  *   <li><b>Unexplored options:</b> type="unexplored_option", utility=0.7</li>
  *   <li><b>Metadata:</b> source="contingency-ccrs", strategy="backtrack", checkpoint=uri</li>
- * </ul>
- * 
- * <h2>Configuration Parameters</h2>
- * <ul>
- *   <li>{@code maxBacktrackDepth}: Max repetitions per strategy ID (default: 5)</li>
- *   <li>{@code requireUnexploredAlternatives}: Filter checkpoints without options (default: true)</li>
- *   <li>{@code minUnexploredAlternatives}: Minimum unexplored count threshold (default: 1)</li>
- *   <li>{@code maxCheckpointsToEvaluate}: Limit candidates for efficiency (default: 10)</li>
- *   <li>{@code maxTemporalDistance}: Max temporal distance threshold (default: unlimited)</li>
  * </ul>
  * 
  * @see CheckpointCandidate
@@ -91,13 +82,6 @@ public class BacktrackStrategy implements CcrsStrategy {
     private static final Logger logger = Logger.getLogger(BacktrackStrategy.class.getName());
 
     public static final String ID = "backtrack";
-    
-    // Configuration
-    private int maxBacktrackDepth = 5;
-    private boolean requireUnexploredAlternatives = true;
-    private int minUnexploredAlternatives = 1;
-    private int maxCheckpointsToEvaluate = 10;
-    private int maxTemporalDistance = Integer.MAX_VALUE;
     
     @Override
     public String getId() {
@@ -143,22 +127,9 @@ public class BacktrackStrategy implements CcrsStrategy {
             return Applicability.NOT_APPLICABLE;
         }
         
-        int backtrackCount = situation.getAttemptCount(ID);
-        if (backtrackCount >= maxBacktrackDepth) {
-            logger.fine(String.format("[Backtrack] Max backtrack depth reached (%d) for %s", backtrackCount, ID));
-            return Applicability.NOT_APPLICABLE;
-        }
-        
         // Quick check: do we have any potential checkpoints?
         if (context.hasHistory()) {
             logger.fine("[Backtrack] is applicable because hasHistory() is true");
-            return Applicability.APPLICABLE;
-        }
-        
-        // Check RDF for incoming links
-        List<RdfTriple> incomingLinks = context.query(null, null, currentResource);
-        if (!incomingLinks.isEmpty()) {
-            logger.fine("[Backtrack] Incoming RDF links found");
             return Applicability.APPLICABLE;
         }
         
@@ -178,10 +149,55 @@ public class BacktrackStrategy implements CcrsStrategy {
         List<String> exhaustedAlternatives,
         double validationScore,
         long recencyTimestamp,
-        int temporalDistance
+        int backtrackDistance
     ) {
-        enum Source { RDF, HISTORY, BOTH }
+        enum Source { HISTORY }
     }
+
+    /**
+     * Domain-independent navigation graph inferred from interaction history.
+     *
+     * <p>Resources are linked by two forms of evidence: links advertised in a
+     * successful response, and transitions implied by consecutive requests.</p>
+     */
+    private record InteractionGraph(
+        List<Interaction> recentFirstHistory,
+        Set<String> requestedResources,
+        Set<String> failedResources,
+        Set<String> successfulResources,
+        Map<String, List<String>> outgoingLinksByResource,
+        Map<String, String> predecessors,
+        Map<String, Long> recencyByResource,
+        int observedTransitionCount,
+        int advertisedLinkCount
+    ) {
+        List<String> outgoingLinks(String resource) {
+            return outgoingLinksByResource.getOrDefault(resource, List.of());
+        }
+
+        long recencyTimestamp(String resource) {
+            return recencyByResource.getOrDefault(resource, 0L);
+        }
+
+        int nodeCount() {
+            return requestedResources.size();
+        }
+
+        int edgeCount() {
+            return outgoingLinksByResource.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        }
+
+    }
+
+    private record ConfidenceBreakdown(
+        double base,
+        double optionBonus,
+        double distanceDiscount,
+        double raw,
+        double value
+    ) {}
     
     @Override
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
@@ -202,19 +218,20 @@ public class BacktrackStrategy implements CcrsStrategy {
         final String current = currentResource;  // Make effectively final for lambdas
         logger.fine("[Backtrack] Current resource: " + current);
         
-        // STEP 1: Collect checkpoint candidates from RDF and history
-        List<CheckpointCandidate> rdfCandidates = collectRdfCheckpoints(current, context);
-        List<CheckpointCandidate> historyCandidates = collectHistoryCheckpoints(current, context);
-        logger.info(String.format("[Backtrack] Collected %d RDF candidates, %d history candidates",
-            rdfCandidates.size(), historyCandidates.size()));
+        // STEP 1: Build a domain-independent graph from interaction history
+        InteractionGraph graph = buildInteractionGraph(context);
+        logger.info(String.format(
+            "[Backtrack] Built interaction graph: %d nodes, %d unique edges (%d observed transitions, %d advertised links)",
+            graph.nodeCount(), graph.edgeCount(), graph.observedTransitionCount(), graph.advertisedLinkCount()));
         
-        // STEP 2: Merge candidates (same URI = same checkpoint, combine evidence)
-        Map<String, CheckpointCandidate> mergedCandidates = mergeCandidates(rdfCandidates, historyCandidates);
-        logger.info(String.format("[Backtrack] Merged to %d unique checkpoints", mergedCandidates.size()));
+        // STEP 2: Collect checkpoint candidates from graph nodes
+        Map<String, CheckpointCandidate> mergedCandidates = collectInteractionGraphCheckpoints(current, graph);
+        logger.info(String.format("[Backtrack] Collected %d interaction-graph checkpoint candidates",
+            mergedCandidates.size()));
         
         // STEP 3: Classify alternatives for each checkpoint
         for (String uri : mergedCandidates.keySet()) {
-            CheckpointCandidate classified = classifyAlternatives(mergedCandidates.get(uri), current, context);
+            CheckpointCandidate classified = classifyAlternatives(mergedCandidates.get(uri), current, graph);
             mergedCandidates.put(uri, classified);
             logger.info(String.format("[Backtrack]   %s: %d unexplored, %d exhausted",
                 uri, classified.unexploredAlternatives().size(), 
@@ -223,10 +240,9 @@ public class BacktrackStrategy implements CcrsStrategy {
         
         // STEP 4: Validate and filter checkpoints
         List<CheckpointCandidate> validatedCheckpoints = mergedCandidates.values().stream()
-            .map(c -> validateCheckpoint(c, context))
+            .map(this::validateCheckpoint)
             .filter(c -> c.validationScore() > 0)
-            .filter(c -> !requireUnexploredAlternatives || 
-                         c.unexploredAlternatives().size() >= minUnexploredAlternatives)
+            .filter(c -> !c.unexploredAlternatives().isEmpty())
             .toList();
         
         logger.fine(String.format("[Backtrack] %d checkpoints passed validation", validatedCheckpoints.size()));
@@ -238,17 +254,17 @@ public class BacktrackStrategy implements CcrsStrategy {
                 "No valid checkpoints with unexplored alternatives found");
         }
         
-        // STEP 5: Calculate graph distances
+        // STEP 5: Calculate observed-path backtrack distances
         List<CheckpointCandidate> withDistances = validatedCheckpoints.stream()
             .map(c -> new CheckpointCandidate(
                 c.uri(), c.source(), c.outgoingLinks(), c.unexploredAlternatives(),
                 c.exhaustedAlternatives(), c.validationScore(), c.recencyTimestamp(),
-                calculateTemporalDistance(c.uri(), current, context)))
-            .filter(c -> c.temporalDistance() <= maxTemporalDistance)
+                calculateBacktrackDistance(current, c.uri(), graph)))
+            .filter(c -> c.backtrackDistance() < Integer.MAX_VALUE)
             .toList();
         
-        logger.finer(String.format("[Backtrack] %d checkpoints within max distance %d",
-            withDistances.size(), maxTemporalDistance));
+        logger.finer(String.format("[Backtrack] %d checkpoints reachable on the observed backtrack path",
+            withDistances.size()));
         
         if (withDistances.isEmpty()) {
             logger.warning("[Backtrack] All checkpoints exceed maximum graph distance");
@@ -257,25 +273,29 @@ public class BacktrackStrategy implements CcrsStrategy {
                 "All checkpoints exceed maximum graph distance");
         }
         
-        // STEP 6: Rank checkpoints first, then limit to top k
-        List<CheckpointCandidate> rankedCheckpoints = rankCheckpoints(withDistances).stream()
-            .limit(maxCheckpointsToEvaluate)
-            .toList();
+        // STEP 6: Rank checkpoints
+        List<CheckpointCandidate> rankedCheckpoints = rankCheckpoints(withDistances);
         CheckpointCandidate bestCheckpoint = rankedCheckpoints.get(0);
         
         logger.info(String.format("[Backtrack] Selected checkpoint: %s (source=%s, unexplored=%d, distance=%d, score=%.2f)",
             bestCheckpoint.uri(), bestCheckpoint.source(),
-            bestCheckpoint.unexploredAlternatives().size(), bestCheckpoint.temporalDistance(),
+            bestCheckpoint.unexploredAlternatives().size(), bestCheckpoint.backtrackDistance(),
             bestCheckpoint.validationScore()));
         
         // STEP 7: Compute backtrack path from current to checkpoint
-        List<String> backtrackPath = computeBacktrackPath(current, bestCheckpoint.uri(), context);
+        List<String> backtrackPath = computeBacktrackPath(current, bestCheckpoint.uri(), graph);
         logger.fine(String.format("[Backtrack] Path length: %d steps", backtrackPath.size()));
         
         // STEP 8: Build result with rich metadata
         // Use checkpoint-specific attempt key to avoid different checkpoints sharing counters
         String attemptKey = "backtrack:" + bestCheckpoint.uri();
-        int depth = situation.getAttemptCount(attemptKey) + 1;
+        ConfidenceBreakdown confidence = calculateConfidence(bestCheckpoint);
+        logger.info(String.format(
+            "[Backtrack] Confidence formula: clamp(base %.2f + optionBonus %.3f - distanceDiscount %.3f = raw %.3f, min 0.10, max 0.90) -> %.3f " +
+            "(unexplored=%d, distance=%d)",
+            confidence.base(), confidence.optionBonus(), confidence.distanceDiscount(),
+            confidence.raw(), confidence.value(),
+            bestCheckpoint.unexploredAlternatives().size(), bestCheckpoint.backtrackDistance()));
         
         // Build parameter maps
         Map<String, List<String>> alternativesByCheckpoint = rankedCheckpoints.stream()
@@ -288,248 +308,183 @@ public class BacktrackStrategy implements CcrsStrategy {
                 CheckpointCandidate::uri,
                 CheckpointCandidate::exhaustedAlternatives));
         
-        Map<String, Integer> temporalDistances = rankedCheckpoints.stream()
+        Map<String, Integer> backtrackDistances = rankedCheckpoints.stream()
             .collect(Collectors.toMap(
                 CheckpointCandidate::uri,
-                CheckpointCandidate::temporalDistance));
+                CheckpointCandidate::backtrackDistance));
         
         // B2: Generate OpportunisticResult mental notes
         // TODO: Correct the opportunistic result, following the standard structure.
         List<OpportunisticResult> opportunisticGuidance = generateOpportunisticNotes(
-            current, bestCheckpoint, attemptKey);
-        logger.info(String.format("[Backtrack] Generated %d opportunistic notes (%d unexplored options, %d dead ends)",
-            opportunisticGuidance.size(), bestCheckpoint.unexploredAlternatives().size(),
-            1 + bestCheckpoint.exhaustedAlternatives().size()));
+            current, backtrackPath, bestCheckpoint, attemptKey, confidence.value());
+        logger.info(String.format("[Backtrack] Generated %d opportunistic notes (%d path steps, %d unexplored options)",
+            opportunisticGuidance.size(), backtrackPath.size(), bestCheckpoint.unexploredAlternatives().size()));
         
         return StrategyResult.suggest(attemptKey, "navigate")
             .target(bestCheckpoint.uri())
             .param("reason", "backtrack_to_checkpoint")
             .param("fromResource", current)
             .param("backtrackPath", backtrackPath)
-            .param("candidateCheckpoints", rankedCheckpoints.stream()
-                .map(CheckpointCandidate::uri).toList())
             .param("alternativesByCheckpoint", alternativesByCheckpoint)
             .param("exhaustedByCheckpoint", exhaustedByCheckpoint)
-            .param("temporalDistances", temporalDistances)
+            .param("backtrackDistances", backtrackDistances)
             .param("checkpointSource", bestCheckpoint.source().name())
             .param("unexploredCount", bestCheckpoint.unexploredAlternatives().size())
             .param("exhaustedCount", bestCheckpoint.exhaustedAlternatives().size())
-            .param("temporalDistance", bestCheckpoint.temporalDistance())
+            .param("backtrackDistance", bestCheckpoint.backtrackDistance())
+            .param("temporalDistance", bestCheckpoint.backtrackDistance())
             .param("validationScore", bestCheckpoint.validationScore())
-            .param("depthFromCurrent", depth)
-            .confidence(calculateConfidence(bestCheckpoint, depth))
+            .param("interactionGraphNodeCount", graph.nodeCount())
+            .param("interactionGraphEdgeCount", graph.edgeCount())
+            .confidence(confidence.value())
             .cost(0.3)
-            .rationale(buildRationale(current, bestCheckpoint, rankedCheckpoints.size(), depth))
+            .rationale(buildRationale(current, bestCheckpoint, rankedCheckpoints.size()))
             .opportunisticGuidance(opportunisticGuidance)
             .build();
     }
     
-    /**
-     * Collect checkpoint candidates from RDF graph.
-     * A checkpoint is any resource that has a link TO the current resource.
-     */
-    private List<CheckpointCandidate> collectRdfCheckpoints(String currentResource, CcrsContext context) {
-        List<RdfTriple> incomingLinks = context.query(null, null, currentResource);
-        logger.finer(String.format("[Backtrack] Found %d incoming RDF links to %s",
-            incomingLinks.size(), currentResource));
-        
-        return incomingLinks.stream()
-            .map(t -> t.subject)
-            .filter(uri -> uri != null && !uri.isEmpty())
-            .filter(this::isValidUri)
-            .filter(uri -> !uri.equals(currentResource))  // Not self-loop
-            .distinct()
-            .map(uri -> createCandidate(uri, CheckpointCandidate.Source.RDF, context))
-            .toList();
-    }
-    
-    /**
-     * Collect checkpoint candidates from interaction history.
-     * Extract resources whose response contained links to current resource.
-     */
-    private List<CheckpointCandidate> collectHistoryCheckpoints(String currentResource, CcrsContext context) {
-        List<Interaction> history = context.getRecentInteractions(50);
-        logger.finer(String.format("[Backtrack] Scanning %d history interactions for checkpoints",
-            history.size()));
-        
-        // Only consider successful interactions
-        return history.stream()
-            .filter(i -> i.outcome() == Interaction.Outcome.SUCCESS)
-            .filter(i -> i.perceivedState() != null)
-            .filter(i -> i.perceivedState().stream()
-                .anyMatch(triple -> currentResource.equals(triple.object)))
-            .map(i -> i.requestUri())
-            .filter(uri -> uri != null && !uri.isEmpty())
-            .filter(this::isValidUri) // Ensure valid URI
-            .filter(uri -> !uri.equals(currentResource))
-            .distinct()
-            .map(uri -> createCandidateWithRecency(uri, CheckpointCandidate.Source.HISTORY, 
-                findMostRecentTimestamp(uri, history), context))
-            .toList();
-    }
-    
-    /**
-     * Create initial checkpoint candidate.
-     */
-    private CheckpointCandidate createCandidate(String uri, CheckpointCandidate.Source source, 
-                                                 CcrsContext context) {
-        List<String> outgoing = queryOutgoingLinks(uri, context);
-        return new CheckpointCandidate(uri, source, outgoing, 
-            List.of(), List.of(), 0.0, 0L, Integer.MAX_VALUE);
-    }
-    
-    private CheckpointCandidate createCandidateWithRecency(String uri, CheckpointCandidate.Source source,
-                                                            long timestamp, CcrsContext context) {
-        List<String> outgoing = queryOutgoingLinks(uri, context);
-        return new CheckpointCandidate(uri, source, outgoing,
-            List.of(), List.of(), 0.0, timestamp, Integer.MAX_VALUE);
-    }
-    
-    /**
-     * Merge RDF and history candidates (same URI = same checkpoint).
-     */
-    private Map<String, CheckpointCandidate> mergeCandidates(
-            List<CheckpointCandidate> rdfCandidates, 
-            List<CheckpointCandidate> historyCandidates) {
-        
-        Map<String, CheckpointCandidate> merged = new HashMap<>();
-        
-        // Add RDF candidates
-        for (CheckpointCandidate c : rdfCandidates) {
-            merged.put(c.uri(), c);
-        }
-        
-        // Merge history candidates (prefer history recency, combine sources)
-        for (CheckpointCandidate c : historyCandidates) {
-            if (merged.containsKey(c.uri())) {
-                CheckpointCandidate existing = merged.get(c.uri());
-                merged.put(c.uri(), new CheckpointCandidate(
-                    c.uri(),
-                    CheckpointCandidate.Source.BOTH,  // Evidence from both sources
-                    c.outgoingLinks().isEmpty() ? existing.outgoingLinks() : c.outgoingLinks(),
-                    List.of(), List.of(),
-                    0.0,
-                    c.recencyTimestamp(),  // Use history timestamp
-                    Integer.MAX_VALUE
-                ));
-            } else {
-                merged.put(c.uri(), c);
+    private InteractionGraph buildInteractionGraph(CcrsContext context) {
+        List<Interaction> recentFirst = context.getRecentInteractions(1000);
+        List<Interaction> chronological = new ArrayList<>(recentFirst);
+        Collections.reverse(chronological);
+
+        Set<String> requested = new LinkedHashSet<>();
+        Set<String> failed = new LinkedHashSet<>();
+        Set<String> successful = new LinkedHashSet<>();
+        Map<String, LinkedHashSet<String>> outgoing = new LinkedHashMap<>();
+        Map<String, String> predecessors = new HashMap<>();
+        Map<String, Long> recency = new HashMap<>();
+
+        String previousSuccessfulRequest = null;
+        int observedTransitionCount = 0;
+        int advertisedLinkCount = 0;
+
+        for (Interaction interaction : chronological) {
+            String requestUri = interaction.requestUri();
+            if (!isValidUri(requestUri)) {
+                continue;
             }
+
+            requested.add(requestUri);
+            recency.merge(requestUri, interaction.requestTimestamp(), Math::max);
+
+            if (previousSuccessfulRequest != null && !previousSuccessfulRequest.equals(requestUri)) {
+                observedTransitionCount++;
+                outgoing.computeIfAbsent(previousSuccessfulRequest, k -> new LinkedHashSet<>()).add(requestUri);
+                predecessors.put(requestUri, previousSuccessfulRequest);
+            }
+
+            if (interaction.outcome() == Interaction.Outcome.CLIENT_FAILURE ||
+                interaction.outcome() == Interaction.Outcome.SERVER_FAILURE) {
+                failed.add(requestUri);
+                continue;
+            }
+
+            if (interaction.outcome() != Interaction.Outcome.SUCCESS) {
+                continue;
+            }
+
+            successful.add(requestUri);
+            List<String> advertisedLinks = extractAdvertisedLinks(interaction);
+            LinkedHashSet<String> outgoingLinks = outgoing.computeIfAbsent(requestUri, k -> new LinkedHashSet<>());
+            for (String advertisedLink : advertisedLinks) {
+                if (outgoingLinks.add(advertisedLink)) {
+                    advertisedLinkCount++;
+                }
+            }
+
+            previousSuccessfulRequest = requestUri;
         }
-        
-        return merged;
+
+        Map<String, List<String>> outgoingLists = outgoing.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                e -> List.copyOf(e.getValue()),
+                (left, right) -> left,
+                LinkedHashMap::new));
+
+        return new InteractionGraph(
+            recentFirst,
+            Collections.unmodifiableSet(requested),
+            Collections.unmodifiableSet(failed),
+            Collections.unmodifiableSet(successful),
+            Collections.unmodifiableMap(outgoingLists),
+            Collections.unmodifiableMap(predecessors),
+            Collections.unmodifiableMap(recency),
+            observedTransitionCount,
+            advertisedLinkCount
+        );
     }
-    
+
+    private List<String> extractAdvertisedLinks(Interaction interaction) {
+        if (interaction.perceivedState() == null) {
+            return List.of();
+        }
+
+        String requestUri = interaction.requestUri();
+        return interaction.perceivedState().stream()
+            .filter(t -> requestUri.equals(t.subject))
+            .map(t -> t.object)
+            .filter(this::isValidUri)
+            .filter(uri -> !uri.equals(requestUri))
+            .distinct()
+            .toList();
+    }
+
+    private Map<String, CheckpointCandidate> collectInteractionGraphCheckpoints(
+            String currentResource,
+            InteractionGraph graph) {
+        return graph.successfulResources().stream()
+            .filter(uri -> !uri.equals(currentResource))
+            .map(uri -> new CheckpointCandidate(
+                uri,
+                CheckpointCandidate.Source.HISTORY,
+                graph.outgoingLinks(uri),
+                List.of(),
+                List.of(),
+                0.0,
+                graph.recencyTimestamp(uri),
+                Integer.MAX_VALUE))
+            .filter(candidate -> !candidate.outgoingLinks().isEmpty())
+            .collect(Collectors.toMap(
+                CheckpointCandidate::uri,
+                candidate -> candidate,
+                (left, right) -> left,
+                LinkedHashMap::new));
+    }
+
     /**
-     * Classify alternatives as unexplored or exhausted based on interaction history.
-     * 
-     * Exhaustion rules:
-     * - Alternative O is exhausted if interaction failed
-     * - Alternative O is exhausted if succeeded but agent came back to checkpoint
+     * Classify advertised alternatives from graph state.
+     *
+     * <p>Unexplored means no prior request to that resource. Failed attempts and
+     * the current blocked resource are exhausted for this checkpoint. Previously
+     * requested successful resources are explored, but not marked as dead ends.</p>
      */
-    private CheckpointCandidate classifyAlternatives(CheckpointCandidate candidate, 
-                                                      String currentResource, 
-                                                      CcrsContext context) {
-        List<Interaction> history = context.getRecentInteractions(100);
+    private CheckpointCandidate classifyAlternatives(CheckpointCandidate candidate,
+                                                      String currentResource,
+                                                      InteractionGraph graph) {
         List<String> unexplored = new ArrayList<>();
         List<String> exhausted = new ArrayList<>();
-        
+
         for (String alternative : candidate.outgoingLinks()) {
-            if (isExhausted(alternative, candidate.uri(), history)) {
+            if (alternative.equals(currentResource) || graph.failedResources().contains(alternative)) {
                 exhausted.add(alternative);
-            } else if (isUnexplored(alternative, history)) {
-                unexplored.add(alternative);
-            } else {
-                // Visited and not exhausted - could still be viable
+            } else if (!graph.requestedResources().contains(alternative)) {
                 unexplored.add(alternative);
             }
         }
-        
+
         return new CheckpointCandidate(
             candidate.uri(), candidate.source(), candidate.outgoingLinks(),
-            unexplored, exhausted, candidate.validationScore(), 
-            candidate.recencyTimestamp(), candidate.temporalDistance());
-    }
-    
-    /**
-     * Check if alternative is exhausted.
-     * Exhausted if: interaction failed OR alternative leads to inferred dead-end.
-     * 
-     * Dead-end heuristic: resource with no outgoing links or all outgoing attempts failed.
-     */
-    private boolean isExhausted(String alternative, String checkpointUri, 
-                                List<Interaction> history) {
-        // Check direct failure
-        boolean failed = history.stream()
-            .filter(i -> alternative.equals(i.requestUri()))
-            .anyMatch(i -> i.outcome() == Interaction.Outcome.CLIENT_FAILURE ||
-                          i.outcome() == Interaction.Outcome.SERVER_FAILURE);
-        
-        if (failed) {
-            return true;
-        }
-        
-        // Check if alternative leads to dead-end
-        // Get successful visits to alternative
-        List<Interaction> alternativeVisits = history.stream()
-            .filter(i -> alternative.equals(i.requestUri()))
-            .filter(i -> i.outcome() == Interaction.Outcome.SUCCESS)
-            .toList();
-        
-        if (alternativeVisits.isEmpty()) {
-            return false; // Not visited, not exhausted
-        }
-        
-        // Check if alternative has no viable outgoing options (dead-end)
-        // TODO: current?
-        for (Interaction visit : alternativeVisits) {
-            if (visit.perceivedState() == null || visit.perceivedState().isEmpty()) {
-                // No outgoing links - dead end
-                return true;
-            }
-            
-            // Extract outgoing links from perceived state
-            List<String> outgoingLinks = visit.perceivedState().stream()
-                .filter(t -> alternative.equals(t.subject))
-                .map(t -> t.object)
-                .filter(this::isValidUri)
-                .distinct()
-                .toList();
-            
-            if (outgoingLinks.isEmpty()) {
-                // No valid outgoing links - dead end
-                return true;
-            }
-            
-            // Check if all outgoing options failed
-            boolean allOutgoingFailed = outgoingLinks.stream()
-                .allMatch(link -> history.stream()
-                    .filter(i -> link.equals(i.requestUri()))
-                    .anyMatch(i -> i.outcome() == Interaction.Outcome.CLIENT_FAILURE ||
-                                  i.outcome() == Interaction.Outcome.SERVER_FAILURE));
-            
-            if (allOutgoingFailed && !outgoingLinks.isEmpty()) {
-                // All options failed - dead end
-                return true;
-            }
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Check if alternative is unexplored (never visited).
-     */
-    private boolean isUnexplored(String alternative, List<Interaction> history) {
-        return history.stream()
-            .noneMatch(i -> alternative.equals(i.requestUri()));
+            unexplored, exhausted, candidate.validationScore(),
+            candidate.recencyTimestamp(), candidate.backtrackDistance());
     }
     
     /**
      * Validate checkpoint and calculate validation score.
      * Score based on: has unexplored alternatives, has outgoing links, appears in history.
      */
-    private CheckpointCandidate validateCheckpoint(CheckpointCandidate candidate, CcrsContext context) {
+    private CheckpointCandidate validateCheckpoint(CheckpointCandidate candidate) {
         double score = 0.0;
         
         // Penalize if all alternatives exhausted (checkpoint is dead end)
@@ -539,7 +494,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             return new CheckpointCandidate(candidate.uri(), candidate.source(), 
                 candidate.outgoingLinks(), candidate.unexploredAlternatives(),
                 candidate.exhaustedAlternatives(), 0.0, candidate.recencyTimestamp(), 
-                candidate.temporalDistance());
+                candidate.backtrackDistance());
         }
         
         // Required: has outgoing links
@@ -548,7 +503,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             return new CheckpointCandidate(candidate.uri(), candidate.source(), 
                 candidate.outgoingLinks(), candidate.unexploredAlternatives(),
                 candidate.exhaustedAlternatives(), 0.0, candidate.recencyTimestamp(), 
-                candidate.temporalDistance());
+                candidate.backtrackDistance());
         }
         
         // Has unexplored alternatives (+0.4)
@@ -558,8 +513,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         
         // Appears in interaction history (+0.3)
         if (candidate.recencyTimestamp() > 0 || 
-            candidate.source() == CheckpointCandidate.Source.HISTORY ||
-            candidate.source() == CheckpointCandidate.Source.BOTH) {
+            candidate.source() == CheckpointCandidate.Source.HISTORY) {
             score += 0.3;
         }
         
@@ -571,30 +525,33 @@ public class BacktrackStrategy implements CcrsStrategy {
         return new CheckpointCandidate(candidate.uri(), candidate.source(),
             candidate.outgoingLinks(), candidate.unexploredAlternatives(),
             candidate.exhaustedAlternatives(), score, candidate.recencyTimestamp(),
-            candidate.temporalDistance());
+            candidate.backtrackDistance());
     }
     
     /**
-     * Calculate temporal distance: number of interactions since last visit to checkpoint.
+     * Calculate backtrack distance: number of predecessor steps from current resource
+     * back to checkpoint in the observed interaction path.
      */
-    private int calculateTemporalDistance(String checkpointUri, String currentResource, 
-                                        CcrsContext context) {
+    private int calculateBacktrackDistance(String currentResource, String checkpointUri,
+                                        InteractionGraph graph) {
         if (checkpointUri.equals(currentResource)) {
             return 0;
         }
-        
-        List<Interaction> history = context.getRecentInteractions(1000);
-        
-        // Count interactions from most recent until we find checkpoint
+
         int distance = 0;
-        for (Interaction interaction : history) {
-            if (interaction.requestUri().equals(checkpointUri)) {
+        Set<String> seen = new HashSet<>();
+        seen.add(currentResource);
+        String node = graph.predecessors().get(currentResource);
+
+        while (node != null && seen.add(node)) {
+            distance++;
+            if (node.equals(checkpointUri)) {
                 return distance;
             }
-            distance++;
+            node = graph.predecessors().get(node);
         }
-        
-        return Integer.MAX_VALUE; // Checkpoint not in history
+
+        return Integer.MAX_VALUE;
     }
     
     /**
@@ -604,21 +561,18 @@ public class BacktrackStrategy implements CcrsStrategy {
      * 
      * Uses predecessor map derived from successful interactions to build implicit tree.
      */
-    private List<String> computeBacktrackPath(String current, String checkpoint, CcrsContext context) {
+    private List<String> computeBacktrackPath(String current, String checkpoint, InteractionGraph graph) {
         if (current.equals(checkpoint)) {
             return List.of(); // Already at checkpoint, no steps needed
         }
-        
-        // Build predecessor map from successful interactions
-        Map<String, String> predecessors = buildPredecessorMap(context);
-        
+
         // Trace path from current back to checkpoint
         List<String> path = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         
         // Start with current but DON'T add it to path (it's where we are, not where we're going)
         seen.add(current);
-        String node = predecessors.get(current);
+        String node = graph.predecessors().get(current);
         
         while (node != null && !seen.contains(node)) {
             path.add(node);
@@ -628,7 +582,7 @@ public class BacktrackStrategy implements CcrsStrategy {
                 return path; // Found valid path
             }
             
-            node = predecessors.get(node);
+            node = graph.predecessors().get(node);
         }
         
         // No path found - fallback to direct jump
@@ -638,151 +592,111 @@ public class BacktrackStrategy implements CcrsStrategy {
     }
     
     /**
-     * Build predecessor map from interaction history.
-     * Maps each resource to its predecessor (where agent came from).
-     * 
-     * Edge creation rule: If interaction[i] succeeded at URI A, and interaction[i+1] 
-     * succeeded at URI B, then B's predecessor is A.
-     */
-    private Map<String, String> buildPredecessorMap(CcrsContext context) {
-        List<Interaction> history = context.getRecentInteractions(1000);
-        Map<String, String> predecessors = new HashMap<>();
-        
-        // History is most-recent-first, so reverse to get chronological order
-        for (int i = history.size() - 1; i > 0; i--) {
-            Interaction prev = history.get(i);
-            Interaction next = history.get(i - 1);
-            
-            // Only link successful interactions
-            if (prev.outcome() == Interaction.Outcome.SUCCESS &&
-                next.outcome() == Interaction.Outcome.SUCCESS) {
-                
-                String from = prev.requestUri();
-                String to = next.requestUri();
-                
-                if (!from.equals(to) && isValidUri(from) && isValidUri(to)) {
-                    // Update predecessor (keep most recent)
-                    predecessors.put(to, from);
-                }
-            }
-        }
-        
-        return predecessors;
-    }
-    
-    /**
-     * Rank checkpoints by: unexplored alternatives DESC, distance ASC, recency DESC, score DESC.
+     * Rank checkpoints by: distance ASC, unexplored alternatives DESC, recency DESC, score DESC.
      */
     private List<CheckpointCandidate> rankCheckpoints(List<CheckpointCandidate> candidates) {
         return candidates.stream()
             .sorted(Comparator
-                .comparingInt((CheckpointCandidate c) -> c.unexploredAlternatives().size()).reversed()
-                .thenComparingInt(CheckpointCandidate::temporalDistance)
+                .comparingInt(CheckpointCandidate::backtrackDistance)
+                .thenComparing(Comparator
+                    .comparingInt((CheckpointCandidate c) -> c.unexploredAlternatives().size())
+                    .reversed())
                 .thenComparing(Comparator.comparingLong(CheckpointCandidate::recencyTimestamp).reversed())
                 .thenComparing(Comparator.comparingDouble(CheckpointCandidate::validationScore).reversed()))
             .toList();
     }
     
     /**
-     * Calculate confidence based on checkpoint quality and depth.
+     * Calculate confidence from checkpoint utility.
+     *
+     * <p>Starts from a neutral 0.5. Nearby checkpoints lose little confidence;
+     * distant checkpoints are discounted logarithmically. Multiple unexplored
+     * options increase confidence with diminishing returns.</p>
      */
-    private double calculateConfidence(CheckpointCandidate checkpoint, int depth) {
-        double base = 0.7;
-        
-        // Bonus for unexplored alternatives
-        base += Math.min(0.15, checkpoint.unexploredAlternatives().size() * 0.05);
-        
-        // Bonus for close distance
-        if (checkpoint.temporalDistance() < 3) {
-            base += 0.1;
-        }
-        
-        // Penalty for depth
-        base *= Math.pow(0.95, depth - 1);
-        
-        return Math.min(0.95, base);
+    private ConfidenceBreakdown calculateConfidence(CheckpointCandidate checkpoint) {
+        double base = 0.5;
+        double optionBonus = Math.min(0.25,
+            Math.log1p(checkpoint.unexploredAlternatives().size()) * 0.10);
+        double distanceDiscount = Math.min(0.35,
+            Math.log1p(checkpoint.backtrackDistance()) * 0.06);
+        double raw = base + optionBonus - distanceDiscount;
+        double value = clamp(raw, 0.1, 0.9);
+
+        return new ConfidenceBreakdown(base, optionBonus, distanceDiscount, raw, value);
     }
     
     /**
      * Build human-readable rationale with structured context.
      */
-    private String buildRationale(String current, CheckpointCandidate checkpoint, 
-                                   int totalCandidates, int depth) {
+    private String buildRationale(String current, CheckpointCandidate checkpoint,
+                                   int totalCandidates) {
         StringBuilder sb = new StringBuilder();
         sb.append("Blocked at ").append(current).append(". ");
         sb.append("Backtracking to checkpoint ").append(checkpoint.uri());
         sb.append(" with ").append(checkpoint.unexploredAlternatives().size())
           .append(" unexplored alternative(s)");
         
-        if (checkpoint.temporalDistance() < Integer.MAX_VALUE) {
-            sb.append(" (distance: ").append(checkpoint.temporalDistance()).append(" hops)");
+        if (checkpoint.backtrackDistance() < Integer.MAX_VALUE) {
+            sb.append(" (distance: ").append(checkpoint.backtrackDistance()).append(" steps)");
         }
         
         if (totalCandidates > 1) {
             sb.append(" [selected from ").append(totalCandidates).append(" candidates]");
         }
         
-        if (depth > 1) {
-            sb.append(" [backtrack depth: ").append(depth).append("]");
-        }
-        
         return sb.toString();
     }
     
     /**
-     * Generate opportunistic CCRS mental notes for unexplored options and dead ends.
+     * Generate opportunistic CCRS mental notes for unexplored options.
      * 
      */
     private List<OpportunisticResult> generateOpportunisticNotes(
             String currentResource,
+            List<String> backtrackPath,
             CheckpointCandidate checkpoint,
-            String attemptKey) {
+            String attemptKey,
+            double utility) {
         
         List<OpportunisticResult> results = new ArrayList<>();
         
         // Metadata for all notes
         String checkpointUri = checkpoint.uri();
+
+        String from = currentResource;
+        for (int i = 0; i < backtrackPath.size(); i++) {
+            String to = backtrackPath.get(i);
+            OpportunisticResult note = new OpportunisticResult(
+                "backtrack_step",
+                to,
+                attemptKey,
+                utility
+            )
+            .withMetadata("origin", "contingency-ccrs")
+            .withMetadata("strategy", "backtrack")
+            .withMetadata("checkpoint", checkpointUri)
+            .withMetadata("from", from)
+            .withMetadata("to", to)
+            .withMetadata("step", String.valueOf(i + 1))
+            .withMetadata("totalSteps", String.valueOf(backtrackPath.size()));
+            results.add(note);
+            from = to;
+        }
         
         // 1. Generate notes for unexplored options at checkpoint
-        // Use stronger utility (0.7) to compete with other signals
         for (String unexploredOption : checkpoint.unexploredAlternatives()) {
             OpportunisticResult note = new OpportunisticResult(
                 "unexplored_option",
                 unexploredOption,
                 attemptKey,
-                0.7
+                utility
             )
             .withMetadata("origin", "contingency-ccrs")
             .withMetadata("strategy", "backtrack")
-            .withMetadata("checkpoint", checkpointUri);
+            .withMetadata("checkpoint", checkpointUri)
+            .withMetadata("from", checkpointUri)
+            .withMetadata("to", unexploredOption);
             results.add(note);
-        }
-        
-        // 2. Generate dead-end note for current resource
-        OpportunisticResult deadEndNote = new OpportunisticResult(
-            "dead_end",
-            currentResource,
-            attemptKey,
-            -0.9
-        )
-        .withMetadata("origin", "contingency-ccrs")
-        .withMetadata("strategy", "backtrack")
-        .withMetadata("checkpoint", checkpointUri);
-        
-        results.add(deadEndNote);
-        
-        // 3. Generate dead-end notes for exhausted alternatives
-        for (String exhausted : checkpoint.exhaustedAlternatives()) {
-            OpportunisticResult exhaustedNote = new OpportunisticResult(
-                "dead_end",
-                exhausted,
-                attemptKey,
-                -0.9
-            )
-            .withMetadata("origin", "contingency-ccrs")
-            .withMetadata("strategy", "backtrack")
-            .withMetadata("checkpoint", checkpointUri);            
-            results.add(exhaustedNote);
         }
         
         return results;
@@ -814,48 +728,8 @@ public class BacktrackStrategy implements CcrsStrategy {
         
         return true;
     }
-    
-    private List<String> queryOutgoingLinks(String uri, CcrsContext context) {
-        return context.query(uri, null, null).stream()
-            .map(t -> t.object)
-            .filter(o -> o != null && !o.isEmpty())
-            .filter(this::isValidUri)
-            .distinct()
-            .toList();
-    }
-    
-    private long findMostRecentTimestamp(String uri, List<Interaction> history) {
-        return history.stream()
-            .filter(i -> uri.equals(i.requestUri()))
-            .mapToLong(Interaction::requestTimestamp)
-            .max()
-            .orElse(0L);
-    }
-        
-    // ========== Configuration ==========
-    
-    public BacktrackStrategy maxDepth(int depth) {
-        this.maxBacktrackDepth = depth;
-        return this;
-    }
-    
-    public BacktrackStrategy requireUnexploredAlternatives(boolean require) {
-        this.requireUnexploredAlternatives = require;
-        return this;
-    }
-    
-    public BacktrackStrategy minUnexploredAlternatives(int min) {
-        this.minUnexploredAlternatives = min;
-        return this;
-    }
-    
-    public BacktrackStrategy maxCheckpointsToEvaluate(int max) {
-        this.maxCheckpointsToEvaluate = max;
-        return this;
-    }
-    
-    public BacktrackStrategy maxTemporalDistance(int max) {
-        this.maxTemporalDistance = max;
-        return this;
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

@@ -37,7 +37,7 @@ public class JasonInteractionLog implements InteractionLogSink {
     // Partitioned history: Agent Name -> Their Interaction History
     private final Map<String, Deque<Interaction>> agentHistories = new ConcurrentHashMap<>();
 
-    private final int maxSize = 100;
+    private final int maxSize = 1000;
 
     public JasonInteractionLog() {
     }
