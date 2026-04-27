@@ -9,6 +9,7 @@ import ccrs.core.rdf.CcrsContext;
 
 /**
  * L0: Stop Strategy (Last Resort)
+ * Applies to: ANY situation type.
  * 
  * Gracefully fails when no recovery is possible.
  * This is the fallback when all other strategies have been exhausted.

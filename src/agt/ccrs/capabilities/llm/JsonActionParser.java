@@ -5,6 +5,7 @@ import ccrs.core.contingency.dto.LlmActionResponse;
 
 /**
  * JSON shaped response parser for LLM action responses.
+ * Used by {@link ccrs.core.contingency.strategies.internal.PredictionLlmStrategy}
  * 
  * Handles the expected JSON schema:
  * {"action": "...", "target": "...", "reasoning|advice|explanation": "..."}

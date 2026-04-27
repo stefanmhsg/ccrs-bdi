@@ -19,8 +19,8 @@ ccrs/core/contingency/
 └── strategies/                 # CONCRETE STRATEGY IMPLEMENTATIONS
     ├── RetryStrategy.java      # L1: Retry with exponential backoff.
     ├── BacktrackStrategy.java  # L2: Return to previous decision point.
-    ├── PredictionLlmStrategy.java # L2: LLM-based path prediction.
-    ├── ConsultationStrategy.java  # L4: External help via consultation channel.
+    ├── PredictionLlmStrategy.java # L4: LLM-based path prediction.
+    ├── ConsultationStrategy.java  # L3: External help via consultation channel.
     └── StopStrategy.java       # L0: Graceful failure when exhausted.
 
 ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
@@ -63,9 +63,9 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 |----------|-------|----------|-------------|
 | `RetryStrategy` | L1 | INTERNAL | Handles transient HTTP errors (408, 429, 5xx) with exponential backoff |
 | `BacktrackStrategy` | L2 | INTERNAL | Returns to parent resource using hypermedia link heuristic |
-| `PredictionLlmStrategy` | L2 | INTERNAL | LLM-based prediction for optimal path selection |
-| `ConsultationStrategy` | L4 | SOCIAL | Requests external help via pluggable consultation channel |
-| `StopStrategy` | L0 | INTERNAL | Graceful failure when all options exhausted (always last resort) |
+| `PredictionLlmStrategy` | L4 | INTERNAL | LLM-based prediction for optimal path selection (ANY situation type) |
+| `ConsultationStrategy` | L3 | SOCIAL | Requests external help via pluggable consultation channel (ANY situation type) |
+| `StopStrategy` | L0 | INTERNAL | Graceful failure when all options exhausted (ANY situation type) |
 
 ### Jason Adapters
 
@@ -89,12 +89,13 @@ Strategies are organized into escalation levels, evaluated in ascending order:
 
 ```text
 L1 (Low)      → Retry: Quick, cheap recovery attempts
-L2 (Moderate) → Backtrack, Prediction: Requires more context/resources
-L4 (Social)   → Consultation: Involves external entities
+L2 (Moderate) → Backtrack: Requires more context/resources
+L3 (Social)   → Consultation: Involves external entities
+L4 (LLM)      → Prediction: Requires model inference and larger context
 L0 (Last)     → Stop: Graceful failure when exhausted
 ```
 
-**Default Evaluation Order:** L1 -> L2 -> L4 -> L0
+**Default Evaluation Order:** L1 -> L2 -> L3 -> L4 -> L0
 
 This order is the default prior when there is not enough trace history for learned scheduling. `StopStrategy` (L0) is treated as a fallback and is skipped when any recovery suggestion already exists.
 
@@ -221,7 +222,7 @@ public interface CcrsContext {
                ▼
  ┌─────────────────────────────────────────────┐
  │  StrategyRegistry.getByLevel()              │
- │  Iterate L1 → L2 → L4 → L0                  │
+ │  Iterate L1 → L2 → L3 → L4 → L0             │
  └─────────────┬───────────────────────────────┘
                │
       ┌────────┴────────┐

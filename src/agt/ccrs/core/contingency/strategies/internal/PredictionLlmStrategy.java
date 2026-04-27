@@ -18,7 +18,8 @@ import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
 
 /**
- * L2: Prediction Strategy (LLM-based)
+ * L4: Prediction Strategy (LLM-based)
+ * Applies to: ANY situation type.
  * 
  * Uses a Large Language Model to predict a recovery action based on 
  * the situation and available context. This is a more flexible approach
@@ -65,7 +66,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     @Override
     public int getEscalationLevel() {
-        return 2;
+        return 4;
     }
     
     @Override

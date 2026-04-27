@@ -232,9 +232,9 @@ ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", CurrentURI, 
 | Strategy | Level | Situation Type | Required Fields |
 |----------|-------|----------------|-----------------|
 | **RetryStrategy** | L1 | FAILURE | `target`, `action`, `error` (HTTP status) |
-| **BacktrackStrategy** | L2 | STUCK | `current` |
-| **PredictionLLM** | L2 | STUCK, UNCERTAINTY | `current` (optional) |
-| **ConsultationStrategy** | L4 | ANY | None (always applicable) |
+| **BacktrackStrategy** | L2 | FAILURE, STUCK | `current` |
+| **ConsultationStrategy** | L3 | ANY | `current` optional; requires consultation channel + history + consultable target |
+| **PredictionLLM** | L4 | ANY | `current` (optional) |
 | **StopStrategy** | L0 | ANY | None (always applicable) |
 
 ---

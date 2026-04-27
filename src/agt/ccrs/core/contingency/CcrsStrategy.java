@@ -65,9 +65,9 @@ public interface CcrsStrategy {
      * Escalation level (0-4). This is a default prior before trace-based
      * evaluation history is available.
      * - L1: Low effort (e.g., retry)
-     * - L2: Moderate (e.g., backtrack, prediction)
-     * - L3: High (e.g., planning)
-     * - L4: Social (e.g., consultation)
+     * - L2: Moderate (e.g., backtrack)
+     * - L3: Social (e.g., consultation)
+     * - L4: Highest-cost reasoning (e.g., LLM prediction)
      * - L0: Last resort (e.g., stop)
      */
     int getEscalationLevel();

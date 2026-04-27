@@ -325,6 +325,6 @@ public class ContingencyCcrs {
         registry.register(new ccrs.core.contingency.strategies.internal.RetryStrategy());
         registry.register(new ccrs.core.contingency.strategies.internal.BacktrackStrategy());
         registry.register(new ccrs.core.contingency.strategies.internal.StopStrategy());
-        // LLM strategies registered separately as they need configuration
+        // LLM & Consultation strategies registered separately as they need configuration
     }
 }

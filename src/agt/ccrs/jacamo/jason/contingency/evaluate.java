@@ -359,7 +359,7 @@ public class evaluate extends DefaultInternalAction {
                 LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
                 
                 if (llmClient.isAvailable()) {
-                    // Register PredictionLlmStrategy (L2)
+                    // Register PredictionLlmStrategy (L4)
                     PredictionLlmStrategy predictionStrategy = new PredictionLlmStrategy(
                         llmClient,
                         TemplatePromptBuilder.create(),

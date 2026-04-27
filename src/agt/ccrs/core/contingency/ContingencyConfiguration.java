@@ -201,14 +201,6 @@ public class ContingencyConfiguration {
         }
         
         /**
-         * Disable social strategies (L4).
-         */
-        public Builder noSocial() {
-            this.maxEscalationLevel = Math.min(this.maxEscalationLevel, 3);
-            return this;
-        }
-        
-        /**
          * Set maximum number of suggestions to return.
          */
         public Builder maxSuggestions(int max) {

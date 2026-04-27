@@ -23,7 +23,8 @@ import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
 
 /**
- * L4: Consultation Strategy (Social)
+ * L3: Consultation Strategy (Social)
+ * Applies to: ANY situation type.
  * 
  * Requests help from external agents when internal strategies are insufficient.
  * Uses a pluggable consultation channel. For the current A2A flow, the
@@ -126,7 +127,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     
     @Override
     public int getEscalationLevel() {
-        return 4;
+        return 3;
     }
     
     @Override
