@@ -38,8 +38,8 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private PromptBuilder promptBuilder;
     private LlmResponseParser responseParser;
     private double baseConfidence = 0.6;
-    private int maxHistoryActions = 5;
-    private int maxKnowledgeTriples = 50;
+    private int maxHistoryActions = 20;
+    private int maxKnowledgeTriples = 1000;
 
         
     public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {

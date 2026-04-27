@@ -196,6 +196,9 @@ public class ContingencyCcrs {
                 (StrategyResult r) -> r.asSuggestion().getConfidence()).reversed())
             .limit(config.getMaxSuggestions())
             .collect(Collectors.toList());
+        if (!rankedResults.isEmpty()) {
+            rankedResults = keepOpportunisticGuidanceOnlyForWinningSuggestion(rankedResults);
+        }
         
         long totalTime = System.currentTimeMillis() - startTime;
         
@@ -270,6 +273,38 @@ public class ContingencyCcrs {
             .mapToDouble(StrategyResult.Suggestion::getConfidence)
             .max()
             .orElse(0.0);
+    }
+
+    private List<StrategyResult> keepOpportunisticGuidanceOnlyForWinningSuggestion(List<StrategyResult> rankedResults) {
+        if (rankedResults.size() <= 1) {
+            return rankedResults;
+        }
+
+        List<StrategyResult> sanitized = new java.util.ArrayList<>(rankedResults);
+        for (int i = 1; i < sanitized.size(); i++) {
+            StrategyResult result = sanitized.get(i);
+            if (!result.isSuggestion()) {
+                continue;
+            }
+
+            StrategyResult.Suggestion suggestion = result.asSuggestion();
+            if (!suggestion.hasOpportunisticGuidance()) {
+                continue;
+            }
+
+            StrategyResult withoutNotes = StrategyResult.suggest(
+                    suggestion.getStrategyId(),
+                    suggestion.getActionType())
+                .target(suggestion.getActionTarget())
+                .params(suggestion.getActionParams())
+                .confidence(suggestion.getConfidence())
+                .rationale(suggestion.getRationale())
+                .build();
+
+            sanitized.set(i, withoutNotes);
+        }
+
+        return sanitized;
     }
     
     /**

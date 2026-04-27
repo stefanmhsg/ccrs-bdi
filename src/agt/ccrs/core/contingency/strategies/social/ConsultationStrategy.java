@@ -142,6 +142,12 @@ public class ConsultationStrategy implements CcrsStrategy {
             logger.info("[Consultation] Not applicable - channel not available");
             return Applicability.NOT_APPLICABLE;
         }
+
+        // Require historical context, so consultation has enough basis for target and guidance.
+        if (!context.hasHistory()) {
+            logger.info("[Consultation] Not applicable - insufficient context history");
+            return Applicability.NOT_APPLICABLE;
+        }
         
         // Don't exceed consultation limit
         int consultationCount = situation.getAttemptCount(ID);
@@ -157,16 +163,9 @@ public class ConsultationStrategy implements CcrsStrategy {
             logger.info("[Consultation] Not applicable - no consultation target discovered in context");
             return Applicability.NOT_APPLICABLE;
         }
-
-        // Only consult for complex situations (after simpler strategies tried)
-        if (situation.getAttemptedStrategies().isEmpty()) {
-            // Could be applicable but should try simpler things first
-            logger.info("[Consultation] Unknown - no strategies tried yet");
-            return Applicability.UNKNOWN;
-        }
         
-        logger.info(String.format("[Consultation] Applicable - channel '%s' available, %d strategies already tried",
-            channel.getChannelType(), situation.getAttemptedStrategies().size()));
+        logger.info(String.format("[Consultation] Applicable - channel '%s' available, %d targets discovered",
+            channel.getChannelType(), consultationTargets.size()));
         return Applicability.APPLICABLE;
     }
     
