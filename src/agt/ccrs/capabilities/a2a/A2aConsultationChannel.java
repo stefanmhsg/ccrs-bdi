@@ -248,7 +248,16 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
                 responseText
             );
         response.source = buildSource(card, skillId);
-        response.confidence = 0.7;
+        Double artifactConfidence = extractConfidenceFromArtifacts(latestTask.get());
+        if (artifactConfidence != null) {
+            response.confidence = artifactConfidence;
+            logger.info(String.format(
+                "[A2A] Mapping confidence from red-action artifact metadata: %.3f",
+                artifactConfidence));
+        } else {
+            logger.info("[A2A] No confidence metadata found in red-action artifacts for agentCardUri="
+                + agentCardUri + "; leaving confidence unset for strategy fallback");
+        }
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("requestedSkill", skillId);
@@ -407,6 +416,49 @@ public class A2aConsultationChannel implements ConsultationStrategy.Consultation
     private String buildSource(AgentCard card, String skillId) {
         String cardName = card != null && card.name() != null ? card.name() : "unknown-agent";
         return cardName + "/" + skillId;
+    }
+
+    private Double extractConfidenceFromArtifacts(Task task) {
+        if (task == null || task.getArtifacts() == null || task.getArtifacts().isEmpty()) {
+            logger.info("[A2A] No task artifacts available for confidence extraction");
+            return null;
+        }
+
+        for (int i = task.getArtifacts().size() - 1; i >= 0; i--) {
+            Artifact artifact = task.getArtifacts().get(i);
+            if (artifact == null || artifact.metadata() == null) {
+                continue;
+            }
+            Object rawConfidence = artifact.metadata().get("confidence");
+            Double parsed = parseConfidenceValue(rawConfidence);
+            if (parsed != null) {
+                return parsed;
+            }
+            if (rawConfidence != null) {
+                logger.warning("[A2A] Unable to parse confidence metadata value from artifact "
+                    + artifact.artifactId() + ": " + rawConfidence);
+            }
+        }
+        return null;
+    }
+
+    private Double parseConfidenceValue(Object rawConfidence) {
+        if (rawConfidence == null) {
+            return null;
+        }
+        if (rawConfidence instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (rawConfidence instanceof String confidenceText && !confidenceText.isBlank()) {
+            try {
+                return Double.parseDouble(confidenceText);
+            } catch (NumberFormatException e) {
+                logger.warning("[A2A] Confidence metadata could not be parsed as number: " + confidenceText);
+                return null;
+            }
+        }
+        logger.warning("[A2A] Unsupported confidence metadata type: " + rawConfidence.getClass().getName());
+        return null;
     }
 
     private String extractText(Task task) {

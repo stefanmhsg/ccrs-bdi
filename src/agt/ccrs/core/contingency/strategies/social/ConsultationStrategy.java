@@ -39,6 +39,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     private static final String A2A_PROVIDES_TYPE = "https://example.org/a2a#providesType";
     private static final String A2A_PROVIDES_PROPERTY = "https://example.org/a2a#providesProperty";
     private static final int MAX_AGENT_CANDIDATES = 3;
+    private static final double DEFAULT_CONFIDENCE = 0.5;
 
     public static final String ID = "consultation";
     
@@ -87,7 +88,7 @@ public class ConsultationStrategy implements CcrsStrategy {
             r.action = action;
             r.target = target;
             r.suggestion = suggestion;
-            r.confidence = 0.5;
+            r.confidence = 0.0;
             return r;
         }
         
@@ -246,10 +247,23 @@ public class ConsultationStrategy implements CcrsStrategy {
             }
             
             // Build result
+            double confidence = response.confidence;
+            if (confidence <= 0.0) {
+                logger.info(String.format(
+                    "[Consultation] Channel confidence unavailable or non-positive (%.3f); using hardcoded fallback confidence=%.2f",
+                    response.confidence, DEFAULT_CONFIDENCE));
+                confidence = DEFAULT_CONFIDENCE;
+            } else if (confidence > 1.0) {
+                logger.warning(String.format(
+                    "[Consultation] Channel confidence out of range (%.3f); clamping to hardcoded fallback=%.2f",
+                    confidence, DEFAULT_CONFIDENCE));
+                confidence = DEFAULT_CONFIDENCE;
+            }
+            
             StrategyResult result = StrategyResult.suggest(ID, actionType)
                 .target(actionTarget)
                 .params(actionParams)
-                .confidence(response.confidence > 0 ? response.confidence : 0.5)
+                .confidence(confidence)
                 .rationale(buildRationale(response, derivedAction))
                 .build();
             
