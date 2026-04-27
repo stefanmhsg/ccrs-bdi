@@ -92,7 +92,6 @@ public class StopStrategy implements CcrsStrategy {
             .param("finalError", finalError)
             .param("situationType", situation.getType().name())
             .confidence(1.0)  // Certain this is appropriate given exhaustion
-            .cost(1.0)        // Maximum cost - goal failure
             .rationale(buildRationale(situation, attemptedCount, finalError))
             .build();
         

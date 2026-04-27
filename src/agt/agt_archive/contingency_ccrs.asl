@@ -200,7 +200,7 @@ MAIN LOOP
 
         // Pattern 1: Get first suggestion
         //
-        //.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _, _)) ;
+        //.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _)) ;
         //.print("[CCRS] First Suggestion is: Executing '", ActionType, "' to ", Target) ;
 
         // Pattern 2: Iterate through all suggestions
@@ -219,13 +219,13 @@ MAIN LOOP
     .
 
 // Pattern 4: Decompose suggestion structure with all fields
-+!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Cost, Rationale, Params)) :
++!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Rationale, Params)) :
     true
     <-
         .print("[CCRS Suggestion]") ;
         .print("  Strategy ID: ", StrategyId) ;
         .print("  Action: ", ActionType, " -> Target: ", Target) ;
-        .print("  Confidence: ", Confidence, ", Cost: ", Cost) ;
+        .print("  Confidence: ", Confidence) ;
         .print("  Rationale: ", Rationale) ;
         
         // Extract specific parameters
@@ -268,17 +268,17 @@ MAIN LOOP
 +!select_confident_suggestion([Sug], Sug) : true.
 
 // Pattern 3: Select best suggestion by confidence
-+!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) | Rest], Best) :
++!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,R1,P1) | Rest], Best) :
     true
     <-
-        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2)) ;
+        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,R2,P2)) ;
         
         if (C1 > C2) {
-            Best = suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) ;
+            Best = suggestion(S1,T1,Tgt1,C1,R1,P1) ;
         } else {
-            Best = suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2) ;
+            Best = suggestion(S2,T2,Tgt2,C2,R2,P2) ;
         }
-    .
+    .    
 
 +!follow_backtrack :
     backtracking([Next | Rest])

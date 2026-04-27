@@ -6,7 +6,7 @@ This document provides examples for using the `evaluate` internal action to invo
 
 The `evaluate` internal action bridges AgentSpeak agents with Contingency-CCRS strategies. It supports multiple signatures for different situation complexity levels.
 
-Besides returning `suggestion/7` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events.
+Besides returning `suggestion/6` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events.
 
 The internal action uses the default `ContingencyCcrs.evaluate(...)` path. That path always delegates to `evaluateWithTrace(...)`, records the resulting `CcrsTrace` in the context history, and then returns the selected suggestions.
 
@@ -241,22 +241,9 @@ ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", CurrentURI, 
 
 ## Handling Suggestions
 
-All `evaluate` calls return a list of `suggestion/7` structures. When multiple suggestions are returned, the list is ordered by strategy score, not by raw confidence alone.
+All `evaluate` calls return a list of `suggestion/6` structures. When multiple suggestions are returned, the list is ordered by the confidence of the already-derived action suggestion.
 
-The score is calculated as:
-
-```text
-score = confidence * (1.0 - estimatedCost)
-```
-
-This means a lower-confidence suggestion can be ranked ahead of a higher-confidence suggestion when it has a much lower estimated cost.
-
-```text
-Suggestion A: confidence=0.9, estimatedCost=0.5 -> score=0.45
-Suggestion B: confidence=0.7, estimatedCost=0.1 -> score=0.63
-```
-
-In this example, Suggestion B is returned before Suggestion A.
+Strategy evaluation cost is not part of the suggestion term. Cost is learned from trace history before future evaluations are run, using the measured evaluation time and recent strategy performance.
 
 ```asl
 suggestion(
@@ -264,7 +251,6 @@ suggestion(
     ActionType,        // "retry", "backtrack", "stop", etc.
     ActionTarget,      // URI or "null"
     Confidence,        // 0.0 to 1.0
-    EstimatedCost,     // Relative cost
     Rationale,         // Human-readable explanation
     ActionParams       // List of key(value) pairs
 )
@@ -278,18 +264,19 @@ suggestion(
     !stop_crawl;
 .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|Rest]) : 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
     Conf > 0.7 & Type = "backtrack"
     <-
     .print("[CONTINGENCY] Accepting ", Type, " suggestion: ", Reason);
     !execute_backtrack(Target, Params);
 .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|Rest]) : 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
     Conf > 0.8 & Type = "retry"
     <-
     .print("[CONTINGENCY] Accepting retry suggestion: ", Reason);
-    .wait(Cost);  // Wait suggested backoff time
+    .member(delayMs(DelayMs), Params);
+    .wait(DelayMs);
     !retry_action(Target);
 .
 
@@ -355,15 +342,16 @@ suggestion(
 .
 
 // First attempt: retry if suggested
-+!process_contingency([suggestion(_,Type,_,Conf,Cost,_,_)|_], Target, Error) :
++!process_contingency([suggestion(_,Type,_,Conf,_,Params)|_], Target, Error) :
     Type = "retry" & Conf > 0.7 & Error = "503"
     <-
-    .wait(Cost);
+    .member(delayMs(DelayMs), Params);
+    .wait(DelayMs);
     !navigate(Target);  // Retry
 .
 
 // Second attempt: backtrack if retry failed
-+!process_contingency([suggestion(_,Type,Target,Conf,_,_,_)|_], _, _) :
++!process_contingency([suggestion(_,Type,Target,Conf,_,_)|_], _, _) :
     Type = "backtrack" & Conf > 0.6
     <-
     !backtrack_to(Target);

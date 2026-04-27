@@ -277,7 +277,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         List<CheckpointCandidate> rankedCheckpoints = rankCheckpoints(withDistances);
         CheckpointCandidate bestCheckpoint = rankedCheckpoints.get(0);
         
-        logger.info(String.format("[Backtrack] Selected checkpoint: %s (source=%s, unexplored=%d, distance=%d, score=%.2f)",
+        logger.info(String.format("[Backtrack] Selected checkpoint: %s (source=%s, unexplored=%d, distance=%d, validation=%.2f)",
             bestCheckpoint.uri(), bestCheckpoint.source(),
             bestCheckpoint.unexploredAlternatives().size(), bestCheckpoint.backtrackDistance(),
             bestCheckpoint.validationScore()));
@@ -337,7 +337,6 @@ public class BacktrackStrategy implements CcrsStrategy {
             .param("interactionGraphNodeCount", graph.nodeCount())
             .param("interactionGraphEdgeCount", graph.edgeCount())
             .confidence(confidence.value())
-            .cost(0.3)
             .rationale(buildRationale(current, bestCheckpoint, rankedCheckpoints.size()))
             .opportunisticGuidance(opportunisticGuidance)
             .build();

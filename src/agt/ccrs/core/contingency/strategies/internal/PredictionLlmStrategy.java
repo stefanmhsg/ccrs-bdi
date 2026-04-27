@@ -154,7 +154,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 .param("originalReasoning", response.getExplanation())
                 .param("parseMethod", response.getMetadata().get("parseMethod"))
                 .confidence(confidence)
-                .cost(0.4)  // Moderate cost - LLM call + uncertainty
                 .rationale(buildRationale(response))
                 .build();
             

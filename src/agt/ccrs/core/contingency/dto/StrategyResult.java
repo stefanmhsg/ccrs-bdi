@@ -58,7 +58,8 @@ public abstract class StrategyResult {
     
     /**
      * A concrete recovery suggestion from a strategy.
-     * TODO: Document fields.
+     * Confidence describes the quality of the suggested action after the
+     * strategy has already been evaluated.
      */
     public static class Suggestion extends StrategyResult {
         
@@ -66,7 +67,6 @@ public abstract class StrategyResult {
         private final String actionTarget;
         private final Map<String, Object> actionParams;
         private final double confidence;
-        private final double estimatedCost;
         private final String rationale;
         private final List<OpportunisticResult> opportunisticGuidance;  // B2: Optional preference shaping
         
@@ -76,7 +76,6 @@ public abstract class StrategyResult {
             this.actionTarget = builder.actionTarget;
             this.actionParams = Collections.unmodifiableMap(new HashMap<>(builder.actionParams));
             this.confidence = builder.confidence;
-            this.estimatedCost = builder.estimatedCost;
             this.rationale = builder.rationale;
             this.opportunisticGuidance = builder.opportunisticGuidance != null ? 
                 List.copyOf(builder.opportunisticGuidance) : List.of();
@@ -107,11 +106,7 @@ public abstract class StrategyResult {
         public double getConfidence() {
             return confidence;
         }
-        
-        public double getEstimatedCost() {
-            return estimatedCost;
-        }
-        
+
         public String getRationale() {
             return rationale;
         }
@@ -131,18 +126,10 @@ public abstract class StrategyResult {
             return !opportunisticGuidance.isEmpty();
         }
         
-        /**
-         * Score combining confidence and cost for ranking.
-         * Higher is better.
-         */
-        public double getScore() {
-            return confidence * (1.0 - estimatedCost);
-        }
-        
         @Override
         public String toString() {
-            return String.format("Suggestion{strategy=%s, action=%s, target=%s, confidence=%.2f, cost=%.2f}",
-                strategyId, actionType, actionTarget, confidence, estimatedCost);
+            return String.format("Suggestion{strategy=%s, action=%s, target=%s, confidence=%.2f}",
+                strategyId, actionType, actionTarget, confidence);
         }
         
         public static class Builder {
@@ -151,7 +138,6 @@ public abstract class StrategyResult {
             private String actionTarget;
             private Map<String, Object> actionParams = new HashMap<>();
             private double confidence = 0.5;
-            private double estimatedCost = 0.5;
             private String rationale;
             private List<OpportunisticResult> opportunisticGuidance;  // B2: Optional
             
@@ -179,12 +165,7 @@ public abstract class StrategyResult {
                 this.confidence = Math.max(0.0, Math.min(1.0, confidence));
                 return this;
             }
-            
-            public Builder cost(double estimatedCost) {
-                this.estimatedCost = Math.max(0.0, Math.min(1.0, estimatedCost));
-                return this;
-            }
-            
+
             public Builder rationale(String rationale) {
                 this.rationale = rationale;
                 return this;

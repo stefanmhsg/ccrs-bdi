@@ -254,7 +254,6 @@ public class evaluate extends DefaultInternalAction {
                     ? ASSyntax.createString(s.getActionTarget())
                     : ASSyntax.createAtom("null"),
                 ASSyntax.createNumber(s.getConfidence()),
-                ASSyntax.createNumber(s.getEstimatedCost()),
                 ASSyntax.createString(
                     s.getRationale() != null ? s.getRationale() : ""
                 ),

@@ -106,22 +106,23 @@
     !stop_crawl;
 .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|Rest]) : 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
     Conf > 0.8 & Type = "retry"
     <-
     .print("[ACCEPT] High-confidence retry: ", Reason);
-    .wait(Cost);
+    .member(delayMs(DelayMs), Params);
+    .wait(DelayMs);
     !retry_action(Target);
 .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|Rest]) : 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
     Conf > 0.7 & Type = "backtrack"
     <-
     .print("[ACCEPT] Backtrack suggestion: ", Reason);
     !execute_backtrack(Target, Params);
 .
 
-+!handle_suggestions([suggestion(Id, Type, _, Conf, _, Reason, _)|Rest]) : 
++!handle_suggestions([suggestion(Id, Type, _, Conf, Reason, _)|Rest]) : 
     Type = "stop"
     <-
     .print("[STOP] Strategy advises: ", Reason);
@@ -134,22 +135,23 @@
 .
 
 // Pattern B: Type-specific handlers (different logic per strategy)
-+!handle_http_error_suggestions([suggestion(_,Type,Target,Conf,Cost,Reason,_)|_], OriginalTarget) :
++!handle_http_error_suggestions([suggestion(_,Type,Target,Conf,Reason,Params)|_], OriginalTarget) :
     Type = "retry" & Conf > 0.7
     <-
-    .print("[RETRY] Waiting ", Cost, "ms then retrying: ", Reason);
-    .wait(Cost);
+    .member(delayMs(DelayMs), Params);
+    .print("[RETRY] Waiting ", DelayMs, "ms then retrying: ", Reason);
+    .wait(DelayMs);
     !navigate(OriginalTarget);  // Retry original request
 .
 
-+!handle_http_error_suggestions([suggestion(_,Type,Target,Conf,_,Reason,Params)|_], _) :
++!handle_http_error_suggestions([suggestion(_,Type,Target,Conf,Reason,Params)|_], _) :
     Type = "backtrack" & Conf > 0.6
     <-
     .print("[BACKTRACK] Returning to checkpoint: ", Reason);
     !backtrack_to(Target, Params);
 .
 
-+!handle_http_error_suggestions([suggestion(_,Type,_,_,_,Reason,_)|_], _) :
++!handle_http_error_suggestions([suggestion(_,Type,_,_,Reason,_)|_], _) :
     Type = "stop"
     <-
     .print("[STOP] Giving up: ", Reason);
@@ -261,13 +263,12 @@
     .print("[DEBUG] --- End of suggestions ---");
 .
 
-+!debug_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|Rest]) : true <-
++!debug_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : true <-
     .print("[DEBUG] Suggestion:");
     .print("  ID:         ", Id);
     .print("  Type:       ", Type);
     .print("  Target:     ", Target);
     .print("  Confidence: ", Conf);
-    .print("  Cost:       ", Cost);
     .print("  Rationale:  ", Reason);
     .print("  Params:     ", Params);
     !debug_suggestions(Rest);
@@ -280,7 +281,7 @@
 
 // Pattern 1: Get first suggestion
 //
-.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _, _)) ;
+.nth(0, Suggestions, suggestion(StrategyId, ActionType, Target, _, _, _)) ;
 .print("[CCRS] First Suggestion is: Executing '", ActionType, "' to ", Target) ;
 
 
@@ -299,13 +300,13 @@
     !process_suggestion(BestSuggestion) ;
 
 // Pattern 4: Decompose suggestion structure with all fields
-+!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Cost, Rationale, Params)) :
++!process_suggestion(suggestion(StrategyId, ActionType, Target, Confidence, Rationale, Params)) :
     true
     <-
         .print("[CCRS Suggestion]") ;
         .print("  Strategy ID: ", StrategyId) ;
         .print("  Action: ", ActionType, " -> Target: ", Target) ;
-        .print("  Confidence: ", Confidence, ", Cost: ", Cost) ;
+        .print("  Confidence: ", Confidence) ;
         .print("  Rationale: ", Rationale) ;
         
         // Extract specific parameters
@@ -348,14 +349,14 @@
 +!select_confident_suggestion([Sug], Sug) : true.
 
 // Pattern 3: Select best suggestion by confidence
-+!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) | Rest], Best) :
++!select_confident_suggestion([suggestion(S1,T1,Tgt1,C1,R1,P1) | Rest], Best) :
     true
     <-
-        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2)) ;
+        !select_confident_suggestion(Rest, suggestion(S2,T2,Tgt2,C2,R2,P2)) ;
         
         if (C1 > C2) {
-            Best = suggestion(S1,T1,Tgt1,C1,Cost1,R1,P1) ;
+            Best = suggestion(S1,T1,Tgt1,C1,R1,P1) ;
         } else {
-            Best = suggestion(S2,T2,Tgt2,C2,Cost2,R2,P2) ;
+            Best = suggestion(S2,T2,Tgt2,C2,R2,P2) ;
         }
     .    

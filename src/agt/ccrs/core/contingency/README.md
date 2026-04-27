@@ -37,7 +37,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 *   **`Situation.java`**: Primary input POJO with builder pattern. Describes the problematic context including situation type (FAILURE, STUCK, UNCERTAINTY, PROACTIVE), current/target resources, failed action details, error information, and previously attempted strategies.
 
 *   **`StrategyResult.java`**: Sealed output type with two variants:
-    *   `Suggestion`: Actionable recommendation with actionType, target, confidence, cost, rationale, and parameters.
+    *   `Suggestion`: Actionable recommendation with actionType, target, confidence, rationale, and parameters.
     *   `NoHelp`: Explicit "cannot help" response with reason enum and explanation.
 
 *   **`CcrsStrategy.java`**: Base interface defining the contract for all strategies:
@@ -94,9 +94,14 @@ L4 (Social)   → Consultation: Involves external entities
 L0 (Last)     → Stop: Graceful failure when exhausted
 ```
 
-**Evaluation Order:** L1 → L2 → L4 → L0
+**Default Evaluation Order:** L1 -> L2 -> L4 -> L0
 
-The system iterates through applicable strategies by level. Once a `Suggestion` is returned, evaluation stops. `StopStrategy` (L0) is always evaluated last as the fallback.
+This order is the default prior when there is not enough trace history for learned scheduling. `StopStrategy` (L0) is treated as a fallback and is skipped when any recovery suggestion already exists.
+
+The configured escalation policy controls how much of the ordered list is evaluated:
+*   `SEQUENTIAL`: stop after the first suggestion.
+*   `BEST_PER_LEVEL`: evaluate the most promising applicable strategy in each escalation level, then continue to the next level.
+*   `PARALLEL`: consider all enabled strategies, while still allowing learned scheduling to skip strategies whose expected value is lower than the confidence of an already available suggestion.
 
 ### 2. Hypermedia-Oriented Design
 
@@ -138,7 +143,38 @@ This enables:
 
 The default `ContingencyCcrs.evaluate(...)` path records this trace through `CcrsContext`. Adapters can expose that history using the reusable in-memory helper in `ccrs.core.rdf.InMemoryCcrsTraceHistory`.
 
-### 5. Context Integration
+### 5. Learned Evaluation Tradeoff
+
+Suggestion confidence and strategy evaluation cost are handled at different points in the pipeline.
+
+After a strategy has run, its suggestion is ranked only by `confidence`. At that point the evaluation cost has already been paid, so reducing the suggestion's rank because the strategy was expensive would mix two different decisions.
+
+Before future strategies are run, `ContingencyCcrs` builds a lightweight strategy profile from recent `CcrsTrace` records:
+*   measured evaluation time from `StrategyEvaluation.getEvaluationTimeMs()`,
+*   how often the strategy produced a suggestion,
+*   the confidence of those suggestions,
+*   optional reported outcome feedback when available.
+
+The learned pre-evaluation value is:
+
+```text
+expectedConfidence / (1 + averageEvaluationTimeMs / levelReferenceTimeMs)
+```
+
+`expectedConfidence` combines the learned suggestion rate with the learned confidence of produced suggestions. When outcome feedback has been reported, it is folded into confidence as a reliability signal.
+
+`levelReferenceTimeMs` is configured per escalation level. It is not a fixed cost charged to suggestions; it is a default effort prior for interpreting measured runtime:
+*   L1 defaults to `100ms`,
+*   L2 defaults to `1000ms`,
+*   L3 defaults to `2000ms`,
+*   L4 defaults to `3000ms`,
+*   L0 defaults to `50ms` because `StopStrategy` is only a fallback.
+
+This value is used to reorder strategies within their escalation level and to skip a remaining strategy when a current suggestion already has higher confidence than the learned value of spending more effort. If a strategy does not yet have enough samples, the default escalation order is preserved so new strategies are still explored.
+
+`learningHistoryLimit` bounds how many recent traces are read into the model. It keeps the runtime selector local, cheap, and adaptive to recent behavior instead of letting old evaluations dominate forever. `minimumLearningSamples` is counted per strategy profile, not globally; with the default value `2`, a strategy needs two recorded evaluations before its learned value can reorder or prune it.
+
+### 6. Context Integration
 
 Strategies access agent context via `CcrsContext`:
 
@@ -253,7 +289,7 @@ public interface CcrsContext {
     .
 
 // Process suggestions
-+!handle_suggestions([suggest(ActionType, Target, Confidence, Cost, Rationale, Params)|_]) :
++!handle_suggestions([suggest(ActionType, Target, Confidence, Rationale, Params)|_]) :
     Confidence > 0.5
     <-
         .print("Trying: ", ActionType, " on ", Target) ;

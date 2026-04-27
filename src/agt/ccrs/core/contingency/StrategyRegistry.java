@@ -97,8 +97,8 @@ public class StrategyRegistry {
     }
     
     /**
-     * Get strategies sorted by escalation level for evaluation.
-     * Order: L1 → L2 → L3 → L4 → L0 (stop is last resort)
+     * Get strategies sorted by the default escalation level order.
+     * Learned runtime ordering may reorder strategies within a level later.
      */
     public List<CcrsStrategy> getOrderedForEvaluation(ContingencyConfiguration config) {
         List<CcrsStrategy> enabled = getEnabled(config);

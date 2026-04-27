@@ -250,7 +250,6 @@ public class ConsultationStrategy implements CcrsStrategy {
                 .target(actionTarget)
                 .params(actionParams)
                 .confidence(response.confidence > 0 ? response.confidence : 0.5)
-                .cost(0.6)  // Higher cost - social/external dependency
                 .rationale(buildRationale(response, derivedAction))
                 .build();
             

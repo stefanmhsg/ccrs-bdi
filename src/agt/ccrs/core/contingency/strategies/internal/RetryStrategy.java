@@ -131,7 +131,6 @@ public class RetryStrategy implements CcrsStrategy {
             .param("attemptNumber", nextAttempt)
             .param("maxAttempts", maxAttempts)
             .confidence(calculateConfidence(attemptCount, httpStatus))
-            .cost(0.1)  // Low cost - just time
             .rationale(buildRationale(httpStatus, errorMsg, nextAttempt, delayMs))
             .build();
         

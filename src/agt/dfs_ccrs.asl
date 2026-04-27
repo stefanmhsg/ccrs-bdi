@@ -126,7 +126,7 @@ MAIN LOOP
     .
 
 // Logs the first suggestion (which is the highest ranking)
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Cost, Reason, Params)|_]) : 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) : 
     true 
     <-
         .print(" --- ") ;

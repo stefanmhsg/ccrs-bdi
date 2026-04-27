@@ -10,7 +10,7 @@ import ccrs.core.rdf.CcrsContext;
  * Strategies encapsulate specific recovery approaches that can be
  * applied when an agent encounters problems. Each strategy:
  * - Has a unique identifier and category
- * - Has an escalation level (lower = less invasive/costly)
+ * - Has an escalation level (lower = less invasive or effortful as a default prior)
  * - Can check if it applies to a given situation
  * - Can produce a recovery suggestion
  * 
@@ -62,8 +62,9 @@ public interface CcrsStrategy {
     Category getCategory();
     
     /**
-     * Escalation level (0-4).
-     * - L1: Low cost (e.g., retry)
+     * Escalation level (0-4). This is a default prior before trace-based
+     * evaluation history is available.
+     * - L1: Low effort (e.g., retry)
      * - L2: Moderate (e.g., backtrack, prediction)
      * - L3: High (e.g., planning)
      * - L4: Social (e.g., consultation)

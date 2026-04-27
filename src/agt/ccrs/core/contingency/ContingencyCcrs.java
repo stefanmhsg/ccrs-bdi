@@ -80,41 +80,90 @@ public class ContingencyCcrs {
         CcrsTrace.Builder traceBuilder = CcrsTrace.builder(situation);
         
         List<StrategyResult> allSuggestions = new ArrayList<>();
-        List<CcrsStrategy> orderedStrategies = registry.getOrderedForEvaluation(config);
+        List<CcrsStrategy> defaultOrder = registry.getOrderedForEvaluation(config);
+        StrategySelectionModel selectionModel = buildSelectionModel(context);
+        List<CcrsStrategy> orderedStrategies = orderStrategies(defaultOrder, selectionModel);
         
         int currentLevel = -1;
         boolean foundAtCurrentLevel = false;
+        boolean evaluatedCandidateAtCurrentLevel = false;
+        int evaluatedCount = 0;
         
         for (CcrsStrategy strategy : orderedStrategies) {
             int level = strategy.getEscalationLevel();
             
-            // Track level transitions for SEQUENTIAL policy
+            // Track level transitions. Policies decide per-strategy evaluation below.
             if (level != currentLevel) {
-                // If SEQUENTIAL and we found something at previous level, stop
-                if (config.getEscalationPolicy() == ContingencyConfiguration.EscalationPolicy.SEQUENTIAL
-                    && foundAtCurrentLevel && currentLevel > 0) {
-                    break;
-                }
                 currentLevel = level;
                 foundAtCurrentLevel = false;
+                evaluatedCandidateAtCurrentLevel = false;
+                logger.info(String.format(
+                    "[ContingencyCcrs] Entering escalation level L%d with policy %s",
+                    level, config.getEscalationPolicy()));
+            }
+
+            // L0 is a last-resort fallback, not a confidence competitor.
+            if (level == 0 && !allSuggestions.isEmpty()) {
+                logger.info("[ContingencyCcrs] Skipping L0 (STOP) fallback because recovery suggestions already exist");
+                break;
+            }
+
+            if (config.getEscalationPolicy() == ContingencyConfiguration.EscalationPolicy.BEST_PER_LEVEL
+                && evaluatedCandidateAtCurrentLevel) {
+                logger.info(String.format(
+                    "[ContingencyCcrs] Skipping %s in L%d because BEST_PER_LEVEL already evaluated the most promising applicable strategy at this level",
+                    strategy.getId(), level));
+                continue;
+            }
+
+            long levelReferenceTimeMs = config.getCostReferenceTimeMs(level);
+            if (selectionModel != null && !selectionModel.shouldEvaluate(strategy, allSuggestions, levelReferenceTimeMs)) {
+                StrategySelectionModel.Profile profile = selectionModel.profileFor(strategy.getId());
+                logger.info(String.format(
+                    "[ContingencyCcrs] Skipping %s before evaluation: learned value %.3f is below current best suggestion confidence %.3f",
+                    strategy.getId(),
+                    profile.preEvaluationValue(levelReferenceTimeMs),
+                    bestSuggestionConfidence(allSuggestions)));
+                continue;
             }
             
             long evalStart = System.currentTimeMillis();
             CcrsStrategy.Applicability applicability;
             StrategyResult result = null;
+            evaluatedCount++;
             
             try {
                 // Check applicability
                 applicability = strategy.appliesTo(situation, context);
+                logger.info(String.format(
+                    "[ContingencyCcrs] Applicability %s L%d -> %s",
+                    strategy.getId(), level, applicability));
                 
                 if (applicability == CcrsStrategy.Applicability.APPLICABLE ||
                     applicability == CcrsStrategy.Applicability.UNKNOWN) {
+                    evaluatedCandidateAtCurrentLevel = true;
                     // Evaluate
                     result = strategy.evaluate(situation, context);
                     
                     if (result.isSuggestion()) {
                         allSuggestions.add(result);
                         foundAtCurrentLevel = true;
+                        logger.info(String.format(
+                            "[ContingencyCcrs] %s produced suggestion with confidence %.3f",
+                            strategy.getId(), result.asSuggestion().getConfidence()));
+                        if (config.getEscalationPolicy() == ContingencyConfiguration.EscalationPolicy.SEQUENTIAL) {
+                            long evalTime = System.currentTimeMillis() - evalStart;
+                            if (config.isTraceEnabled()) {
+                                traceBuilder.addEvaluation(
+                                    strategy.getId(),
+                                    level,
+                                    applicability,
+                                    result,
+                                    evalTime
+                                );
+                            }
+                            break;
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -123,6 +172,9 @@ public class ContingencyCcrs {
                 result = StrategyResult.noHelp(strategy.getId(),
                     StrategyResult.NoHelpReason.EVALUATION_FAILED,
                     "Exception: " + e.getMessage());
+                logger.warning(String.format(
+                    "[ContingencyCcrs] %s evaluation failed: %s",
+                    strategy.getId(), e.getMessage()));
             }
             
             long evalTime = System.currentTimeMillis() - evalStart;
@@ -138,16 +190,16 @@ public class ContingencyCcrs {
             }
         }
         
-        // Rank suggestions by score (confidence * (1 - cost))
+        // Rank already-derived suggestions by confidence only.
         List<StrategyResult> rankedResults = allSuggestions.stream()
             .sorted(Comparator.comparingDouble(
-                r -> -r.asSuggestion().getScore()))  // Descending
+                (StrategyResult r) -> r.asSuggestion().getConfidence()).reversed())
             .limit(config.getMaxSuggestions())
             .collect(Collectors.toList());
         
         long totalTime = System.currentTimeMillis() - startTime;
         
-        String selectionReason = buildSelectionReason(rankedResults, orderedStrategies.size());
+        String selectionReason = buildSelectionReason(rankedResults, evaluatedCount);
         
         return traceBuilder
             .selectedResults(rankedResults)
@@ -175,8 +227,49 @@ public class ContingencyCcrs {
         }
         
         StrategyResult.Suggestion top = results.get(0).asSuggestion();
-        return String.format("Selected %s (score=%.2f) from %d candidates, evaluated %d strategies",
-            top.getStrategyId(), top.getScore(), results.size(), totalEvaluated);
+        return String.format("Selected %s (confidence=%.2f) from %d candidates, evaluated %d strategies",
+            top.getStrategyId(), top.getConfidence(), results.size(), totalEvaluated);
+    }
+
+    private StrategySelectionModel buildSelectionModel(CcrsContext context) {
+        if (!config.isLearnedSelectionEnabled()) {
+            logger.info("[ContingencyCcrs] Learned strategy selection disabled; using default escalation order");
+            return null;
+        }
+
+        List<CcrsTrace> recentHistory = context.getCcrsHistory(config.getLearningHistoryLimit());
+        StrategySelectionModel model = StrategySelectionModel.fromHistory(
+            recentHistory,
+            config.getMinimumLearningSamples());
+        logger.info(String.format(
+            "[ContingencyCcrs] Built strategy selection model from %d/%d requested traces, %d strategy profiles, minimumSamplesPerStrategy=%d",
+            model.traceCount(),
+            config.getLearningHistoryLimit(),
+            model.profileCount(),
+            model.minimumSamples()));
+        return model;
+    }
+
+    private List<CcrsStrategy> orderStrategies(
+            List<CcrsStrategy> defaultOrder,
+            StrategySelectionModel selectionModel) {
+        if (selectionModel == null) {
+            return defaultOrder;
+        }
+
+        List<CcrsStrategy> ordered = selectionModel.orderForEvaluation(defaultOrder, config);
+        logger.info("[ContingencyCcrs] Strategy evaluation order: "
+            + selectionModel.describeOrder(ordered, config));
+        return ordered;
+    }
+
+    private double bestSuggestionConfidence(List<StrategyResult> suggestions) {
+        return suggestions.stream()
+            .filter(StrategyResult::isSuggestion)
+            .map(StrategyResult::asSuggestion)
+            .mapToDouble(StrategyResult.Suggestion::getConfidence)
+            .max()
+            .orElse(0.0);
     }
     
     /**
