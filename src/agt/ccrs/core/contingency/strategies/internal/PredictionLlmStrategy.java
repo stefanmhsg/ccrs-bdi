@@ -128,8 +128,9 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             
             // Call LLM
             logger.info("[PredictionLLM] Calling LLM for prediction...");
+            logger.info("[PredictionLLM] Full LLM request:\n" + prompt);
             String rawResponse = llmClient.complete(prompt);
-            logger.fine("[PredictionLLM] Received LLM response \n" + rawResponse);
+            logger.info("[PredictionLLM] Full LLM response:\n" + rawResponse);
             
             // Parse response using centralized parser
             LlmActionResponse response = responseParser.parse(rawResponse);
