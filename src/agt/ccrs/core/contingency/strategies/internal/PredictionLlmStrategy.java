@@ -42,6 +42,8 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private static final Logger logger = Logger.getLogger(PredictionLlmStrategy.class.getName());
     
     public static final String ID = "prediction_llm";
+    private static final String UI_NAMESPACE = "https://example.org/ui";
+    private static final int RAW_MEMORY_SCAN_MULTIPLIER = 5;
     
     // Configuration
     private LlmClient llmClient;
@@ -54,6 +56,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private int maxCcrsTraces = 5;
     private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
     private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
+    private List<String> filteredTripleNamespaces = List.of(UI_NAMESPACE);
 
         
     public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {
@@ -379,9 +382,12 @@ public class PredictionLlmStrategy implements CcrsStrategy {
 
         List<RdfTriple> perceivedState = interaction.perceivedState();
         int stateSize = perceivedState == null ? 0 : perceivedState.size();
+        int visibleStateSize = filterPromptTriples(perceivedState).size();
         sb.append("  perceivedState: ").append(stateSize).append(" triples\n");
         if (stateSize > 0) {
-            sb.append("  perceivedStateTriples:\n");
+            sb.append("  perceivedStateTriples: ")
+                .append(visibleStateSize)
+                .append(" shown after prompt filtering\n");
             appendTriples(sb, perceivedState, maxInteractionStateTriples, "    ");
         }
     }
@@ -468,26 +474,34 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
 
         StringBuilder sb = new StringBuilder();
+        List<RdfTriple> outgoing = filterPromptTriples(neighborhood.outgoing());
+        List<RdfTriple> incoming = filterPromptTriples(neighborhood.incoming());
         sb.append("Resource: ").append(currentResource).append('\n');
         sb.append("Outgoing triples (")
-            .append(neighborhood.outgoing().size())
+            .append(outgoing.size())
             .append(", max ")
             .append(maxNeighborhoodOutgoing)
+            .append(", filtered from ")
+            .append(neighborhood.outgoing().size())
             .append("):\n");
-        appendTriples(sb, neighborhood.outgoing(), neighborhood.outgoing().size(), "  ");
+        appendTriples(sb, outgoing, outgoing.size(), "  ");
 
         sb.append("Incoming triples (")
-            .append(neighborhood.incoming().size())
+            .append(incoming.size())
             .append(", max ")
             .append(maxNeighborhoodIncoming)
+            .append(", filtered from ")
+            .append(neighborhood.incoming().size())
             .append("):\n");
-        appendTriples(sb, neighborhood.incoming(), neighborhood.incoming().size(), "  ");
+        appendTriples(sb, incoming, incoming.size(), "  ");
 
         return sb.toString().trim();
     }
 
     private String formatRawMemory(CcrsContext context) {
-        List<RdfTriple> triples = context.getMemoryTriples(maxKnowledgeTriples);
+        int scanLimit = Math.max(maxKnowledgeTriples, maxKnowledgeTriples * RAW_MEMORY_SCAN_MULTIPLIER);
+        List<RdfTriple> unfilteredTriples = context.getMemoryTriples(scanLimit);
+        List<RdfTriple> triples = filterPromptTriples(unfilteredTriples);
         if (triples.isEmpty()) {
             return "(no raw RDF memory triples available)";
         }
@@ -495,7 +509,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         StringBuilder sb = new StringBuilder();
         sb.append("(bounded raw memory snapshot; max ")
             .append(maxKnowledgeTriples)
-            .append(" triples)\n");
+            .append(" triples; filtered ")
+            .append(unfilteredTriples.size() - triples.size())
+            .append(" presentation/UI triples from ")
+            .append(unfilteredTriples.size())
+            .append(" scanned triples)\n");
         appendTriples(sb, triples, maxKnowledgeTriples, "");
 
         if (maxKnowledgeTriples > 0 && triples.size() >= maxKnowledgeTriples) {
@@ -506,30 +524,68 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     }
 
     private void appendTriples(StringBuilder sb, List<RdfTriple> triples, int maxCount, String indent) {
-        if (triples == null || triples.isEmpty()) {
+        List<RdfTriple> visibleTriples = filterPromptTriples(triples);
+        int removed = triples == null ? 0 : triples.size() - visibleTriples.size();
+        if (visibleTriples.isEmpty()) {
             sb.append(indent).append("(none)\n");
+            if (removed > 0) {
+                sb.append(indent)
+                    .append("(filtered ")
+                    .append(removed)
+                    .append(" presentation/UI triples)\n");
+            }
             return;
         }
 
-        int limit = Math.max(0, Math.min(maxCount, triples.size()));
+        if (removed > 0) {
+            sb.append(indent)
+                .append("(filtered ")
+                .append(removed)
+                .append(" presentation/UI triples)\n");
+        }
+
+        int limit = Math.max(0, Math.min(maxCount, visibleTriples.size()));
         if (limit == 0) {
             sb.append(indent).append("(triple output disabled by limit)\n");
         }
 
         for (int i = 0; i < limit; i++) {
-            RdfTriple triple = triples.get(i);
+            RdfTriple triple = visibleTriples.get(i);
             if (triple == null) {
                 continue;
             }
             sb.append(indent).append(triple).append('\n');
         }
 
-        if (triples.size() > limit) {
+        if (visibleTriples.size() > limit) {
             sb.append(indent)
                 .append("... (")
-                .append(triples.size() - limit)
+                .append(visibleTriples.size() - limit)
                 .append(" more triples not shown)\n");
         }
+    }
+
+    private List<RdfTriple> filterPromptTriples(List<RdfTriple> triples) {
+        if (triples == null || triples.isEmpty() || filteredTripleNamespaces.isEmpty()) {
+            return triples == null ? List.of() : triples;
+        }
+
+        return triples.stream()
+            .filter(triple -> triple != null && !containsFilteredNamespace(triple))
+            .toList();
+    }
+
+    private boolean containsFilteredNamespace(RdfTriple triple) {
+        return filteredTripleNamespaces.stream()
+            .filter(ns -> ns != null && !ns.isBlank())
+            .anyMatch(ns ->
+                containsNamespace(triple.subject, ns) ||
+                containsNamespace(triple.predicate, ns) ||
+                containsNamespace(triple.object, ns));
+    }
+
+    private boolean containsNamespace(String value, String namespace) {
+        return value != null && value.contains(namespace);
     }
 
     private String formatSituationOneLine(Situation situation) {
@@ -729,6 +785,42 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     public PredictionLlmStrategy maxNeighborhood(int maxOutgoing, int maxIncoming) {
         this.maxNeighborhoodOutgoing = Math.max(0, maxOutgoing);
         this.maxNeighborhoodIncoming = Math.max(0, maxIncoming);
+        return this;
+    }
+
+    /**
+     * Configure RDF namespaces removed from LLM prompt triple sections.
+     *
+     * <p>The default removes {@code https://example.org/ui} because those
+     * triples describe presentation details rather than actionable hypermedia
+     * state.</p>
+     */
+    public PredictionLlmStrategy filteredTripleNamespaces(List<String> namespaces) {
+        if (namespaces == null) {
+            this.filteredTripleNamespaces = List.of();
+            return this;
+        }
+
+        this.filteredTripleNamespaces = namespaces.stream()
+            .filter(ns -> ns != null && !ns.isBlank())
+            .distinct()
+            .toList();
+        return this;
+    }
+
+    /**
+     * Add one RDF namespace to remove from LLM prompt triple sections.
+     */
+    public PredictionLlmStrategy filterTripleNamespace(String namespace) {
+        if (namespace == null || namespace.isBlank()) {
+            return this;
+        }
+
+        List<String> namespaces = new ArrayList<>(this.filteredTripleNamespaces);
+        if (!namespaces.contains(namespace)) {
+            namespaces.add(namespace);
+        }
+        this.filteredTripleNamespaces = List.copyOf(namespaces);
         return this;
     }
         

@@ -204,6 +204,16 @@ public interface CcrsContext {
 
 For LLM prediction, recent `Interaction` records are formatted with request headers/body, outcome, timing, and perceived RDF triples. This is intentionally separate from `Interaction.toString()`, which remains compact for logs and debug summaries.
 
+### 7. LLM Prompt Triple Filtering
+
+`PredictionLlmStrategy` performs strategy-level filtering before serializing RDF triples into the LLM prompt. The default filter removes every triple whose subject, predicate, or object contains the `https://example.org/ui` namespace.
+
+This does not remove data from `CcrsContext`, the belief base, interaction history, or other strategies. It is only a prompt-shaping step for L4 prediction.
+
+The rationale is similar to preparing web content for an LLM: a browser page contains HTML, CSS, ARIA, layout metadata, and visual decoration, but question-answering prompts often convert it to markdown or another content-focused representation first. For CCRS prediction, `https://example.org/ui` triples describe presentation details such as UI elements, layers, fills, and drawing properties. Those triples can dominate the token budget while usually adding little to recovery-action selection. Filtering them keeps the prompt focused on actionable hypermedia state, links, previous interactions, and CCRS traces.
+
+The filter is configurable on `PredictionLlmStrategy` through `filteredTripleNamespaces(...)` and `filterTripleNamespace(...)` when a domain needs to retain or suppress different presentation namespaces.
+
 ---
 
 ## 🔄 Execution Flow

@@ -173,6 +173,8 @@ public class CustomParser implements LlmResponseParser {
 
 The intention is that interaction history captures what was requested and what each response exposed, raw memory captures the current RDF belief snapshot, and neighborhood provides a concise local map around the current resource.
 
+Before triples are serialized into the prompt, `PredictionLlmStrategy` filters presentation/UI triples whose subject, predicate, or object contains `https://example.org/ui`. This keeps UI drawing data out of the token budget in the same spirit as converting a web page from raw HTML to content-focused markdown before asking an LLM to reason over it.
+
 ## Future Extensions
 
 - Few-shot learning examples

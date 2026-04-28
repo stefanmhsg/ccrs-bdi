@@ -169,7 +169,7 @@ public class Langchain4jConfig {
     public static Langchain4jConfig openAi(String apiKey) {
         return builder()
             .apiKey(apiKey)
-            .modelName("gpt-4o-mini")
+            .modelName("gpt-4o-mini") // gpt-5.4-mini-2026-03-17 / gpt-4o-mini
             .temperature(0.7)
             .build();
     }
