@@ -1,10 +1,9 @@
-package ccrs.core.contingency;
+package ccrs.core.rdf;
 
 import java.util.List;
-import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 import ccrs.core.contingency.dto.CcrsTrace;
-import ccrs.core.contingency.dto.Situation;
 
 /**
  * Query helpers for recent CCRS trace history.
@@ -23,8 +22,7 @@ public final class CcrsTraceHistoryAnalyzer {
      */
     public static StrategyUsageSummary summarizeStrategyUsage(
         List<CcrsTrace> traces,
-        Situation currentSituation,
-        BiPredicate<Situation, Situation> situationMatch,
+        Predicate<CcrsTrace> traceFilter,
         String strategyId
     ) {
         int evaluated = 0;
@@ -41,7 +39,7 @@ public final class CcrsTraceHistoryAnalyzer {
                 continue;
             }
 
-            if (situationMatch != null && !situationMatch.test(trace.getSituation(), currentSituation)) {
+            if (traceFilter != null && !traceFilter.test(trace)) {
                 continue;
             }
 
@@ -66,8 +64,7 @@ public final class CcrsTraceHistoryAnalyzer {
      */
     public static int countTracesWithEvaluatedStrategy(
         List<CcrsTrace> traces,
-        Situation currentSituation,
-        BiPredicate<Situation, Situation> situationMatch,
+        Predicate<CcrsTrace> traceFilter,
         String excludedStrategyId
     ) {
         if (traces == null || traces.isEmpty()) {
@@ -80,7 +77,7 @@ public final class CcrsTraceHistoryAnalyzer {
                 continue;
             }
 
-            if (situationMatch != null && !situationMatch.test(trace.getSituation(), currentSituation)) {
+            if (traceFilter != null && !traceFilter.test(trace)) {
                 continue;
             }
 
@@ -90,6 +87,56 @@ public final class CcrsTraceHistoryAnalyzer {
         }
 
         return count;
+    }
+
+    /**
+     * Format recent traces for prompt or diagnostic text.
+     */
+    public static String formatTraceHistory(List<CcrsTrace> traces, int maxTraces) {
+        if (traces == null || traces.isEmpty()) {
+            return "(no previous CCRS invocations)";
+        }
+
+        int limit = Math.max(0, Math.min(maxTraces, traces.size()));
+        if (limit == 0) {
+            return "(CCRS trace output disabled by limit)";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("(most recent first; up to ").append(maxTraces).append(" traces)\n");
+
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) {
+                sb.append('\n');
+            }
+            appendTrace(sb, traces.get(i), i + 1);
+        }
+
+        if (traces.size() > limit) {
+            sb.append('\n')
+                .append("... (")
+                .append(traces.size() - limit)
+                .append(" more traces not shown)");
+        }
+
+        return sb.toString().trim();
+    }
+
+    private static void appendTrace(StringBuilder sb, CcrsTrace trace, int index) {
+        if (trace == null) {
+            sb.append('[').append(index).append("] (missing CCRS trace)\n");
+            return;
+        }
+
+        sb.append('[').append(index).append("] ");
+        appendIndentedBlock(sb, trace.toDetailedReport());
+    }
+
+    private static void appendIndentedBlock(StringBuilder sb, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        sb.append(text.replace("\n", "\n  "));
     }
 
     /**

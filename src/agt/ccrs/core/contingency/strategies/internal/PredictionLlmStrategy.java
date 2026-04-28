@@ -3,7 +3,6 @@ package ccrs.core.contingency.strategies.internal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -12,12 +11,12 @@ import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.PromptBuilder;
-import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 import ccrs.core.rdf.RdfTriple;
 
 /**
@@ -222,13 +221,14 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         ctx.put("recentActions", formatHistory(context));
 
         // Previous CCRS decisions are separate from raw action history.
-        ctx.put("ccrsHistory", formatCcrsHistory(context));
+        ctx.put("ccrsHistory", CcrsTraceHistoryAnalyzer.formatTraceHistory(
+            context.getCcrsHistory(maxCcrsTraces), maxCcrsTraces));
 
         // Local graph shape around the current resource.
         ctx.put("localNeighborhood", formatNeighborhood(context, currentResource));
 
         // Broader bounded RDF memory snapshot.
-        ctx.put("rawMemory", formatRawMemory(context));
+        // ctx.put("rawMemory", formatRawMemory(context));
         
         return ctx;
     }
@@ -362,73 +362,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
     }
 
-    private String formatCcrsHistory(CcrsContext context) {
-        List<CcrsTrace> traces = context.getCcrsHistory(maxCcrsTraces);
-        if (traces.isEmpty()) {
-            return "(no previous CCRS invocations)";
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("(most recent first; up to ").append(maxCcrsTraces).append(" traces)\n");
-
-        for (int i = 0; i < traces.size(); i++) {
-            if (i > 0) {
-                sb.append('\n');
-            }
-            appendTraceForPrompt(sb, traces.get(i), i + 1);
-        }
-
-        return sb.toString().trim();
-    }
-
-    private void appendTraceForPrompt(StringBuilder sb, CcrsTrace trace, int index) {
-        if (trace == null) {
-            sb.append('[').append(index).append("] (missing CCRS trace)\n");
-            return;
-        }
-
-        sb.append('[').append(index).append("] trace ")
-            .append(shortId(trace.getId()))
-            .append(" at ")
-            .append(trace.getTimestamp())
-            .append("; outcome=")
-            .append(trace.getOutcome())
-            .append("; totalMs=")
-            .append(trace.getTotalEvaluationTimeMs())
-            .append('\n');
-
-        if (trace.getSituation() != null) {
-            appendIndentedLine(sb, "situation", formatSituationOneLine(trace.getSituation()), "  ");
-        }
-        appendIndentedLine(sb, "selection", trace.getSelectionReason(), "  ");
-        appendIndentedLine(sb, "outcomeDetails", trace.getOutcomeDetails(), "  ");
-
-        if (!trace.getEvaluations().isEmpty()) {
-            sb.append("  evaluations:\n");
-            for (CcrsTrace.StrategyEvaluation evaluation : trace.getEvaluations()) {
-                sb.append("    - ")
-                    .append(evaluation.getStrategyId())
-                    .append(" L")
-                    .append(evaluation.getEscalationLevel())
-                    .append(' ')
-                    .append(evaluation.getApplicability())
-                    .append(" -> ")
-                    .append(formatStrategyResult(evaluation.getResult()))
-                    .append(" (")
-                    .append(evaluation.getEvaluationTimeMs())
-                    .append("ms)\n");
-            }
-        }
-
-        if (!trace.getSelectedResults().isEmpty()) {
-            sb.append("  selected:\n");
-            for (StrategyResult selected : trace.getSelectedResults()) {
-                sb.append("    - ")
-                    .append(formatStrategyResult(selected))
-                    .append('\n');
-            }
-        }
-    }
 
     private String formatNeighborhood(CcrsContext context, String currentResource) {
         if (currentResource == null || currentResource.isBlank() || "unknown".equals(currentResource)) {
@@ -558,61 +491,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return value != null && value.contains(namespace);
     }
 
-    private String formatSituationOneLine(Situation situation) {
-        List<String> parts = new ArrayList<>();
-        parts.add("type=" + situation.getType());
-        if (situation.getTrigger() != null) {
-            parts.add("trigger=" + situation.getTrigger());
-        }
-        if (situation.getCurrentResource() != null) {
-            parts.add("current=" + situation.getCurrentResource());
-        }
-        if (situation.getTargetResource() != null) {
-            parts.add("target=" + situation.getTargetResource());
-        }
-        if (situation.getFailedAction() != null) {
-            parts.add("action=" + situation.getFailedAction());
-        }
-        if (!situation.getErrorInfo().isEmpty()) {
-            parts.add("error=" + situation.getErrorInfo());
-        }
-        return String.join("; ", parts);
-    }
-
-    private String formatStrategyResult(StrategyResult result) {
-        if (result == null) {
-            return "no result";
-        }
-
-        if (result.isSuggestion()) {
-            StrategyResult.Suggestion suggestion = result.asSuggestion();
-            StringBuilder sb = new StringBuilder();
-            sb.append("suggestion(strategy=")
-                .append(suggestion.getStrategyId())
-                .append(", action=")
-                .append(suggestion.getActionType());
-            if (suggestion.getActionTarget() != null) {
-                sb.append(", target=").append(suggestion.getActionTarget());
-            }
-            sb.append(", confidence=")
-                .append(String.format(Locale.ROOT, "%.2f", suggestion.getConfidence()));
-            if (suggestion.getRationale() != null) {
-                sb.append(", rationale=")
-                    .append(truncate(suggestion.getRationale(), 160));
-            }
-            if (!suggestion.getActionParams().isEmpty()) {
-                sb.append(", params=").append(suggestion.getActionParams());
-            }
-            sb.append(')');
-            return sb.toString();
-        }
-
-        StrategyResult.NoHelp noHelp = result.asNoHelp();
-        return "no_help(reason=" + noHelp.getReason()
-            + ", explanation=" + truncate(noHelp.getExplanation(), 160)
-            + ")";
-    }
-
     private void appendIndentedLine(StringBuilder sb, String label, Object value, String indent) {
         if (value == null) {
             return;
@@ -624,23 +502,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
 
         sb.append(indent).append(label).append(": ").append(text).append('\n');
-    }
-
-    private String shortId(String id) {
-        if (id == null || id.length() <= 8) {
-            return String.valueOf(id);
-        }
-        return id.substring(0, 8);
-    }
-
-    private String truncate(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) {
-            return text;
-        }
-        if (maxLength <= 3) {
-            return text.substring(0, maxLength);
-        }
-        return text.substring(0, maxLength - 3) + "...";
     }
     
     private String formatError(Situation situation) {

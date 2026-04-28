@@ -57,6 +57,7 @@ public class CcrsTrace {
         public StrategyResult getResult() { return result; }
         public long getEvaluationTimeMs() { return evaluationTimeMs; }
         
+        // Used in toDetailedReport below
         @Override
         public String toString() {
             return String.format("Eval{%s L%d: %s -> %s (%dms)}", 
@@ -227,6 +228,14 @@ public class CcrsTrace {
             strategyId.equals(evaluation.getStrategyId());
     }
     
+    /**
+     * Return a short string representation of CcrsTrace:
+     * - ID (shortened)
+     * - Situation type
+     * - Number of evaluated strategies
+     * - Number of suggestions found
+     * - Final outcome (if reported)
+     */
     @Override
     public String toString() {
         int suggestions = (int) selectedResults.stream()
@@ -236,7 +245,8 @@ public class CcrsTrace {
     }
     
     /**
-     * Generate a detailed report for debugging.
+     * Generate a detailed report of CcrsTrace. "=== CCRS Trace ... ==="
+     *
      */
     public String toDetailedReport() {
         StringBuilder sb = new StringBuilder();
@@ -246,12 +256,12 @@ public class CcrsTrace {
         
         sb.append("Evaluations (").append(evaluations.size()).append("):\n");
         for (StrategyEvaluation eval : evaluations) {
-            sb.append("  ").append(eval).append("\n");
+            sb.append("  ").append(eval).append("\n"); // toString of StrategyEvaluation
         }
         
         sb.append("\nSelected Results (").append(selectedResults.size()).append("):\n");
         for (StrategyResult result : selectedResults) {
-            sb.append("  ").append(result).append("\n");
+            sb.append("  ").append(result.toDetailedReport()).append("\n"); // toDetailedReport of StrategyResult
         }
         
         sb.append("\nSelection Reason: ").append(selectionReason).append("\n");

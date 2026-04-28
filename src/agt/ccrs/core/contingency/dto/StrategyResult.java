@@ -44,6 +44,14 @@ public abstract class StrategyResult {
         throw new IllegalStateException("Result is Suggestion, not NoHelp");
     }
     
+    /**
+     * Full diagnostic representation used for detailed traces.
+     * Keep {@link #toString()} compact; prefer this method when tracing.
+     */
+    public String toDetailedReport() {
+        return toString();
+    }
+    
     // Factory methods
     
     public static Suggestion.Builder suggest(String strategyId, String actionType) {
@@ -131,6 +139,27 @@ public abstract class StrategyResult {
             return String.format("Suggestion{strategy=%s, action=%s, target=%s, confidence=%.2f}",
                 strategyId, actionType, actionTarget, confidence);
         }
+
+        public String toDetailedReport() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Suggestion{strategy=")
+                .append(strategyId)
+                .append(", action=")
+                .append(actionType)
+                .append(", target=")
+                .append(actionTarget)
+                .append(", confidence=")
+                .append(confidence)
+                .append(", rationale=")
+                .append(rationale)
+                .append(", params=")
+                .append(actionParams)
+                .append(", opportunisticGuidance=")
+                .append(opportunisticGuidance)
+                .append('}');
+            return sb.toString();
+        }
+        
         
         public static class Builder {
             private final String strategyId;
@@ -217,6 +246,12 @@ public abstract class StrategyResult {
         
         @Override
         public String toString() {
+            return String.format("NoHelp{strategy=%s, reason=%s, explanation='%s'}",
+                strategyId, reason, explanation);
+        }
+        
+        @Override
+        public String toDetailedReport() {
             return String.format("NoHelp{strategy=%s, reason=%s, explanation='%s'}",
                 strategyId, reason, explanation);
         }

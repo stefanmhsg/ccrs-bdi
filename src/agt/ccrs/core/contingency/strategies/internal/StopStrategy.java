@@ -3,10 +3,10 @@ package ccrs.core.contingency.strategies.internal;
 import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.CcrsTraceHistoryAnalyzer;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 
 /**
  * L0: Stop Strategy (Last Resort)
@@ -168,8 +168,7 @@ public class StopStrategy implements CcrsStrategy {
         
         return CcrsTraceHistoryAnalyzer.countTracesWithEvaluatedStrategy(
             context.getCcrsHistory(Math.max(0, stopLookbackLimit)),
-            situation,
-            this::sameSituationType,
+            trace -> sameSituationType(trace.getSituation(), situation),
             ID);
     }
 

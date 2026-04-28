@@ -5,10 +5,10 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.CcrsTraceHistoryAnalyzer;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 
 /**
  * L1: Retry Strategy
@@ -148,8 +148,7 @@ public class RetryStrategy implements CcrsStrategy {
         
         CcrsTraceHistoryAnalyzer.StrategyUsageSummary summary = CcrsTraceHistoryAnalyzer.summarizeStrategyUsage(
             context.getCcrsHistory(Math.max(0, retryLookbackLimit)),
-            situation,
-            this::situationMatchesForRetry,
+            trace -> situationMatchesForRetry(trace.getSituation(), situation),
             ID);
         return summary.evaluatedCount();
     }
