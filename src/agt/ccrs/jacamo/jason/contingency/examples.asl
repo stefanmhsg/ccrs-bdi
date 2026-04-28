@@ -18,7 +18,7 @@
 .
 
 // -------------------------------------------------------------------------
-// EXAMPLE 2: HTTP Failure (8 args) - Full Error Context
+// EXAMPLE 2: HTTP Failure (7 args) - Full Error Context
 // -------------------------------------------------------------------------
 // When: HTTP request fails, needs retry/recovery
 // Strategy: RetryStrategy (L1) for transient errors, BacktrackStrategy (L2) fallback
@@ -36,7 +36,6 @@
         TargetURI,           // Where request failed
         "GET",               // Failed HTTP method
         "404",               // Error code
-        [],                  // No strategies attempted yet
         Suggestions          // Output: strategy suggestions
     );
     !handle_http_error_suggestions(Suggestions, TargetURI);
@@ -50,7 +49,7 @@
     .print("[HTTP 503] Service unavailable: ", TargetURI);
     ccrs.jacamo.jason.contingency.evaluate(
         "failure", "http_error",
-        CurrentURI, TargetURI, "GET", "503", [],
+        CurrentURI, TargetURI, "GET", "503",
         Suggestions
     );
     !handle_http_error_suggestions(Suggestions, TargetURI);
@@ -59,14 +58,11 @@
 // -------------------------------------------------------------------------
 // EXAMPLE 3: Map-Based (4 args) - Flexible Composition
 // -------------------------------------------------------------------------
-// When: Custom field combinations or after retry attempts
+// When: Custom field combinations
 // Strategy: Any (fields determine applicability)
 
 +!retry_with_context(CurrentURI, TargetURI, AttemptCount) : true <-
     .print("[RETRY] Attempt ", AttemptCount, " failed, requesting guidance");
-    
-    // Build attempted strategies list
-    .concat([], ["retry:", AttemptCount], AttemptedList);
     
     // Use map for flexible field composition
     ccrs.jacamo.jason.contingency.evaluate(
@@ -76,8 +72,7 @@
             current(CurrentURI),
             target(TargetURI),
             action("GET"),
-            error("503"),
-            attempted(AttemptedList)
+            error("503")
         ),
         Suggestions
     );

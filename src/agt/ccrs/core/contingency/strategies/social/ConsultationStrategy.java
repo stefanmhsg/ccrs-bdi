@@ -102,7 +102,6 @@ public class ConsultationStrategy implements CcrsStrategy {
     
     // Configuration
     private ConsultationChannel channel;
-    private int maxConsultationsPerSituation = 1;
     
     public ConsultationStrategy() {
     }
@@ -148,14 +147,6 @@ public class ConsultationStrategy implements CcrsStrategy {
         // Require historical context, so consultation has enough basis for target and guidance.
         if (!context.hasHistory()) {
             logger.info("[Consultation] Not applicable - insufficient context history");
-            return Applicability.NOT_APPLICABLE;
-        }
-        
-        // Don't exceed consultation limit
-        int consultationCount = situation.getAttemptCount(ID);
-        if (consultationCount >= maxConsultationsPerSituation) {
-            logger.info(String.format("[Consultation] Not applicable - consultation limit reached (%d/%d)",
-                consultationCount, maxConsultationsPerSituation));
             return Applicability.NOT_APPLICABLE;
         }
         
@@ -311,13 +302,6 @@ public class ConsultationStrategy implements CcrsStrategy {
         }
         sb.append(".\n\n");
         
-        // What was already tried
-        if (!situation.getAttemptedStrategies().isEmpty()) {
-            sb.append("I have already tried: ");
-            sb.append(String.join(", ", situation.getAttemptedStrategies()));
-            sb.append(" - none of these worked.\n\n");
-        }
-        
         sb.append("What should I do next?");
         
         return sb.toString();
@@ -331,7 +315,6 @@ public class ConsultationStrategy implements CcrsStrategy {
         ctx.put("targetResource", situation.getTargetResource());
         ctx.put("failedAction", situation.getFailedAction());
         ctx.put("errorInfo", situation.getErrorInfo());
-        ctx.put("attemptedStrategies", situation.getAttemptedStrategies());
         
         // Add history if available
         if (context.hasHistory()) {
@@ -602,11 +585,6 @@ public class ConsultationStrategy implements CcrsStrategy {
     
     public ConsultationStrategy withChannel(ConsultationChannel channel) {
         this.channel = channel;
-        return this;
-    }
-    
-    public ConsultationStrategy maxConsultations(int max) {
-        this.maxConsultationsPerSituation = max;
         return this;
     }
 

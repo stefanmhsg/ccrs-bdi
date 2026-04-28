@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.CcrsTraceHistoryAnalyzer;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
@@ -26,6 +27,7 @@ public class RetryStrategy implements CcrsStrategy {
     private long initialDelayMs = 1000;
     private double backoffMultiplier = 2.0;
     private Set<String> retriableCodes = new HashSet<>();
+    private int retryLookbackLimit = 25;
     
     public RetryStrategy() {
         // Default retriable error codes
@@ -86,8 +88,8 @@ public class RetryStrategy implements CcrsStrategy {
             return Applicability.NOT_APPLICABLE;
         }
         
-        // Check if we haven't exceeded max attempts
-        int attemptCount = situation.getAttemptCount(ID);
+        // Check if we haven't exceeded max retry attempts in recent traces
+        int attemptCount = countRecentRetryAttempts(situation, context);
         if (attemptCount >= maxAttempts) {
             logger.info(String.format("[Retry] Not applicable - max attempts reached (%d/%d)",
                 attemptCount, maxAttempts));
@@ -103,7 +105,7 @@ public class RetryStrategy implements CcrsStrategy {
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
         logger.info("[Retry] Evaluating retry strategy for situation: " + situation.getType());
         
-        int attemptCount = situation.getAttemptCount(ID);
+        int attemptCount = countRecentRetryAttempts(situation, context);
         
         // Check max attempts again (defensive)
         if (attemptCount >= maxAttempts) {
@@ -137,6 +139,46 @@ public class RetryStrategy implements CcrsStrategy {
         logger.info(String.format("[Retry] Returning suggestion: retry action '%s' to '%s' (confidence=%.2f)",
             situation.getFailedAction(), situation.getTargetResource(), result.asSuggestion().getConfidence()));
         return result;
+    }
+    
+    private int countRecentRetryAttempts(Situation situation, CcrsContext context) {
+        if (context == null) {
+            return 0;
+        }
+        
+        CcrsTraceHistoryAnalyzer.StrategyUsageSummary summary = CcrsTraceHistoryAnalyzer.summarizeStrategyUsage(
+            context.getCcrsHistory(Math.max(0, retryLookbackLimit)),
+            situation,
+            this::situationMatchesForRetry,
+            ID);
+        return summary.evaluatedCount();
+    }
+    
+    private boolean situationMatchesForRetry(Situation prior, Situation current) {
+        if (prior == null || current == null) {
+            return false;
+        }
+        
+        if (prior.getType() != current.getType()) {
+            return false;
+        }
+        
+        if (prior.getFailedAction() == null || current.getFailedAction() == null) {
+            return false;
+        }
+        
+        if (!prior.getFailedAction().equals(current.getFailedAction())) {
+            return false;
+        }
+        
+        return prior.getTargetResource() == null
+            ? current.getTargetResource() == null
+            : prior.getTargetResource().equals(current.getTargetResource());
+    }
+
+    public RetryStrategy retryLookbackLimit(int maxRecentTraces) {
+        this.retryLookbackLimit = Math.max(1, maxRecentTraces);
+        return this;
     }
     
     private double calculateConfidence(int attemptCount, String httpStatus) {

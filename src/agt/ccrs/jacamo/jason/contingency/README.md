@@ -73,7 +73,7 @@ ccrs.jacamo.jason.contingency.evaluate("stuck", "low_progress", Location, Sugges
 
 ---
 
-### 3. Failure Details (8 args) - Full Context for HTTP Errors
+### 3. Failure Details (7 args) - Full Context for HTTP Errors
 
 ```asl
 // Complete failure context with error details
@@ -84,7 +84,6 @@ ccrs.jacamo.jason.contingency.evaluate(
     TargetURI,                    // Target resource (where request failed)
     "GET",                        // Failed action (HTTP method)
     "404",                        // Error code/message
-    [],                           // Attempted strategies (empty list initially)
     Suggestions                   // Output: list of suggestions
 )
 ```
@@ -106,7 +105,7 @@ ccrs.jacamo.jason.contingency.evaluate(
     .print("[HTTP ERROR] Failed to reach ", TargetURI, " - ", Error);
     ccrs.jacamo.jason.contingency.evaluate(
         "failure", "http_error",
-        CurrentURI, TargetURI, "GET", "404", [],
+        CurrentURI, TargetURI, "GET", "404",
         Suggestions
     );
     !handle_suggestions(Suggestions);
@@ -120,7 +119,7 @@ ccrs.jacamo.jason.contingency.evaluate(
     .print("[HTTP ERROR] Service unavailable at ", TargetURI);
     ccrs.jacamo.jason.contingency.evaluate(
         "failure", "http_error",
-        CurrentURI, TargetURI, "GET", "503", [],
+        CurrentURI, TargetURI, "GET", "503",
         Suggestions
     );
     !handle_suggestions(Suggestions);
@@ -153,24 +152,6 @@ ccrs.jacamo.jason.contingency.evaluate(
 - `target(URI)` - Target resource (for failures)
 - `action(Method)` - Failed action name
 - `error(Message)` - Error message or HTTP status code
-- `attempted([list])` - Previously attempted strategies
-
-**Example with attempted strategies:**
-```asl
-// After first retry failed, try again with context
-ccrs.jacamo.jason.contingency.evaluate(
-    "failure",
-    "http_error",
-    map(
-        current(CurrentURI),
-        target(TargetURI),
-        action("GET"),
-        error("503"),
-        attempted(["retry:1"])
-    ),
-    Suggestions
-)
-```
 
 ---
 
@@ -185,7 +166,7 @@ ccrs.jacamo.jason.contingency.evaluate(
 
 **Example:**
 ```asl
-ccrs.jacamo.jason.contingency.evaluate("failure", "timeout", CurrentURI, TargetURI, "GET", "timeout", [], Suggestions)
+ccrs.jacamo.jason.contingency.evaluate("failure", "timeout", CurrentURI, TargetURI, "GET", "timeout", Suggestions)
 ```
 
 ---
@@ -222,7 +203,12 @@ ccrs.jacamo.jason.contingency.evaluate("uncertainty", "multiple_paths", Suggesti
 
 **Example:**
 ```asl
-ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", CurrentURI, TargetURI, "DELETE", "", [], Suggestions)
+ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", map(
+    current(CurrentURI),
+    target(TargetURI),
+    action("DELETE"),
+    error("n/a")
+), Suggestions)
 ```
 
 ---
@@ -292,11 +278,11 @@ suggestion(
 
 1. **Match signature to situation complexity:**
    - Simple stuck? Use 4-arg with location
-   - HTTP failure? Use 8-arg with full details
+   - HTTP failure? Use 7-arg with full details
    - Custom needs? Use map-based
 
-2. **Track attempted strategies:**
-   - After first attempt fails, include `attempted` list
+2. **Trace-based retry limiting:**
+   - Retry strategies are limited using recent `CcrsTrace` history
    - Prevents infinite retry loops
 
 3. **Check confidence levels:**
@@ -331,9 +317,9 @@ suggestion(
     parse_error(Error, ErrorCode, ErrorMsg);
     
     // Request contingency strategies
-    ccrs.jacamo.jason.contingency.evaluate(
+ccrs.jacamo.jason.contingency.evaluate(
         "failure", "http_error",
-        CurrentURI, TargetURI, "GET", ErrorCode, [],
+        CurrentURI, TargetURI, "GET", ErrorCode,
         Suggestions
     );
     
@@ -390,7 +376,7 @@ suggestion(
 ## Troubleshooting
 
 **Problem:** RetryStrategy says "Not applicable - missing failed action or target resource"
-- **Solution:** Use 8-arg signature with full error details, not 4-arg signature
+- **Solution:** Use 7-arg signature with full error details, not 4-arg signature
 
 **Problem:** BacktrackStrategy says "Not applicable - no current resource"
 - **Solution:** Include current location (4-arg or map with `current` key)
@@ -400,7 +386,7 @@ suggestion(
 - **Solution:** Verify required fields are provided for target strategies
 
 **Problem:** Infinite retry loops
-- **Solution:** Track attempted strategies and include in `attempted` field
+- **Solution:** Retry limits are enforced from recent `CcrsTrace` history
 - **Solution:** Check confidence levels and set maximum attempts
 
 ---

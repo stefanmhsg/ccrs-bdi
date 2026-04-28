@@ -93,12 +93,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             return Applicability.NOT_APPLICABLE;
         }
         
-        // Don't apply if already tried
-        if (situation.hasAttempted(ID)) {
-            logger.info("[PredictionLLM] Not applicable - already attempted");
-            return Applicability.NOT_APPLICABLE;
-        }
-        
         // Need enough context to be useful
         if (situation.getCurrentResource() == null && 
             context.getCurrentResource().isEmpty()) {
@@ -222,7 +216,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         ctx.put("targetResource", nullSafe(situation.getTargetResource()));
         ctx.put("failedAction", nullSafe(situation.getFailedAction()));
         ctx.put("errorInfo", formatError(situation));
-        ctx.put("attemptedStrategies", situation.getAttemptedStrategies().toString());
         ctx.put("situationDetails", formatSituationDetails(situation, context, currentResource));
         
         // Format history (bounded)
@@ -250,9 +243,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         appendLine(sb, "Target resource", situation.getTargetResource());
         appendLine(sb, "Requested or failed action", situation.getFailedAction());
         appendLine(sb, "Error details", formatError(situation));
-        appendLine(sb, "Previously attempted recovery", situation.getAttemptedStrategies().isEmpty()
-            ? "none"
-            : situation.getAttemptedStrategies());
 
         if (!situation.getMetadata().isEmpty()) {
             appendLine(sb, "Situation metadata", situation.getMetadata());
@@ -264,7 +254,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 () -> appendLine(sb, "Last interaction", "none available"));
 
         context.getLastCcrsInvocation()
-            .ifPresent(trace -> appendLine(sb, "Previous CCRS invocation", formatTraceSummary(trace)));
+            .ifPresent(trace -> appendLine(sb, "Previous CCRS invocation", trace.toDetailedReport()));
 
         return sb.toString().trim();
     }
@@ -290,26 +280,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             sb.append("; perceivedState=")
                 .append(interaction.perceivedState().size())
                 .append(" triples");
-        }
-        return sb.toString();
-    }
-
-    private String formatTraceSummary(CcrsTrace trace) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(trace.getId())
-            .append(" at ")
-            .append(trace.getTimestamp())
-            .append("; situation=")
-            .append(trace.getSituation().getType())
-            .append("; evaluated=")
-            .append(trace.getEvaluations().size())
-            .append("; selected=")
-            .append(trace.getSelectedResults().size())
-            .append("; outcome=")
-            .append(trace.getOutcome());
-
-        if (trace.getSelectionReason() != null) {
-            sb.append("; selection=").append(trace.getSelectionReason());
         }
         return sb.toString();
     }
@@ -605,9 +575,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         }
         if (!situation.getErrorInfo().isEmpty()) {
             parts.add("error=" + situation.getErrorInfo());
-        }
-        if (!situation.getAttemptedStrategies().isEmpty()) {
-            parts.add("attempted=" + situation.getAttemptedStrategies());
         }
         return String.join("; ", parts);
     }

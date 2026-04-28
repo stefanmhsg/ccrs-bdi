@@ -34,7 +34,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 
 ### Core Module (Agent-Agnostic)
 
-*   **`Situation.java`**: Primary input POJO with builder pattern. Describes the problematic context including situation type (FAILURE, STUCK, UNCERTAINTY, PROACTIVE), current/target resources, failed action details, error information, and previously attempted strategies.
+*   **`Situation.java`**: Primary input POJO with builder pattern. Describes the problematic context including situation type (FAILURE, STUCK, UNCERTAINTY, PROACTIVE), current/target resources, failed action details, and error information.
 
 *   **`StrategyResult.java`**: Sealed output type with two variants:
     *   `Suggestion`: Actionable recommendation with actionType, target, confidence, rationale, and parameters.
@@ -69,7 +69,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 
 ### Jason Adapters
 
-*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, Attempted, ResultList)` that invokes the default `ContingencyCcrs.evaluate(...)` path. This returns suggestions as a list of literals and also records trace history in the background.
+*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, ResultList)` that invokes the default `ContingencyCcrs.evaluate(...)` path. This returns suggestions as a list of literals and also records trace history in the background.
 
 *   **`track.java`**: Internal action for history tracking:
     *   `ccrs.contingency.track(action, Type, Target, Outcome)` — record an action.
@@ -299,7 +299,6 @@ The filter is configurable on `PredictionLlmStrategy` through `filteredTripleNam
             TargetURI,           // Target (if known)
             "GET",               // Failed action
             "404",               // Error info
-            [],                  // Previously attempted strategies
             Suggestions          // Output: list of suggestions
         ) ;
         !handle_suggestions(Suggestions) ;

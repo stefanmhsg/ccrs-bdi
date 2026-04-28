@@ -3,6 +3,7 @@ package ccrs.core.contingency.strategies.internal;
 import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.CcrsTraceHistoryAnalyzer;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
 import ccrs.core.rdf.CcrsContext;
@@ -23,6 +24,7 @@ public class StopStrategy implements CcrsStrategy {
     // Configuration
     private boolean requireExhaustion = true;
     private int exhaustionThreshold = 2;  // Min strategies attempted before suggesting stop
+    private int stopLookbackLimit = 30;
     
     @Override
     public String getId() {
@@ -50,7 +52,7 @@ public class StopStrategy implements CcrsStrategy {
         // But we might want to require other strategies tried first
         
         if (requireExhaustion) {
-            int attemptedCount = situation.getAttemptedStrategies().size();
+            int attemptedCount = countRecentNonStopAttempts(situation, context);
             if (attemptedCount < exhaustionThreshold) {
                 logger.info(String.format("[Stop] Not applicable - exhaustion threshold not met (%d/%d strategies tried)",
                     attemptedCount, exhaustionThreshold));
@@ -69,7 +71,7 @@ public class StopStrategy implements CcrsStrategy {
     public StrategyResult evaluate(Situation situation, CcrsContext context) {
         logger.info("[Stop] Evaluating stop strategy - last resort activated");
         
-        int attemptedCount = situation.getAttemptedStrategies().size();
+        int attemptedCount = countRecentNonStopAttempts(situation, context);
         
         // Check threshold if required
         if (requireExhaustion && attemptedCount < exhaustionThreshold) {
@@ -80,8 +82,7 @@ public class StopStrategy implements CcrsStrategy {
                     attemptedCount, exhaustionThreshold));
         }
         
-        logger.warning(String.format("[Stop] Recommending graceful failure after %d strategies: %s",
-            attemptedCount, situation.getAttemptedStrategies()));
+        logger.warning(String.format("[Stop] Recommending graceful failure after %d recovery strategies", attemptedCount));
         
         String finalError = buildFinalError(situation);
         
@@ -89,7 +90,6 @@ public class StopStrategy implements CcrsStrategy {
             .target(null)  // No target - we're stopping
             .param("reason", determineReason(situation, attemptedCount))
             .param("attemptedCount", attemptedCount)
-            .param("attemptedStrategies", situation.getAttemptedStrategies())
             .param("finalError", finalError)
             .param("situationType", situation.getType().name())
             .confidence(1.0)  // Certain this is appropriate given exhaustion
@@ -159,6 +159,23 @@ public class StopStrategy implements CcrsStrategy {
         sb.append(" Recommend graceful failure.");
         
         return sb.toString();
+    }
+
+    private int countRecentNonStopAttempts(Situation situation, CcrsContext context) {
+        if (context == null) {
+            return 0;
+        }
+        
+        return CcrsTraceHistoryAnalyzer.countTracesWithEvaluatedStrategy(
+            context.getCcrsHistory(Math.max(0, stopLookbackLimit)),
+            situation,
+            this::sameSituationType,
+            ID);
+    }
+
+    private boolean sameSituationType(Situation prior, Situation current) {
+        return prior != null && current != null
+            && prior.getType() == current.getType();
     }
     
     @Override

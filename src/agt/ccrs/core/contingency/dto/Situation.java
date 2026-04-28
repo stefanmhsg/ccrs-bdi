@@ -1,9 +1,7 @@
 package ccrs.core.contingency.dto;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,9 +40,6 @@ public class Situation {
     private final String failedAction;
     private final Map<String, Object> errorInfo;
     
-    // Recovery tracking
-    private final List<String> attemptedStrategies;
-    
     // Extensible metadata
     private final Map<String, Object> metadata;
     
@@ -55,7 +50,6 @@ public class Situation {
         this.targetResource = builder.targetResource;
         this.failedAction = builder.failedAction;
         this.errorInfo = Collections.unmodifiableMap(new HashMap<>(builder.errorInfo));
-        this.attemptedStrategies = Collections.unmodifiableList(new ArrayList<>(builder.attemptedStrategies));
         this.metadata = Collections.unmodifiableMap(new HashMap<>(builder.metadata));
     }
     
@@ -94,35 +88,6 @@ public class Situation {
         return value != null ? value.toString() : null;
     }
     
-    /**
-     * Get the list of attempted strategies.
-     * @return list of strategy IDs that have been attempted
-     */
-    public List<String> getAttemptedStrategies() {
-        return attemptedStrategies;
-    }
-    
-    /**
-     * Check if a strategy has been attempted.
-     * @param strategyId
-     * @return true if attempted
-     */
-    public boolean hasAttempted(String strategyId) {
-        return attemptedStrategies.stream()
-            .anyMatch(s -> s.startsWith(strategyId + ":") || s.equals(strategyId));
-    }
-    
-    /**
-     * Get how many times a strategy has been attempted.
-     * @param strategyId
-     * @return number of attempts
-     */
-    public int getAttemptCount(String strategyId) {
-        return (int) attemptedStrategies.stream()
-            .filter(s -> s.startsWith(strategyId + ":") || s.equals(strategyId))
-            .count();
-    }
-    
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -140,7 +105,6 @@ public class Situation {
         if (targetResource != null) sb.append(", target='").append(targetResource).append("'");
         if (failedAction != null) sb.append(", action='").append(failedAction).append("'");
         if (!errorInfo.isEmpty()) sb.append(", error=").append(errorInfo);
-        if (!attemptedStrategies.isEmpty()) sb.append(", attempted=").append(attemptedStrategies);
         sb.append("}");
         return sb.toString();
     }
@@ -166,7 +130,6 @@ public class Situation {
         private String targetResource;
         private String failedAction;
         private Map<String, Object> errorInfo = new HashMap<>();
-        private List<String> attemptedStrategies = new ArrayList<>();
         private Map<String, Object> metadata = new HashMap<>();
         
         private Builder(Type type) {
@@ -206,16 +169,6 @@ public class Situation {
         public Builder httpError(int statusCode, String message) {
             this.errorInfo.put("httpStatus", String.valueOf(statusCode));
             this.errorInfo.put("message", message);
-            return this;
-        }
-        
-        public Builder attemptedStrategy(String strategyAttempt) {
-            this.attemptedStrategies.add(strategyAttempt);
-            return this;
-        }
-        
-        public Builder attemptedStrategies(List<String> strategies) {
-            this.attemptedStrategies.addAll(strategies);
             return this;
         }
         

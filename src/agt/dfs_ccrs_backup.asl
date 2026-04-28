@@ -87,24 +87,24 @@ MAIN LOOP
     .
 
 // Unlock Action if Cell is of type Lock
-//+!evaluate_actions(Location) :
-//    rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
-//    <-
-//        ?rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
-//        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
-//        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
-//        
-//        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
-//        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
-//        
-//        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
-//        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
-//
-//        .print(Location, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
-//
-//        !post(Location, [rdf(Location, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
-//        !crawl(Location) ;
-//    .
++!evaluate_actions(Location) :
+    rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
+    <-
+        ?rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
+        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
+        
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
+        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
+        
+        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
+        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
+
+        .print(Location, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
+
+        !post(Location, [rdf(Location, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
+        !crawl(Location) ;
+    .
 
 // Unspecified or Unknown Action
 +!evaluate_actions(Location) :
@@ -125,47 +125,22 @@ MAIN LOOP
         !handle_suggestions(Suggestions) ;
     .
 
-
-// Executes a HTTP POST request based on a contingency suggestion
-+!handle_suggestions([suggestion(Id, "post", Target, Conf, Reason, Params)|_]) :
-    true
+// Executes a consultation suggestion if it can be projected to a POST body
++!handle_suggestions([suggestion("consultation", "post", Target, Conf, Reason, Params)|_]) :
+    .member(predicate(Predicate), Params) & .member(object(Object), Params)
     <-
         .print(" --- ") ;
-        .print("CCRS OUTPUT RECEIVED") ;
-        .print("Id: ", Id) ;
+        .print("CCRS CONSULTATION OUTPUT RECEIVED") ;
+        .print("Id: consultation") ;
         .print("Type: post") ;
         .print("Target: ", Target) ;
         .print("Confidence: ", Conf) ;
         .print("Reason: ", Reason) ;
         .print("Params: ", Params) ;
-        .print("CCRS executing POST suggestion") ;
-
-        if (.member(body(Body), Params)) {
-            !post(Target, Body) ;
-        } else {
-            .print("post without body") ;
-            !post(Target, "") ;
-        }
-
+        .print("CCRS executing consultation POST suggestion") ;
+        !post(Target, [rdf(Target, Predicate, Object)[rdf_type_map(uri,uri,literal)]]) ;
         !crawl(Target) ;
     .
-
-//// Executes a consultation suggestion if it can be projected to a POST body
-//+!handle_suggestions([suggestion("consultation", "post", Target, Conf, Reason, Params)|_]) :
-//    .member(predicate(Predicate), Params) & .member(object(Object), Params)
-//    <-
-//        .print(" --- ") ;
-//        .print("CCRS CONSULTATION OUTPUT RECEIVED") ;
-//        .print("Id: consultation") ;
-//        .print("Type: post") ;
-//        .print("Target: ", Target) ;
-//        .print("Confidence: ", Conf) ;
-//        .print("Reason: ", Reason) ;
-//        .print("Params: ", Params) ;
-//        .print("CCRS executing consultation POST suggestion") ;
-//        !post(Target, [rdf(Target, Predicate, Object)[rdf_type_map(uri,uri,literal)]]) ;
-//        !crawl(Target) ;
-//    .
 
 // Logs the first suggestion (which is the highest ranking)
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) : 

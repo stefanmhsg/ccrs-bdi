@@ -1,5 +1,4 @@
 package ccrs.jacamo.jason.contingency;
-
 import ccrs.capabilities.a2a.A2aConfig;
 import ccrs.capabilities.a2a.A2aConsultationChannel;
 import ccrs.capabilities.llm.JsonActionParser;
@@ -35,12 +34,12 @@ import java.util.logging.Logger;
  * 2. With focus (4 args): evaluate(Type, Trigger, Focus, Result)
  *    - Adds current location tracking
  *
- * 3. Failure details (8 args): evaluate(Type, Trigger, Current, Target, Action, Error, Attempted, Result)
+ * 3. Failure details (7 args): evaluate(Type, Trigger, Current, Target, Action, Error, Result)
  *    - Full context for FAILURE situations (RetryStrategy needs this)
  *
  * 4. Map-based (4 args): evaluate(Type, Trigger, ContextMap, Result)
  *    - Flexible field composition using map(key1(val1), key2(val2), ...)
- *    - Supported keys: current, target, action, error, attempted
+ *    - Supported keys: current, target, action, error
  *
  * Type: "failure", "stuck", "uncertainty", "proactive"
  * Trigger: Reason/description string
@@ -48,8 +47,6 @@ import java.util.logging.Logger;
  * Target: Target resource URI (for failures)
  * Action: Failed action name (for failures)
  * Error: Error code/message (for failures)
- * Attempted: List of already-tried strategies
- *
  * See contingency/README.md for usage examples.
  */
 public class evaluate extends DefaultInternalAction {
@@ -139,19 +136,18 @@ public class evaluate extends DefaultInternalAction {
                 }
                 break;
 
-            case 7: // evaluate(Type, Trigger, Current, Target, Action, Error, Attempted, Result)
+            case 6: // evaluate(Type, Trigger, Current, Target, Action, Error, Result)
                 // Full FAILURE signature
                 builder.currentResource(parseOptionalString(args[2]));
                 builder.targetResource(parseOptionalString(args[3]));
                 builder.failedAction(parseOptionalString(args[4]));
                 parseErrorInfo(args[5], builder);
-                parseAttemptedStrategies(args[6], builder);
                 break;
 
             default:
                 throw new JasonException(
                     "Unsupported argument count: " + args.length + 
-                    ". Expected 3, 4, or 8 args (Type, Trigger, ..., Result)"
+                    ". Expected 3, 4, or 7 args (Type, Trigger, ..., Result)"
                 );
         }
 
@@ -199,12 +195,7 @@ public class evaluate extends DefaultInternalAction {
                         builder.errorInfo("message", value);
                     }
                 }
-                case "attempted" -> {
-                    if (entry.isStructure() && kv.getArity() > 0) {
-                        parseAttemptedStrategies(kv.getTerm(0), builder);
-                    }
                 }
-            }
         }
     }
 
@@ -218,17 +209,6 @@ public class evaluate extends DefaultInternalAction {
             builder.httpError(Integer.parseInt(error), "HTTP " + error);
         } else {
             builder.errorInfo("message", error);
-        }
-    }
-
-    private void parseAttemptedStrategies(Term t, Situation.Builder builder) {
-        if (t == null || !t.isList()) return;
-        ListTerm list = (ListTerm) t;
-        for (Term item : list) {
-            String strategy = JasonRdfAdapter.termToString(item);
-            if (!strategy.isEmpty()) {
-                builder.attemptedStrategy(strategy);
-            }
         }
     }
 
@@ -412,3 +392,4 @@ public class evaluate extends DefaultInternalAction {
     }
 
 }
+

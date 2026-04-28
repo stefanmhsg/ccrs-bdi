@@ -1,6 +1,5 @@
 package ccrs.core.contingency.dto;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,7 +8,6 @@ import java.util.UUID;
 
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.CcrsStrategy.Applicability;
-import ccrs.core.contingency.dto.StrategyResult.Suggestion;
 
 /**
  * Trace of a CCRS contingency evaluation.
@@ -144,6 +142,90 @@ public class CcrsTrace {
             .findFirst()
             .orElse(null);
     }
+
+    /**
+     * Check whether a specific strategy was evaluated in this trace.
+     * Evaluation means the strategy produced an evaluation result, not merely
+     * appeared in a non-applicable strategy check.
+     */
+    public boolean wasStrategyEvaluated(String strategyId) {
+        for (StrategyEvaluation evaluation : evaluations) {
+            if (matchesStrategy(evaluation, strategyId) && evaluation.getResult() != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check whether a specific strategy produced a suggestion in this trace.
+     */
+    public boolean didStrategySuggest(String strategyId) {
+        for (StrategyEvaluation evaluation : evaluations) {
+            if (!matchesStrategy(evaluation, strategyId)) {
+                continue;
+            }
+            
+            StrategyResult result = evaluation.getResult();
+            if (result != null && result.isSuggestion()) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check whether this strategy produced the highest-confidence suggestion
+     * in this trace.
+     */
+    public boolean wasStrategyTopConfidenceSuggestion(String strategyId) {
+        double bestConfidence = Double.NEGATIVE_INFINITY;
+        boolean wasTop = false;
+        
+        for (StrategyEvaluation evaluation : evaluations) {
+            StrategyResult result = evaluation.getResult();
+            if (result == null || !result.isSuggestion()) {
+                continue;
+            }
+            
+            double confidence = result.asSuggestion().getConfidence();
+            boolean isTargetStrategy = matchesStrategy(evaluation, strategyId);
+            
+            if (confidence > bestConfidence) {
+                bestConfidence = confidence;
+                wasTop = isTargetStrategy;
+            } else if (confidence == bestConfidence && isTargetStrategy) {
+                wasTop = true;
+            }
+        }
+        
+        return bestConfidence > Double.NEGATIVE_INFINITY && wasTop;
+    }
+    
+    /**
+     * Check if any evaluated strategy in this trace is different from the given one.
+     * Useful for stop strategies that should wait for other recoveries first.
+     */
+    public boolean hasAnyEvaluatedStrategyExcluding(String excludedStrategyId) {
+        for (StrategyEvaluation evaluation : evaluations) {
+            if (evaluation.getResult() == null) {
+                continue;
+            }
+            
+            if (excludedStrategyId != null && excludedStrategyId.equals(evaluation.getStrategyId())) {
+                continue;
+            }
+            
+            return true;
+        }
+        return false;
+    }
+    
+    private boolean matchesStrategy(StrategyEvaluation evaluation, String strategyId) {
+        return evaluation != null &&
+            strategyId != null &&
+            strategyId.equals(evaluation.getStrategyId());
+    }
     
     @Override
     public String toString() {
@@ -233,4 +315,5 @@ public class CcrsTrace {
             return new CcrsTrace(this);
         }
     }
+
 }

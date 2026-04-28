@@ -37,7 +37,6 @@ public class TemplatePromptBuilder implements PromptBuilder {
             .replace("{targetResource}", getString(contextMap, "targetResource", "unknown"))
             .replace("{failedAction}", getString(contextMap, "failedAction", "unknown"))
             .replace("{errorInfo}", getString(contextMap, "errorInfo", "none"))
-            .replace("{attemptedStrategies}", getString(contextMap, "attemptedStrategies", "[]"))
             .replace("{recentActions}", getString(contextMap, "recentActions", "No action history available."))
             .replace("{ccrsHistory}", getString(contextMap, "ccrsHistory", "No previous CCRS invocations available."))
             .replace("{localNeighborhood}", getString(contextMap, "localNeighborhood", "No local neighborhood available."))

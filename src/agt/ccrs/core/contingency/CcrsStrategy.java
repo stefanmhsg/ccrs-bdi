@@ -47,7 +47,7 @@ public interface CcrsStrategy {
     
     /**
      * Unique identifier for this strategy.
-     * Used in logs, traces, and attemptedStrategies tracking.
+     * Used in logs and traces for diagnostics and strategy identification.
      */
     String getId();
     

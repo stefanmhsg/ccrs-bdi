@@ -30,7 +30,6 @@ public interface PromptBuilder {
      * - "targetResource": Target of failed action
      * - "failedAction": Name of the failed action
      * - "errorInfo": Error details (string or map)
-     * - "attemptedStrategies": List of already-tried strategies
      * - "recentActions": Pre-formatted interaction history, including request/response details and perceived triples
      * - "ccrsHistory": Pre-formatted previous CCRS invocation traces
      * - "localNeighborhood": Pre-formatted bounded neighborhood around the current resource
