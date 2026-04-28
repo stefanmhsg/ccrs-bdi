@@ -13,6 +13,7 @@ import ccrs.capabilities.ConfigResolver;
  * - System properties
  */
 public class Langchain4jConfig {
+    private static final String DEFAULT_OPENAI_MODEL = "gpt-5.4-mini-2026-03-17";
     
     // Connection settings
     private final String apiKey;
@@ -169,7 +170,7 @@ public class Langchain4jConfig {
     public static Langchain4jConfig openAi(String apiKey) {
         return builder()
             .apiKey(apiKey)
-            .modelName("gpt-4o-mini") // gpt-5.4-mini-2026-03-17 / gpt-4o-mini
+            .modelName(DEFAULT_OPENAI_MODEL)
             .temperature(0.7)
             .build();
     }
@@ -179,7 +180,7 @@ public class Langchain4jConfig {
      */
     public static Langchain4jConfig openAiFromEnv() {
         return fromEnvironment()
-            .modelName("gpt-4o-mini")
+            .modelName(DEFAULT_OPENAI_MODEL)
             .temperature(0.7)
             .build();
     }
@@ -201,7 +202,7 @@ public class Langchain4jConfig {
     public static class Builder {
         private String apiKey;
         private String baseUrl;
-        private String modelName = "gpt-4o-mini";
+        private String modelName = DEFAULT_OPENAI_MODEL;
         private Double temperature = 0.7;
         private Integer maxTokens;
         private Double topP;
