@@ -9,11 +9,21 @@ This package contains the RDF-facing context contract used by Contingency CCRS.
 Core CCRS uses it for:
 
 - RDF lookup via `query(...)` and `contains(...)`
+- bounded raw RDF memory access via `getMemoryTriples(int maxCount)`
 - interaction history access
 - current-resource lookup
 - CCRS trace history access
 
 The core evaluator does not know how a Jason agent, another BDI runtime, or a different platform exposes beliefs and interaction history. That integration still belongs to the adapter implementation of `CcrsContext`.
+
+## RDF Context Shapes
+
+`CcrsContext` exposes two different RDF access patterns on purpose:
+
+- `getNeighborhood(resource, maxOutgoing, maxIncoming)` returns the local graph shape around one resource. It is for questions such as "where am I and what links touch this resource?"
+- `getMemoryTriples(maxCount)` returns a broader bounded snapshot of the RDF triples currently known by the context. It is for memory-style access, for example when an LLM prediction strategy needs up to 1000 triples instead of only the default neighborhood limits.
+
+Do not use neighborhood as a substitute for memory access. The default neighborhood limits are intentionally small so local link analysis stays cheap and predictable. Strategies that need broader graph evidence should call `getMemoryTriples(...)` and apply their own prompt or processing limits.
 
 ## Evaluation Flow
 

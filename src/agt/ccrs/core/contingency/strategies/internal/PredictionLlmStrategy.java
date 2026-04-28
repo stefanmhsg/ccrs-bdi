@@ -1,7 +1,9 @@
 package ccrs.core.contingency.strategies.internal;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -22,12 +24,18 @@ import ccrs.core.rdf.RdfTriple;
  * L4: Prediction Strategy (LLM-based)
  * Applies to: ANY situation type.
  * 
- * Uses a Large Language Model to predict a recovery action based on 
- * the situation and available context. This is a more flexible approach
- * that can handle novel situations.
+ * Uses a Large Language Model to predict a recovery action from four
+ * deliberately separate context sources:
+ * <ul>
+ *   <li>the current {@link Situation},</li>
+ *   <li>detailed hypermedia interactions and their perceived RDF triples,</li>
+ *   <li>a local RDF neighborhood around the current resource, and</li>
+ *   <li>a broader bounded raw RDF memory snapshot.</li>
+ * </ul>
+ *
+ * The neighborhood is intentionally local link context. It must not be used as
+ * the only memory-access path when the LLM needs a wider view of the graph.
  * 
- * For POC: Uses a pluggable LLM interface that can be mocked or connected
- * to real LLM services.
  */
 public class PredictionLlmStrategy implements CcrsStrategy {
     
@@ -41,7 +49,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private LlmResponseParser responseParser;
     private double baseConfidence = 0.6;
     private int maxHistoryActions = 20;
+    private int maxInteractionStateTriples = 100;
     private int maxKnowledgeTriples = 1000;
+    private int maxCcrsTraces = 5;
+    private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
+    private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
 
         
     public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {
@@ -189,6 +201,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     /**
      * Prepare context map from situation and bounded context.
      * This is where we extract relevant data - NOT in the prompt builder.
+     *
+     * <p>The prompt receives local neighborhood context and raw RDF memory as
+     * distinct sections. This keeps {@code CcrsContext.getNeighborhood(...)}
+     * focused on local graph shape while still allowing the LLM to inspect a
+     * broader bounded memory snapshot.</p>
      */
     private Map<String, Object> prepareContextMap(Situation situation, CcrsContext context) {
         Map<String, Object> ctx = new HashMap<>();
@@ -207,9 +224,15 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         
         // Format history (bounded)
         ctx.put("recentActions", formatHistory(context));
-        
-        // Get bounded neighborhood knowledge (NOT queryAll!)
-        ctx.put("knowledge", formatKnowledge(context, currentResource));
+
+        // Previous CCRS decisions are separate from raw action history.
+        ctx.put("ccrsHistory", formatCcrsHistory(context));
+
+        // Local graph shape around the current resource.
+        ctx.put("localNeighborhood", formatNeighborhood(context, currentResource));
+
+        // Broader bounded RDF memory snapshot.
+        ctx.put("rawMemory", formatRawMemory(context));
         
         return ctx;
     }
@@ -260,6 +283,11 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             sb.append("; durationMs=")
                 .append(interaction.responseTimestamp() - interaction.requestTimestamp());
         }
+        if (interaction.perceivedState() != null) {
+            sb.append("; perceivedState=")
+                .append(interaction.perceivedState().size())
+                .append(" triples");
+        }
         return sb.toString();
     }
 
@@ -301,42 +329,295 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             return "(no history available)";
         }
         
-        List<Interaction> interaction = context.getRecentInteractions(maxHistoryActions);
-        if (interaction.isEmpty()) {
+        List<Interaction> interactions = context.getRecentInteractions(maxHistoryActions);
+        if (interactions.isEmpty()) {
             return "(no recent interaction)";
         }
-        
-        return interaction.stream()
-            .map(a -> String.format("%s %s -> %s", a.method(), a.requestUri(), a.outcome()))
-            .collect(Collectors.joining("\n"));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("(most recent first; perceived RDF triples shown up to ")
+            .append(maxInteractionStateTriples)
+            .append(" per interaction)\n");
+
+        for (int i = 0; i < interactions.size(); i++) {
+            if (i > 0) {
+                sb.append('\n');
+            }
+            appendInteractionForPrompt(sb, interactions.get(i), i + 1);
+        }
+
+        return sb.toString().trim();
     }
-    
-    private String formatKnowledge(CcrsContext context, String currentResource) {
-        // Use bounded neighborhood, not queryAll!
-        CcrsContext.Neighborhood neighborhood = context.getNeighborhood(currentResource);
+
+    private void appendInteractionForPrompt(StringBuilder sb, Interaction interaction, int index) {
+        if (interaction == null) {
+            sb.append('[').append(index).append("] (missing interaction)\n");
+            return;
+        }
+
+        sb.append('[').append(index).append("] ")
+            .append(nullSafe(interaction.method())).append(' ')
+            .append(nullSafe(interaction.requestUri()))
+            .append(" -> ")
+            .append(interaction.outcome() != null ? interaction.outcome() : "UNKNOWN")
+            .append('\n');
+
+        appendIndentedLine(sb, "source", interaction.logicalSource(), "  ");
+        appendIndentedLine(sb, "requestHeaders", interaction.requestHeaders(), "  ");
+        appendIndentedLine(sb, "requestBody", interaction.requestBody(), "  ");
+
+        if (interaction.requestTimestamp() > 0) {
+            appendIndentedLine(sb, "requestTs", interaction.requestTimestamp(), "  ");
+        }
+        if (interaction.responseTimestamp() > 0) {
+            appendIndentedLine(sb, "responseTs", interaction.responseTimestamp(), "  ");
+        }
+        if (interaction.requestTimestamp() > 0 && interaction.responseTimestamp() > 0) {
+            appendIndentedLine(sb, "durationMs",
+                interaction.responseTimestamp() - interaction.requestTimestamp(), "  ");
+        }
+
+        List<RdfTriple> perceivedState = interaction.perceivedState();
+        int stateSize = perceivedState == null ? 0 : perceivedState.size();
+        sb.append("  perceivedState: ").append(stateSize).append(" triples\n");
+        if (stateSize > 0) {
+            sb.append("  perceivedStateTriples:\n");
+            appendTriples(sb, perceivedState, maxInteractionStateTriples, "    ");
+        }
+    }
+
+    private String formatCcrsHistory(CcrsContext context) {
+        List<CcrsTrace> traces = context.getCcrsHistory(maxCcrsTraces);
+        if (traces.isEmpty()) {
+            return "(no previous CCRS invocations)";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("(most recent first; up to ").append(maxCcrsTraces).append(" traces)\n");
+
+        for (int i = 0; i < traces.size(); i++) {
+            if (i > 0) {
+                sb.append('\n');
+            }
+            appendTraceForPrompt(sb, traces.get(i), i + 1);
+        }
+
+        return sb.toString().trim();
+    }
+
+    private void appendTraceForPrompt(StringBuilder sb, CcrsTrace trace, int index) {
+        if (trace == null) {
+            sb.append('[').append(index).append("] (missing CCRS trace)\n");
+            return;
+        }
+
+        sb.append('[').append(index).append("] trace ")
+            .append(shortId(trace.getId()))
+            .append(" at ")
+            .append(trace.getTimestamp())
+            .append("; outcome=")
+            .append(trace.getOutcome())
+            .append("; totalMs=")
+            .append(trace.getTotalEvaluationTimeMs())
+            .append('\n');
+
+        if (trace.getSituation() != null) {
+            appendIndentedLine(sb, "situation", formatSituationOneLine(trace.getSituation()), "  ");
+        }
+        appendIndentedLine(sb, "selection", trace.getSelectionReason(), "  ");
+        appendIndentedLine(sb, "outcomeDetails", trace.getOutcomeDetails(), "  ");
+
+        if (!trace.getEvaluations().isEmpty()) {
+            sb.append("  evaluations:\n");
+            for (CcrsTrace.StrategyEvaluation evaluation : trace.getEvaluations()) {
+                sb.append("    - ")
+                    .append(evaluation.getStrategyId())
+                    .append(" L")
+                    .append(evaluation.getEscalationLevel())
+                    .append(' ')
+                    .append(evaluation.getApplicability())
+                    .append(" -> ")
+                    .append(formatStrategyResult(evaluation.getResult()))
+                    .append(" (")
+                    .append(evaluation.getEvaluationTimeMs())
+                    .append("ms)\n");
+            }
+        }
+
+        if (!trace.getSelectedResults().isEmpty()) {
+            sb.append("  selected:\n");
+            for (StrategyResult selected : trace.getSelectedResults()) {
+                sb.append("    - ")
+                    .append(formatStrategyResult(selected))
+                    .append('\n');
+            }
+        }
+    }
+
+    private String formatNeighborhood(CcrsContext context, String currentResource) {
+        if (currentResource == null || currentResource.isBlank() || "unknown".equals(currentResource)) {
+            return "(no current resource available for local neighborhood)";
+        }
+
+        CcrsContext.Neighborhood neighborhood = context.getNeighborhood(
+            currentResource,
+            maxNeighborhoodOutgoing,
+            maxNeighborhoodIncoming);
         if (neighborhood.size() == 0) {
-            return "(no knowledge available)";
+            return "(no local neighborhood triples available)";
         }
-        
-        // Combine outgoing and incoming triples from neighborhood (already bounded)
-        List<RdfTriple> allTriples = new java.util.ArrayList<>();
-        allTriples.addAll(neighborhood.outgoing());
-        allTriples.addAll(neighborhood.incoming());
-        
-        if (allTriples.isEmpty()) {
-            return "(no triples in neighborhood)";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Resource: ").append(currentResource).append('\n');
+        sb.append("Outgoing triples (")
+            .append(neighborhood.outgoing().size())
+            .append(", max ")
+            .append(maxNeighborhoodOutgoing)
+            .append("):\n");
+        appendTriples(sb, neighborhood.outgoing(), neighborhood.outgoing().size(), "  ");
+
+        sb.append("Incoming triples (")
+            .append(neighborhood.incoming().size())
+            .append(", max ")
+            .append(maxNeighborhoodIncoming)
+            .append("):\n");
+        appendTriples(sb, neighborhood.incoming(), neighborhood.incoming().size(), "  ");
+
+        return sb.toString().trim();
+    }
+
+    private String formatRawMemory(CcrsContext context) {
+        List<RdfTriple> triples = context.getMemoryTriples(maxKnowledgeTriples);
+        if (triples.isEmpty()) {
+            return "(no raw RDF memory triples available)";
         }
-        
-        String result = allTriples.stream()
-            .limit(maxKnowledgeTriples)
-            .map(RdfTriple::toString)
-            .collect(Collectors.joining("\n"));
-        
-        if (allTriples.size() > maxKnowledgeTriples) {
-            result += String.format("\n... (%d more triples not shown)", allTriples.size() - maxKnowledgeTriples);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("(bounded raw memory snapshot; max ")
+            .append(maxKnowledgeTriples)
+            .append(" triples)\n");
+        appendTriples(sb, triples, maxKnowledgeTriples, "");
+
+        if (maxKnowledgeTriples > 0 && triples.size() >= maxKnowledgeTriples) {
+            sb.append("... (raw memory limit reached; context may contain more triples)\n");
         }
-        
-        return result;
+
+        return sb.toString().trim();
+    }
+
+    private void appendTriples(StringBuilder sb, List<RdfTriple> triples, int maxCount, String indent) {
+        if (triples == null || triples.isEmpty()) {
+            sb.append(indent).append("(none)\n");
+            return;
+        }
+
+        int limit = Math.max(0, Math.min(maxCount, triples.size()));
+        if (limit == 0) {
+            sb.append(indent).append("(triple output disabled by limit)\n");
+        }
+
+        for (int i = 0; i < limit; i++) {
+            RdfTriple triple = triples.get(i);
+            if (triple == null) {
+                continue;
+            }
+            sb.append(indent).append(triple).append('\n');
+        }
+
+        if (triples.size() > limit) {
+            sb.append(indent)
+                .append("... (")
+                .append(triples.size() - limit)
+                .append(" more triples not shown)\n");
+        }
+    }
+
+    private String formatSituationOneLine(Situation situation) {
+        List<String> parts = new ArrayList<>();
+        parts.add("type=" + situation.getType());
+        if (situation.getTrigger() != null) {
+            parts.add("trigger=" + situation.getTrigger());
+        }
+        if (situation.getCurrentResource() != null) {
+            parts.add("current=" + situation.getCurrentResource());
+        }
+        if (situation.getTargetResource() != null) {
+            parts.add("target=" + situation.getTargetResource());
+        }
+        if (situation.getFailedAction() != null) {
+            parts.add("action=" + situation.getFailedAction());
+        }
+        if (!situation.getErrorInfo().isEmpty()) {
+            parts.add("error=" + situation.getErrorInfo());
+        }
+        if (!situation.getAttemptedStrategies().isEmpty()) {
+            parts.add("attempted=" + situation.getAttemptedStrategies());
+        }
+        return String.join("; ", parts);
+    }
+
+    private String formatStrategyResult(StrategyResult result) {
+        if (result == null) {
+            return "no result";
+        }
+
+        if (result.isSuggestion()) {
+            StrategyResult.Suggestion suggestion = result.asSuggestion();
+            StringBuilder sb = new StringBuilder();
+            sb.append("suggestion(strategy=")
+                .append(suggestion.getStrategyId())
+                .append(", action=")
+                .append(suggestion.getActionType());
+            if (suggestion.getActionTarget() != null) {
+                sb.append(", target=").append(suggestion.getActionTarget());
+            }
+            sb.append(", confidence=")
+                .append(String.format(Locale.ROOT, "%.2f", suggestion.getConfidence()));
+            if (suggestion.getRationale() != null) {
+                sb.append(", rationale=")
+                    .append(truncate(suggestion.getRationale(), 160));
+            }
+            if (!suggestion.getActionParams().isEmpty()) {
+                sb.append(", params=").append(suggestion.getActionParams());
+            }
+            sb.append(')');
+            return sb.toString();
+        }
+
+        StrategyResult.NoHelp noHelp = result.asNoHelp();
+        return "no_help(reason=" + noHelp.getReason()
+            + ", explanation=" + truncate(noHelp.getExplanation(), 160)
+            + ")";
+    }
+
+    private void appendIndentedLine(StringBuilder sb, String label, Object value, String indent) {
+        if (value == null) {
+            return;
+        }
+
+        String text = String.valueOf(value);
+        if (text.isBlank()) {
+            return;
+        }
+
+        sb.append(indent).append(label).append(": ").append(text).append('\n');
+    }
+
+    private String shortId(String id) {
+        if (id == null || id.length() <= 8) {
+            return String.valueOf(id);
+        }
+        return id.substring(0, 8);
+    }
+
+    private String truncate(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+        if (maxLength <= 3) {
+            return text.substring(0, maxLength);
+        }
+        return text.substring(0, maxLength - 3) + "...";
     }
     
     private String formatError(Situation situation) {
@@ -411,12 +692,43 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     }
     
     public PredictionLlmStrategy maxHistoryActions(int max) {
-        this.maxHistoryActions = max;
+        this.maxHistoryActions = Math.max(0, max);
+        return this;
+    }
+
+    /**
+     * Limit perceived RDF triples shown for each formatted interaction.
+     *
+     * <p>This does not change {@link Interaction#toString()}, which remains
+     * compact for logging. It only controls LLM prompt context detail.</p>
+     */
+    public PredictionLlmStrategy maxInteractionStateTriples(int max) {
+        this.maxInteractionStateTriples = Math.max(0, max);
         return this;
     }
     
+    /**
+     * Limit raw RDF memory triples included in the LLM prompt.
+     */
     public PredictionLlmStrategy maxKnowledgeTriples(int max) {
-        this.maxKnowledgeTriples = max;
+        this.maxKnowledgeTriples = Math.max(0, max);
+        return this;
+    }
+
+    /**
+     * Limit previous CCRS invocation traces included in the LLM prompt.
+     */
+    public PredictionLlmStrategy maxCcrsTraces(int max) {
+        this.maxCcrsTraces = Math.max(0, max);
+        return this;
+    }
+
+    /**
+     * Configure local RDF neighborhood limits independently from raw memory.
+     */
+    public PredictionLlmStrategy maxNeighborhood(int maxOutgoing, int maxIncoming) {
+        this.maxNeighborhoodOutgoing = Math.max(0, maxOutgoing);
+        this.maxNeighborhoodIncoming = Math.max(0, maxIncoming);
         return this;
     }
         

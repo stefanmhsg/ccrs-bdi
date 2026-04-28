@@ -9,7 +9,7 @@ import ccrs.core.contingency.dto.Interaction;
 
 /**
  * Context interface for CCRS operations.
- * Provides access to the agent's knowledge base and history.
+ * Provides access to the agent's knowledge base, raw RDF memory, and history.
  * 
  * Core interface is RDF-focused for agent-agnostic design.
  * Platform-specific adapters (Jason, LangGraph) extend this
@@ -45,6 +45,39 @@ public interface CcrsContext {
      */
     boolean contains(RdfTriple triple);
        
+    // ========== Raw Memory Query (optional) ==========
+
+    /**
+     * Get a bounded snapshot of raw RDF triples currently known by the context.
+     *
+     * <p>This is intentionally broader than {@link #getNeighborhood(String)}.
+     * Use it when a strategy needs memory-style access to the context's RDF
+     * graph rather than only the local links around one focus resource.</p>
+     *
+     * <p>The default implementation delegates to {@code query(null, null, null)}
+     * and caps the returned list. Adapters may override this method to provide
+     * stable ordering or a more efficient bounded graph scan.</p>
+     *
+     * @param maxCount Maximum number of triples to return
+     * @return Raw RDF triples, capped at {@code maxCount}
+     */
+    default List<RdfTriple> getMemoryTriples(int maxCount) {
+        if (maxCount <= 0) {
+            return Collections.emptyList();
+        }
+
+        List<RdfTriple> triples = query(null, null, null);
+        if (triples == null || triples.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (triples.size() > maxCount) {
+            return new java.util.ArrayList<>(triples.subList(0, maxCount));
+        }
+
+        return new java.util.ArrayList<>(triples);
+    }
+
     // ========== Neighborhood Query (optional) ==========
     
     /**
@@ -66,8 +99,10 @@ public interface CcrsContext {
      * Returns outgoing links (where resource is subject) and
      * incoming links (where resource is object), capped at limits.
      * 
-     * This is the preferred method for LLM/consultation contexts
-     * as it avoids exploding on large graphs.
+     * This method is a local link-context helper, not a full memory dump.
+     * It is useful for understanding where a resource sits in the graph
+     * without exploding on large contexts. Use {@link #getMemoryTriples(int)}
+     * when a strategy needs broader RDF memory access.
      * 
      * @param resource The resource URI to get neighborhood for
      * @param maxOutgoing Maximum outgoing links to return

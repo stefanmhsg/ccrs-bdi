@@ -31,8 +31,10 @@ public interface PromptBuilder {
      * - "failedAction": Name of the failed action
      * - "errorInfo": Error details (string or map)
      * - "attemptedStrategies": List of already-tried strategies
-     * - "recentActions": Pre-formatted action history string
-     * - "knowledge": Pre-formatted knowledge string (bounded neighborhood)
+     * - "recentActions": Pre-formatted interaction history, including request/response details and perceived triples
+     * - "ccrsHistory": Pre-formatted previous CCRS invocation traces
+     * - "localNeighborhood": Pre-formatted bounded neighborhood around the current resource
+     * - "rawMemory": Pre-formatted broader bounded RDF memory snapshot
      * 
      * @param contextMap Prepared context data for the prompt
      * @return A complete prompt string ready for the LLM

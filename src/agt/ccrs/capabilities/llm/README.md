@@ -155,8 +155,23 @@ public class CustomParser implements LlmResponseParser {
 
 **Strategies Prepare Context**
 - Strategies extract and format bounded data
-- Use `getNeighborhood()`, not `queryAll()`
+- Keep local graph context and memory context separate:
+  - use `getNeighborhood(...)` for the bounded local resource neighborhood
+  - use `getMemoryTriples(maxCount)` for broader raw RDF memory access
+- Detailed interaction history should be formatted explicitly for prompts. `Interaction.toString()` stays compact for logs and intentionally reports only the perceived-state triple count.
 - Prepare context map before calling prompt builder
+
+## Prediction Prompt Context
+
+`PredictionLlmStrategy` prepares the standard prediction context map with these sections:
+
+- `situationDetails`: current situation, trigger, agent, resource, error, and compact last-interaction/last-trace summary
+- `recentActions`: recent hypermedia interactions, including method, URI, headers, body, outcome, timestamps, and perceived RDF triples
+- `ccrsHistory`: previous CCRS invocation traces with evaluated strategies, selected suggestions, and reported outcomes
+- `localNeighborhood`: outgoing and incoming triples around the current resource, bounded by neighborhood limits
+- `rawMemory`: a broader bounded RDF memory snapshot, defaulting to 1000 triples
+
+The intention is that interaction history captures what was requested and what each response exposed, raw memory captures the current RDF belief snapshot, and neighborhood provides a concise local map around the current resource.
 
 ## Future Extensions
 

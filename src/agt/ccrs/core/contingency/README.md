@@ -183,6 +183,8 @@ Strategies access agent context via `CcrsContext`:
 public interface CcrsContext {
     // RDF queries
     List<RdfTriple> query(String s, String p, String o);
+    List<RdfTriple> getMemoryTriples(int maxCount);
+    Neighborhood getNeighborhood(String resource, int maxOutgoing, int maxIncoming);
     Optional<String> getCurrentResource();
     
     // History (for contingency)
@@ -197,6 +199,10 @@ public interface CcrsContext {
     boolean hasConsultationChannel();
 }
 ```
+
+`getNeighborhood(...)` is a local link-context API: it returns bounded outgoing and incoming triples around one focus resource. It should remain cheap and small. `getMemoryTriples(...)` is the memory-style API for broader bounded RDF access; LLM prompt generation uses it for raw graph evidence while keeping neighborhood output as a separate local-map section.
+
+For LLM prediction, recent `Interaction` records are formatted with request headers/body, outcome, timing, and perceived RDF triples. This is intentionally separate from `Interaction.toString()`, which remains compact for logs and debug summaries.
 
 ---
 

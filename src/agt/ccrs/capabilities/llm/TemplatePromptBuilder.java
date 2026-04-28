@@ -39,7 +39,9 @@ public class TemplatePromptBuilder implements PromptBuilder {
             .replace("{errorInfo}", getString(contextMap, "errorInfo", "none"))
             .replace("{attemptedStrategies}", getString(contextMap, "attemptedStrategies", "[]"))
             .replace("{recentActions}", getString(contextMap, "recentActions", "No action history available."))
-            .replace("{knowledgeBase}", getString(contextMap, "knowledge", "No knowledge available."));
+            .replace("{ccrsHistory}", getString(contextMap, "ccrsHistory", "No previous CCRS invocations available."))
+            .replace("{localNeighborhood}", getString(contextMap, "localNeighborhood", "No local neighborhood available."))
+            .replace("{rawMemory}", getString(contextMap, "rawMemory", "No raw RDF memory available."));
     }
        
     @Override
@@ -99,17 +101,24 @@ public class TemplatePromptBuilder implements PromptBuilder {
             
             # Recent Action History
             {recentActions}
+
+            # Previous CCRS Invocations
+            {ccrsHistory}
             
-            # Available Knowledge (RDF Graph)
-            {knowledgeBase}
+            # Local RDF Neighborhood
+            {localNeighborhood}
+
+            # Raw RDF Memory
+            {rawMemory}
             
             # Instructions
             Analyze the situation and suggest ONE concrete recovery action.
             Consider:
-            1. What resources/links are available in the knowledge base
-            2. What actions have already been tried (avoid repeating)
-            3. Whether the error suggests a specific recovery path
-            4. Estimated confidence that the suggested action will succeed as is if the agent attempts it
+            1. What resources/links are available in the local neighborhood and raw RDF memory
+            2. What exact requests, responses, and perceived RDF states appear in recent interaction history
+            3. What recovery strategies or suggestions have already been tried in previous CCRS invocations
+            4. Whether the error suggests a specific recovery path
+            5. Estimated confidence that the suggested action will succeed as is if the agent attempts it
             
             # Response Format
             Respond ONLY with valid JSON (no markdown, no explanations):
