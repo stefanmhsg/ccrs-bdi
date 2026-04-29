@@ -119,21 +119,16 @@ public class ContingencyCcrs {
             // Learned selection may prune remaining work once a suggestion
             // exists, but it compares expected improvement against thresholds
             // rather than comparing cost-discounted history to raw confidence.
-            if (selectionModel != null && !selectionModel.shouldEvaluate(strategy, allSuggestions, config)) {
-                StrategySelectionModel.Profile profile = selectionModel.profileFor(strategy.getId());
-                double bestConfidence = bestSuggestionConfidence(allSuggestions);
-                double expectedGain = profile.expectedConfidence() - bestConfidence;
+            if (selectionModel != null) {
+                StrategySelectionModel.GateDecision gateDecision =
+                    selectionModel.evaluateGate(strategy, allSuggestions, config);
                 logger.info(String.format(
-                    "[ContingencyCcrs] Skipping %s before evaluation: expected confidence %.3f gives gain %.3f over current best %.3f; below min gain %.3f, below high-confidence floor %.3f, and avg time %.0fms exceeds cheap threshold %dms",
-                    strategy.getId(),
-                    profile.expectedConfidence(),
-                    expectedGain,
-                    bestConfidence,
-                    config.getMinimumExpectedConfidenceGain(),
-                    config.getHighConfidenceEvaluationFloor(),
-                    profile.averageEvaluationTimeMs(),
-                    config.getCheapEvaluationTimeMs()));
-                continue;
+                    "[ContingencyCcrs] Learned gate %s %s",
+                    gateDecision.shouldEvaluate() ? "ALLOW" : "SKIP",
+                    gateDecision.describe()));
+                if (!gateDecision.shouldEvaluate()) {
+                    continue;
+                }
             }
             
             long evalStart = System.currentTimeMillis();
@@ -245,7 +240,7 @@ public class ContingencyCcrs {
 
     private StrategySelectionModel buildSelectionModel(CcrsContext context) {
         if (!config.isLearnedSelectionEnabled()) {
-            logger.info("[ContingencyCcrs] Learned strategy selection disabled; using default escalation order");
+            logger.info("[StrategySelectionModel] Learned strategy selection disabled; using default escalation order");
             return null;
         }
 
@@ -254,7 +249,7 @@ public class ContingencyCcrs {
             recentHistory,
             config.getMinimumLearningSamples());
         logger.info(String.format(
-            "[ContingencyCcrs] Built strategy selection model from %d/%d requested traces, %d strategy profiles, minimumSamplesPerStrategy=%d",
+            "[StrategySelectionModel] Built strategy selection model from %d/%d requested traces, %d strategy profiles, minimumSamplesPerStrategy=%d",
             model.traceCount(),
             config.getLearningHistoryLimit(),
             model.profileCount(),

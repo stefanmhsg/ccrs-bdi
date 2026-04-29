@@ -135,29 +135,92 @@ final class StrategySelectionModel {
             CcrsStrategy candidate,
             List<StrategyResult> currentSuggestions,
             ContingencyConfiguration config) {
-        if (currentSuggestions.isEmpty()) {
-            return true;
-        }
+        return evaluateGate(candidate, currentSuggestions, config).shouldEvaluate();
+    }
 
+    GateDecision evaluateGate(
+            CcrsStrategy candidate,
+            List<StrategyResult> currentSuggestions,
+            ContingencyConfiguration config) {
+        double bestKnownConfidence = bestKnownConfidence(currentSuggestions);
         Profile profile = profiles.get(candidate.getId());
-        if (profile == null || !profile.hasEnoughSamples(minimumSamples)) {
-            return true;
+
+        if (currentSuggestions.isEmpty()) {
+            return GateDecision.allow(
+                candidate.getId(),
+                profile,
+                bestKnownConfidence,
+                "no current recovery suggestion exists");
         }
 
-        double bestKnownConfidence = currentSuggestions.stream()
-            .filter(StrategyResult::isSuggestion)
-            .map(StrategyResult::asSuggestion)
-            .mapToDouble(StrategyResult.Suggestion::getConfidence)
-            .max()
-            .orElse(0.0);
+        if (profile == null) {
+            return GateDecision.allow(
+                candidate.getId(),
+                null,
+                bestKnownConfidence,
+                "no learned profile yet");
+        }
+
+        if (!profile.hasEnoughSamples(minimumSamples)) {
+            return GateDecision.allow(
+                candidate.getId(),
+                profile,
+                bestKnownConfidence,
+                String.format(Locale.ROOT,
+                    "only %d/%d applicable samples are available",
+                    profile.evaluationCount(),
+                    minimumSamples));
+        }
 
         // Keep quality and cost separate. An expensive high-confidence strategy
         // should not be treated as low-confidence; cost only decides whether
         // the expected improvement over the current best is worth more work.
         double expectedGain = profile.expectedConfidence() - bestKnownConfidence;
-        return expectedGain >= config.getMinimumExpectedConfidenceGain()
-            || profile.expectedConfidence() >= config.getHighConfidenceEvaluationFloor()
-            || profile.averageEvaluationTimeMs() <= config.getCheapEvaluationTimeMs();
+        if (expectedGain >= config.getMinimumExpectedConfidenceGain()) {
+            return GateDecision.allow(
+                candidate.getId(),
+                profile,
+                bestKnownConfidence,
+                String.format(Locale.ROOT,
+                    "expected gain %.3f meets min gain %.3f",
+                    expectedGain,
+                    config.getMinimumExpectedConfidenceGain()));
+        }
+
+        if (profile.expectedConfidence() >= config.getHighConfidenceEvaluationFloor()) {
+            return GateDecision.allow(
+                candidate.getId(),
+                profile,
+                bestKnownConfidence,
+                String.format(Locale.ROOT,
+                    "expected confidence %.3f meets high-confidence floor %.3f",
+                    profile.expectedConfidence(),
+                    config.getHighConfidenceEvaluationFloor()));
+        }
+
+        if (profile.averageEvaluationTimeMs() <= config.getCheapEvaluationTimeMs()) {
+            return GateDecision.allow(
+                candidate.getId(),
+                profile,
+                bestKnownConfidence,
+                String.format(Locale.ROOT,
+                    "avg time %.0fms is within cheap threshold %dms",
+                    profile.averageEvaluationTimeMs(),
+                    config.getCheapEvaluationTimeMs()));
+        }
+
+        return GateDecision.skip(
+            candidate.getId(),
+            profile,
+            bestKnownConfidence,
+            String.format(Locale.ROOT,
+                "expected gain %.3f is below min gain %.3f, expected confidence %.3f is below high-confidence floor %.3f, and avg time %.0fms exceeds cheap threshold %dms",
+                expectedGain,
+                config.getMinimumExpectedConfidenceGain(),
+                profile.expectedConfidence(),
+                config.getHighConfidenceEvaluationFloor(),
+                profile.averageEvaluationTimeMs(),
+                config.getCheapEvaluationTimeMs()));
     }
 
     Profile profileFor(String strategyId) {
@@ -221,6 +284,15 @@ final class StrategySelectionModel {
 
     private static int normalizedLevel(int level) {
         return level == 0 ? 100 : level;
+    }
+
+    private double bestKnownConfidence(List<StrategyResult> suggestions) {
+        return suggestions.stream()
+            .filter(StrategyResult::isSuggestion)
+            .map(StrategyResult::asSuggestion)
+            .mapToDouble(StrategyResult.Suggestion::getConfidence)
+            .max()
+            .orElse(0.0);
     }
 
     private static Double outcomeScore(CcrsTrace.Outcome outcome) {
@@ -309,6 +381,76 @@ final class StrategySelectionModel {
             return suggestionRate() * learnedConfidence();
         }
 
+    }
+
+    static final class GateDecision {
+        private final String strategyId;
+        private final boolean shouldEvaluate;
+        private final Profile profile;
+        private final double currentBestConfidence;
+        private final String reason;
+
+        private GateDecision(
+                String strategyId,
+                boolean shouldEvaluate,
+                Profile profile,
+                double currentBestConfidence,
+                String reason) {
+            this.strategyId = strategyId;
+            this.shouldEvaluate = shouldEvaluate;
+            this.profile = profile;
+            this.currentBestConfidence = currentBestConfidence;
+            this.reason = reason;
+        }
+
+        static GateDecision allow(
+                String strategyId,
+                Profile profile,
+                double currentBestConfidence,
+                String reason) {
+            return new GateDecision(strategyId, true, profile, currentBestConfidence, reason);
+        }
+
+        static GateDecision skip(
+                String strategyId,
+                Profile profile,
+                double currentBestConfidence,
+                String reason) {
+            return new GateDecision(strategyId, false, profile, currentBestConfidence, reason);
+        }
+
+        boolean shouldEvaluate() {
+            return shouldEvaluate;
+        }
+
+        Profile profile() {
+            return profile;
+        }
+
+        double currentBestConfidence() {
+            return currentBestConfidence;
+        }
+
+        String describe() {
+            if (profile == null) {
+                return String.format(Locale.ROOT,
+                    "%s: %s; currentBest=%.3f",
+                    strategyId,
+                    reason,
+                    currentBestConfidence);
+            }
+
+            return String.format(Locale.ROOT,
+                "%s: %s; currentBest=%.3f, expectedConfidence=%.3f, suggestionRate=%.3f, avgConfidence=%.3f, avgTime=%.0fms, n=%d",
+                strategyId,
+                reason,
+                currentBestConfidence,
+                profile.expectedConfidence(),
+                profile.suggestionRate(),
+                profile.averageSuggestionConfidence(),
+                profile.averageEvaluationTimeMs(),
+                profile.evaluationCount());
+        }
     }
 
     private static final class MutableProfile {
