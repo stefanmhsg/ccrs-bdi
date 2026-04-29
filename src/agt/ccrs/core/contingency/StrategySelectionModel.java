@@ -25,16 +25,16 @@ import ccrs.core.contingency.dto.StrategyResult;
  * a suggestion was produced, suggestion confidence, and optional outcome
  * feedback reported later by the caller.</p>
  *
- * <p>Recent traces are weighted more strongly than older traces. A strategy's
- * learned value is:</p>
+ * <p>Recent traces are weighted more strongly than older traces. Strategy
+ * quality and evaluation cost are learned separately. A strategy's learned
+ * quality is:</p>
  *
  * <pre>
- * suggestionRate * learnedConfidence / (1 + avgEvaluationTime / levelReferenceTime)
+ * suggestionRate * learnedConfidence
  * </pre>
  *
- * <p>The level reference time is not a measured strategy cost. It is an
- * escalation-level prior that says what runtime is expected for that class of
- * strategy before enough measurements have accumulated.</p>
+ * <p>Evaluation cost is then used only for the pre-evaluation question of
+ * whether running one more strategy is worth the extra time.</p>
  */
 final class StrategySelectionModel {
 
@@ -67,6 +67,13 @@ final class StrategySelectionModel {
             Double outcomeScore = outcomeScore(trace.getOutcome());
 
             for (CcrsTrace.StrategyEvaluation evaluation : trace.getEvaluations()) {
+                // Learn only from strategies that were actually evaluated in a
+                // context where they could apply. NOT_APPLICABLE is context
+                // filtering, not negative evidence about strategy quality.
+                if (!isMeaningfulEvaluation(evaluation)) {
+                    continue;
+                }
+
                 MutableProfile profile = mutableProfiles.computeIfAbsent(
                     evaluation.getStrategyId(),
                     MutableProfile::new);
@@ -127,7 +134,7 @@ final class StrategySelectionModel {
     boolean shouldEvaluate(
             CcrsStrategy candidate,
             List<StrategyResult> currentSuggestions,
-            long levelReferenceTimeMs) {
+            ContingencyConfiguration config) {
         if (currentSuggestions.isEmpty()) {
             return true;
         }
@@ -144,7 +151,13 @@ final class StrategySelectionModel {
             .max()
             .orElse(0.0);
 
-        return profile.preEvaluationValue(levelReferenceTimeMs) > bestKnownConfidence;
+        // Keep quality and cost separate. An expensive high-confidence strategy
+        // should not be treated as low-confidence; cost only decides whether
+        // the expected improvement over the current best is worth more work.
+        double expectedGain = profile.expectedConfidence() - bestKnownConfidence;
+        return expectedGain >= config.getMinimumExpectedConfidenceGain()
+            || profile.expectedConfidence() >= config.getHighConfidenceEvaluationFloor()
+            || profile.averageEvaluationTimeMs() <= config.getCheapEvaluationTimeMs();
     }
 
     Profile profileFor(String strategyId) {
@@ -157,20 +170,17 @@ final class StrategySelectionModel {
                 Profile profile = profiles.get(strategy.getId());
                 if (profile == null || !profile.hasEnoughSamples(minimumSamples)) {
                     return String.format(Locale.ROOT,
-                        "%s(default, L%d reference=%dms)",
+                        "%s(default, L%d)",
                         strategy.getId(),
-                        strategy.getEscalationLevel(),
-                        config.getCostReferenceTimeMs(strategy.getEscalationLevel()));
+                        strategy.getEscalationLevel());
                 }
                 return String.format(Locale.ROOT,
-                    "%s(value=%.3f, expectedConfidence=%.2f, suggestionRate=%.2f, avgConfidence=%.2f, avgTime=%.0fms, reference=%dms, n=%d)",
+                    "%s(expectedConfidence=%.2f, suggestionRate=%.2f, avgConfidence=%.2f, avgTime=%.0fms, n=%d)",
                     strategy.getId(),
-                    profile.preEvaluationValue(config.getCostReferenceTimeMs(strategy.getEscalationLevel())),
                     profile.expectedConfidence(),
                     profile.suggestionRate(),
                     profile.averageSuggestionConfidence(),
                     profile.averageEvaluationTimeMs(),
-                    config.getCostReferenceTimeMs(strategy.getEscalationLevel()),
                     profile.evaluationCount());
             })
             .collect(Collectors.joining(", "));
@@ -187,12 +197,20 @@ final class StrategySelectionModel {
         boolean rightLearned = rightProfile != null && rightProfile.hasEnoughSamples(minimumSamples);
 
         if (leftLearned && rightLearned) {
-            long referenceTimeMs = config.getCostReferenceTimeMs(left.getEscalationLevel());
-            int byValue = Double.compare(
-                rightProfile.preEvaluationValue(referenceTimeMs),
-                leftProfile.preEvaluationValue(referenceTimeMs));
-            if (byValue != 0) {
-                return byValue;
+            // Order learned candidates by expected quality. Runtime is only a
+            // tie-breaker so cheap strategies win when quality is equivalent.
+            int byExpectedConfidence = Double.compare(
+                rightProfile.expectedConfidence(),
+                leftProfile.expectedConfidence());
+            if (byExpectedConfidence != 0) {
+                return byExpectedConfidence;
+            }
+
+            int byEvaluationTime = Double.compare(
+                leftProfile.averageEvaluationTimeMs(),
+                rightProfile.averageEvaluationTimeMs());
+            if (byEvaluationTime != 0) {
+                return byEvaluationTime;
             }
         }
 
@@ -212,6 +230,11 @@ final class StrategySelectionModel {
             case FAILED -> 0.0;
             case PENDING, UNKNOWN -> null;
         };
+    }
+
+    private static boolean isMeaningfulEvaluation(CcrsTrace.StrategyEvaluation evaluation) {
+        return evaluation.getApplicability() != CcrsStrategy.Applicability.NOT_APPLICABLE
+            && evaluation.getResult() != null;
     }
 
     static final class Profile {
@@ -286,10 +309,6 @@ final class StrategySelectionModel {
             return suggestionRate() * learnedConfidence();
         }
 
-        double preEvaluationValue(double costReferenceTimeMs) {
-            double effortMultiplier = 1.0 + (averageEvaluationTimeMs() / costReferenceTimeMs);
-            return expectedConfidence() / effortMultiplier;
-        }
     }
 
     private static final class MutableProfile {

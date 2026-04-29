@@ -36,6 +36,9 @@ public class ContingencyConfiguration {
     private final long l2CostReferenceTimeMs;
     private final long l3CostReferenceTimeMs;
     private final long l4CostReferenceTimeMs;
+    private final double minimumExpectedConfidenceGain;
+    private final double highConfidenceEvaluationFloor;
+    private final long cheapEvaluationTimeMs;
     
     private ContingencyConfiguration(Builder builder) {
         this.enabledStrategies = Collections.unmodifiableSet(new HashSet<>(builder.enabledStrategies));
@@ -53,6 +56,9 @@ public class ContingencyConfiguration {
         this.l2CostReferenceTimeMs = builder.l2CostReferenceTimeMs;
         this.l3CostReferenceTimeMs = builder.l3CostReferenceTimeMs;
         this.l4CostReferenceTimeMs = builder.l4CostReferenceTimeMs;
+        this.minimumExpectedConfidenceGain = builder.minimumExpectedConfidenceGain;
+        this.highConfidenceEvaluationFloor = builder.highConfidenceEvaluationFloor;
+        this.cheapEvaluationTimeMs = builder.cheapEvaluationTimeMs;
     }
     
     /**
@@ -120,6 +126,11 @@ public class ContingencyConfiguration {
         return minimumLearningSamples;
     }
 
+    /**
+     * Legacy cost reference retained for configuration compatibility. Learned
+     * selection now keeps expected confidence and measured cost separate.
+     */
+    @Deprecated
     public long getCostReferenceTimeMs(int escalationLevel) {
         return switch (escalationLevel) {
             case 0 -> l0CostReferenceTimeMs;
@@ -129,6 +140,18 @@ public class ContingencyConfiguration {
             case 4 -> l4CostReferenceTimeMs;
             default -> l4CostReferenceTimeMs;
         };
+    }
+
+    public double getMinimumExpectedConfidenceGain() {
+        return minimumExpectedConfidenceGain;
+    }
+
+    public double getHighConfidenceEvaluationFloor() {
+        return highConfidenceEvaluationFloor;
+    }
+
+    public long getCheapEvaluationTimeMs() {
+        return cheapEvaluationTimeMs;
     }
     
     /**
@@ -158,6 +181,12 @@ public class ContingencyConfiguration {
         private long l2CostReferenceTimeMs = 1000L;
         private long l3CostReferenceTimeMs = 2000L;
         private long l4CostReferenceTimeMs = 3000L;
+        // Learned selection keeps expected confidence and runtime separate.
+        // These thresholds define when another strategy is worth evaluating
+        // after at least one recovery suggestion is already available.
+        private double minimumExpectedConfidenceGain = 0.10;
+        private double highConfidenceEvaluationFloor = 0.80;
+        private long cheapEvaluationTimeMs = 250L;
         
         /**
          * Only enable specific strategies (whitelist).
@@ -235,7 +264,8 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Set the minimum evaluations per strategy before it can be reordered or pruned.
+         * Set the minimum applicable, evaluated samples per strategy before it
+         * can be reordered or pruned.
          */
         public Builder minimumLearningSamples(int min) {
             this.minimumLearningSamples = Math.max(1, min);
@@ -243,10 +273,11 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Set the time scale used when converting evaluation time into effort
-         * for one escalation level. This is a prior for interpreting measured
-         * runtime, not a suggestion-level cost.
+         * Legacy cost reference retained for configuration compatibility.
+         * Learned selection now uses minimumExpectedConfidenceGain,
+         * highConfidenceEvaluationFloor, and cheapEvaluationTimeMs instead.
          */
+        @Deprecated
         public Builder costReferenceTimeMs(int escalationLevel, long ms) {
             long normalized = Math.max(1L, ms);
             switch (escalationLevel) {
@@ -258,6 +289,37 @@ public class ContingencyConfiguration {
                 default -> throw new IllegalArgumentException("Unsupported escalation level: " + escalationLevel);
             }
             return this;
+        }
+
+        /**
+         * Set the minimum expected confidence improvement over the current best
+         * suggestion that justifies evaluating another learned strategy.
+         */
+        public Builder minimumExpectedConfidenceGain(double gain) {
+            this.minimumExpectedConfidenceGain = clampConfidence(gain);
+            return this;
+        }
+
+        /**
+         * Always continue to evaluate a learned strategy whose expected
+         * confidence meets this floor, even if another suggestion already exists.
+         */
+        public Builder highConfidenceEvaluationFloor(double floor) {
+            this.highConfidenceEvaluationFloor = clampConfidence(floor);
+            return this;
+        }
+
+        /**
+         * Always continue to evaluate learned strategies whose average runtime
+         * is no greater than this threshold.
+         */
+        public Builder cheapEvaluationTimeMs(long ms) {
+            this.cheapEvaluationTimeMs = Math.max(0L, ms);
+            return this;
+        }
+
+        private double clampConfidence(double value) {
+            return Math.max(0.0, Math.min(1.0, value));
         }
         
         public ContingencyConfiguration build() {

@@ -116,14 +116,23 @@ public class ContingencyCcrs {
                 continue;
             }
 
-            long levelReferenceTimeMs = config.getCostReferenceTimeMs(level);
-            if (selectionModel != null && !selectionModel.shouldEvaluate(strategy, allSuggestions, levelReferenceTimeMs)) {
+            // Learned selection may prune remaining work once a suggestion
+            // exists, but it compares expected improvement against thresholds
+            // rather than comparing cost-discounted history to raw confidence.
+            if (selectionModel != null && !selectionModel.shouldEvaluate(strategy, allSuggestions, config)) {
                 StrategySelectionModel.Profile profile = selectionModel.profileFor(strategy.getId());
+                double bestConfidence = bestSuggestionConfidence(allSuggestions);
+                double expectedGain = profile.expectedConfidence() - bestConfidence;
                 logger.info(String.format(
-                    "[ContingencyCcrs] Skipping %s before evaluation: learned value %.3f is below current best suggestion confidence %.3f",
+                    "[ContingencyCcrs] Skipping %s before evaluation: expected confidence %.3f gives gain %.3f over current best %.3f; below min gain %.3f, below high-confidence floor %.3f, and avg time %.0fms exceeds cheap threshold %dms",
                     strategy.getId(),
-                    profile.preEvaluationValue(levelReferenceTimeMs),
-                    bestSuggestionConfidence(allSuggestions)));
+                    profile.expectedConfidence(),
+                    expectedGain,
+                    bestConfidence,
+                    config.getMinimumExpectedConfidenceGain(),
+                    config.getHighConfidenceEvaluationFloor(),
+                    profile.averageEvaluationTimeMs(),
+                    config.getCheapEvaluationTimeMs()));
                 continue;
             }
             

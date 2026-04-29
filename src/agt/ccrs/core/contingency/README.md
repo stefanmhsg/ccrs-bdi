@@ -102,7 +102,7 @@ This order is the default prior when there is not enough trace history for learn
 The configured escalation policy controls how much of the ordered list is evaluated:
 *   `SEQUENTIAL`: stop after the first suggestion.
 *   `BEST_PER_LEVEL`: evaluate the most promising applicable strategy in each escalation level, then continue to the next level.
-*   `PARALLEL`: consider all enabled strategies, while still allowing learned scheduling to skip strategies whose expected value is lower than the confidence of an already available suggestion.
+*   `PARALLEL`: consider enabled strategies, while still allowing learned scheduling to skip expensive strategies that are unlikely to improve on an already available suggestion.
 
 ### 2. Hypermedia-Oriented Design
 
@@ -146,7 +146,7 @@ The default `ContingencyCcrs.evaluate(...)` path records this trace through `Ccr
 
 ### 5. Learned Evaluation Tradeoff
 
-Suggestion confidence and strategy evaluation cost are handled at different points in the pipeline.
+Suggestion confidence and strategy evaluation cost are handled as separate signals.
 
 After a strategy has run, its suggestion is ranked only by `confidence`. At that point the evaluation cost has already been paid, so reducing the suggestion's rank because the strategy was expensive would mix two different decisions.
 
@@ -156,24 +156,81 @@ Before future strategies are run, `ContingencyCcrs` builds a lightweight strateg
 *   the confidence of those suggestions,
 *   optional reported outcome feedback when available.
 
-The learned pre-evaluation value is:
+Only applicable, evaluated samples are learned from. A `NOT_APPLICABLE` check is context filtering, not evidence that a strategy is poor. This prevents strategies such as consultation or retry from being learned as useless merely because their preconditions were absent in earlier situations.
+
+The learned quality estimate is:
 
 ```text
-expectedConfidence / (1 + averageEvaluationTimeMs / levelReferenceTimeMs)
+expectedConfidence = suggestionRate * learnedConfidence
 ```
 
-`expectedConfidence` combines the learned suggestion rate with the learned confidence of produced suggestions. When outcome feedback has been reported, it is folded into confidence as a reliability signal.
+`learnedConfidence` is the average suggestion confidence, optionally blended with reported outcome feedback when available. `suggestionRate` keeps strategies honest when they are applicable but often return `NoHelp`.
 
-`levelReferenceTimeMs` is configured per escalation level. It is not a fixed cost charged to suggestions; it is a default effort prior for interpreting measured runtime:
-*   L1 defaults to `100ms`,
-*   L2 defaults to `1000ms`,
-*   L3 defaults to `2000ms`,
-*   L4 defaults to `3000ms`,
-*   L0 defaults to `50ms` because `StopStrategy` is only a fallback.
+Evaluation time is kept separate:
 
-This value is used to reorder strategies within their escalation level and to skip a remaining strategy when a current suggestion already has higher confidence than the learned value of spending more effort. If a strategy does not yet have enough samples, the default escalation order is preserved so new strategies are still explored.
+```text
+averageEvaluationTimeMs = weighted average runtime for applicable evaluations
+```
 
-`learningHistoryLimit` bounds how many recent traces are read into the model. It keeps the runtime selector local, cheap, and adaptive to recent behavior instead of letting old evaluations dominate forever. `minimumLearningSamples` is counted per strategy profile, not globally; with the default value `2`, a strategy needs two recorded evaluations before its learned value can reorder or prune it.
+This distinction matters because expensive high-confidence strategies are not low-confidence strategies. They are high-confidence strategies that cost time to run.
+
+#### Continue-or-skip rule
+
+When no suggestion exists yet, the next strategy is always evaluated. When a suggestion already exists and the candidate has enough applicable samples, learned selection evaluates the candidate if any of these are true:
+
+```text
+expectedGain >= minimumExpectedConfidenceGain
+expectedConfidence >= highConfidenceEvaluationFloor
+averageEvaluationTimeMs <= cheapEvaluationTimeMs
+```
+
+Where:
+
+```text
+expectedGain = candidateExpectedConfidence - currentBestSuggestionConfidence
+```
+
+Default thresholds:
+*   `minimumExpectedConfidenceGain = 0.10`,
+*   `highConfidenceEvaluationFloor = 0.80`,
+*   `cheapEvaluationTimeMs = 250ms`.
+
+The selector skips only when the candidate is not expected to improve the current best by enough, is not historically high-confidence, and is not cheap to run.
+
+#### Example
+
+Suppose backtrack has already produced a suggestion with confidence `0.453`.
+
+Recent LLM traces show:
+
+```text
+suggestionRate = 1.00
+learnedConfidence = 0.92
+averageEvaluationTimeMs = 11951ms
+expectedConfidence = 0.92
+expectedGain = 0.92 - 0.453 = 0.467
+```
+
+The old scalar model discounted LLM confidence by cost:
+
+```text
+0.92 / (1 + 11951 / 3000) = 0.184
+```
+
+That made a high-confidence LLM look worse than the already available backtrack suggestion. The current model keeps quality and cost separate. Since the expected gain `0.467` is above the default `0.10` threshold, the LLM is still evaluated.
+
+By contrast, if a strategy has:
+
+```text
+expectedConfidence = 0.50
+currentBestSuggestionConfidence = 0.453
+expectedGain = 0.047
+averageEvaluationTimeMs = 12000ms
+```
+
+it is skipped by default because the expected improvement is small, the strategy is not above the high-confidence floor, and it is expensive.
+
+`learningHistoryLimit` bounds how many recent traces are read into the model. It keeps the runtime selector local, cheap, and adaptive to recent behavior instead of letting old evaluations dominate forever. `minimumLearningSamples` is counted per strategy profile, not globally; with the default value `2`, a strategy needs two applicable, evaluated samples before its learned value can reorder or prune it.
 
 ### 6. Context Integration
 
@@ -374,6 +431,9 @@ if (result instanceof StrategyResult.Suggestion suggestion) {
 ```java
 ContingencyConfiguration config = ContingencyConfiguration.builder()
     .maxEscalationLevel(4)           // Cap escalation at L4
+    .minimumExpectedConfidenceGain(0.10)
+    .highConfidenceEvaluationFloor(0.80)
+    .cheapEvaluationTimeMs(250)
     .enableTracing(true)             // Capture evaluation traces
     .llmClient(myLlmClient)          // Inject LLM provider
     .consultationChannel(myChannel)  // Inject consultation mechanism
