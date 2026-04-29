@@ -13,7 +13,7 @@ import ccrs.capabilities.ConfigResolver;
  * - System properties
  */
 public class Langchain4jConfig {
-    private static final String DEFAULT_OPENAI_MODEL = "gpt-5.4-mini-2026-03-17";
+    private static final String DEFAULT_OPENAI_MODEL = "gpt-5.4"; // gpt-5.4-mini-2026-03-17 / gpt-5.4
     
     // Connection settings
     private final String apiKey;

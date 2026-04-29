@@ -248,40 +248,7 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             appendLine(sb, "Situation metadata", situation.getMetadata());
         }
 
-        context.getLastInteraction()
-            .ifPresentOrElse(
-                interaction -> appendLine(sb, "Last interaction", formatInteractionDetails(interaction)),
-                () -> appendLine(sb, "Last interaction", "none available"));
-
-        context.getLastCcrsInvocation()
-            .ifPresent(trace -> appendLine(sb, "Previous CCRS invocation", trace.toDetailedReport()));
-
         return sb.toString().trim();
-    }
-
-    private String formatInteractionDetails(Interaction interaction) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(interaction.method()).append(' ')
-            .append(interaction.requestUri())
-            .append(" -> ")
-            .append(interaction.outcome());
-
-        if (interaction.requestBody() != null) {
-            sb.append("; body=").append(interaction.requestBody());
-        }
-        if (interaction.logicalSource() != null) {
-            sb.append("; source=").append(interaction.logicalSource());
-        }
-        if (interaction.requestTimestamp() > 0 && interaction.responseTimestamp() > 0) {
-            sb.append("; durationMs=")
-                .append(interaction.responseTimestamp() - interaction.requestTimestamp());
-        }
-        if (interaction.perceivedState() != null) {
-            sb.append("; perceivedState=")
-                .append(interaction.perceivedState().size())
-                .append(" triples");
-        }
-        return sb.toString();
     }
 
     private void appendLine(StringBuilder sb, String label, Object value) {

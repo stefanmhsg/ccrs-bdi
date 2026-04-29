@@ -65,6 +65,7 @@ A wrapper around the standard `HypermedeaArtifact`.
 A standard Java SPI implementation of Hypermedea's `ProtocolBinding`.
 - **Discovery:** Registered via `META-INF/services/org.hypermedea.op.ProtocolBinding`.
 - **Logic:** It checks `CcrsGlobalRegistry.getSink()` (the ThreadLocal). If a sink is present (meaning the call came from our wrapper artifact), it returns an instrumented `CcrsHttpOperation`. Otherwise, it falls back to standard behavior.
+- **Template URIs:** URI-templated bind operations are currently delegated to the default Hypermedea binding.
 
 ### CcrsHttpOperation
 Subclass of Hypermedea's `HttpOperation`.
@@ -108,6 +109,40 @@ No changes required in AgentSpeak code!
 - **Thread Safety:** `ThreadLocal` ensures that concurrent requests from different agents do not overwrite each other's logging context.
 - **Isolation:** The shared log partitions data by agent name, ensuring that Agent A never sees Agent B's interaction history during contingency reasoning.
 - **Wrapper + SPI:** We use `CcrsHypermedeaArtifact` (Wrapper) to set the context, and a standard Hypermedea SPI Binding (`CcrsHttpBinding`) to execute the logging hooks. This works around the restricted visibility of standard Hypermedea internals.
+
+---
+
+## What we learned while debugging missing POST bodies
+
+### Symptom
+
+POST interactions were initially logged with method/URI and headers, but no request body in `# Recent Action History` and `InteractionBuilder` (`payload=[]`, `extractedBody=null`), even though the plan printed a body literal in `before super.post`.
+
+### Root cause
+
+`org.hypermedea.op.http.HttpOperation#setPayload(Collection<Literal>)` serializes the payload into the HTTP request body, but it does **not** keep the payload in `BaseOperation` state for later inspection.  
+This means:
+
+- A custom `CcrsHttpOperation` that only delegated to `super.setPayload(...)` appeared to send payload at the HTTP transport layer, but `op.getPayload()` stayed empty for later logging.
+- `InteractionBuilder.fromRequest(...)` reads `op.getPayload()` at request-time to log the extracted body, so it had no body to show.
+
+### Correct fix
+
+Reworked `CcrsHttpOperation#setPayload(...)` to keep a durable in-memory payload while still delegating to `HttpOperation` for serialization:
+
+   - Copy payload into the operation’s backing `payload` field.
+   - Then call `super.setPayload(payload)`.
+
+After this change, logs show:
+
+- `CcrsHttpOperation ... nowPayload=[...]`
+ - `InteractionBuilder` sees `payload=[...]` and `extractedBody=[...]`.
+ - The generated LLM prompt now includes the actual POST request body.
+
+### Current status
+
+POST request bodies are now captured and visible for contingency reasoning.
+This is achieved without changing Hypermedea internals: all changes are in the CCRS logging wrapper/binding package.
 
 ---
 ```

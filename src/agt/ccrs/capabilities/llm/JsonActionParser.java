@@ -145,18 +145,42 @@ public class JsonActionParser implements LlmResponseParser {
         int colonIndex = json.indexOf(":", keyIndex);
         if (colonIndex < 0) return null;
         
-        // Find opening quote of value
-        int valueStart = json.indexOf("\"", colonIndex);
-        if (valueStart < 0) return null;
-        
+        int valueTokenStart = colonIndex + 1;
+        while (valueTokenStart < json.length() && Character.isWhitespace(json.charAt(valueTokenStart))) {
+            valueTokenStart++;
+        }
+
+        if (startsWithLiteral(json, valueTokenStart, "null")) {
+            return null;
+        }
+
+        if (valueTokenStart >= json.length() || json.charAt(valueTokenStart) != '"') {
+            return null;
+        }
+
         // Find closing quote (handle escaped quotes)
-        int valueEnd = findClosingQuote(json, valueStart + 1);
+        int valueEnd = findClosingQuote(json, valueTokenStart + 1);
         if (valueEnd < 0) return null;
         
-        String value = json.substring(valueStart + 1, valueEnd);
+        String value = json.substring(valueTokenStart + 1, valueEnd);
         
         // Normalize "null" string to null
         return "null".equalsIgnoreCase(value.trim()) ? null : value;
+    }
+
+    private boolean startsWithLiteral(String json, int index, String literal) {
+        if (index < 0 || index + literal.length() > json.length()) {
+            return false;
+        }
+        if (!json.regionMatches(true, index, literal, 0, literal.length())) {
+            return false;
+        }
+        int afterLiteral = index + literal.length();
+        return afterLiteral >= json.length() || isJsonValueBoundary(json.charAt(afterLiteral));
+    }
+
+    private boolean isJsonValueBoundary(char c) {
+        return Character.isWhitespace(c) || c == ',' || c == '}' || c == ']';
     }
 
     private String extractJsonObject(String json, String fieldName) {

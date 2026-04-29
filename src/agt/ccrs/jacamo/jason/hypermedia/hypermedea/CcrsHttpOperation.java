@@ -2,7 +2,9 @@ package ccrs.jacamo.jason.hypermedia.hypermedea;
 
 import org.hypermedea.op.Response;
 import org.hypermedea.op.http.HttpOperation;
+import jason.asSyntax.Literal;
 
+import java.util.Collection;
 import java.io.IOException;
 import java.util.Map;
 
@@ -19,6 +21,19 @@ public class CcrsHttpOperation extends HttpOperation {
         super(targetURI, formFields);
         this.sink = sink;
         this.createdTimestamp = System.currentTimeMillis();
+    }
+
+    @Override
+    public void setPayload(Collection<Literal> payload) {
+        // Preserve payload in operation state before delegating.
+        // Without this, HttpOperation serialization works but getPayload() stays empty,
+        // which causes InteractionBuilder to miss request bodies in interaction history.
+        this.payload.clear();
+        if (payload != null) {
+            this.payload.addAll(payload);
+        }
+
+        super.setPayload(payload);
     }
 
     @Override

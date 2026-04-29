@@ -141,10 +141,11 @@ MAIN LOOP
         .print("CCRS executing POST suggestion") ;
 
         if (.member(body(Body), Params)) {
-            !post(Target, Body) ;
+            .print("post with body: ", Body) ;
+            !post(Target, [Body]) ;
         } else {
             .print("post without body") ;
-            !post(Target, "") ;
+            !post(Target, []) ;
         }
 
         !crawl(Target) ;

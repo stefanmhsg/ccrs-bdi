@@ -60,15 +60,14 @@ final class InteractionBuilder {
     // =========================
 
     static InteractionBuilder fromRequest(Operation op, long timestamp) {
-
+        Map<String, Object> form = op.getForm();
         String method = extractMethod(op);
 
-        Map<String, String> headers = extractHeaders(op.getForm());
-
-        Object body =
-            op.getPayload() == null || op.getPayload().isEmpty()
-                ? null
-                : List.copyOf(op.getPayload());
+        Map<String, String> headers = extractHeaders(form);
+        // Use op.getPayload() as single source of truth for request body.
+        // Hypermedea's transport-layer serializers can send data, but we need an
+        // in-memory payload here so the interaction history includes the POST body.
+        Object body = op.getPayload() == null || op.getPayload().isEmpty() ? null : List.copyOf(op.getPayload());
 
         return new InteractionBuilder(
             method,

@@ -9,8 +9,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * A custom ProtocolBinding that overrides the default HTTP binding.
- * It checks the registry for a sink. If found, it creates a logging operation.
+ * A custom ProtocolBinding that wraps the default HTTP binding when CCRS logging is active.
  */
 public class CcrsHttpBinding implements ProtocolBinding {
 
@@ -33,7 +32,7 @@ public class CcrsHttpBinding implements ProtocolBinding {
         InteractionLogSink sink = CcrsGlobalRegistry.getSink();
 
         if (sink != null) {
-            // Return our instrumented operation
+            // Active CCRS context: return instrumented operation that captures request/response.
             return new CcrsHttpOperation(targetURI, formFields, sink);
         } else {
             // Fallback: If no sink is installed, behave exactly like standard Hypermedea
@@ -43,7 +42,7 @@ public class CcrsHttpBinding implements ProtocolBinding {
 
     @Override
     public Operation bind(String targetURITemplate, Map<String, Object> formFields, Map<String, Object> uriVariableMappings) {
-        // For simplicity, we delegate this one, or you can implement similar logic for templates
+        // URI-templated variants are not instrumented currently; delegate to default behaviour.
         return delegate.bind(targetURITemplate, formFields, uriVariableMappings);
     }
 }
