@@ -162,7 +162,7 @@ public class JsonActionParser implements LlmResponseParser {
         int valueEnd = findClosingQuote(json, valueTokenStart + 1);
         if (valueEnd < 0) return null;
         
-        String value = json.substring(valueTokenStart + 1, valueEnd);
+        String value = unescapeJsonString(json.substring(valueTokenStart + 1, valueEnd));
         
         // Normalize "null" string to null
         return "null".equalsIgnoreCase(value.trim()) ? null : value;

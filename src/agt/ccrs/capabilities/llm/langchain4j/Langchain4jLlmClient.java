@@ -96,8 +96,6 @@ public class Langchain4jLlmClient implements LlmClient {
      */
     public static Langchain4jLlmClient fromEnvironment() {
         Langchain4jConfig config = Langchain4jConfig.fromEnvironment()
-            .modelName("gpt-4o-mini")
-            .temperature(0.7)
             .build();
         
         return builder().config(config).build();

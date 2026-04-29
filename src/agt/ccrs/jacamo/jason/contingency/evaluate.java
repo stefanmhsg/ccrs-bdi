@@ -17,9 +17,17 @@ import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
 import jason.asSyntax.*;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.RDFNode;
+import org.apache.jena.rdf.model.Statement;
+import org.apache.jena.rdf.model.StmtIterator;
 
+import java.io.StringReader;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -257,7 +265,7 @@ public class evaluate extends DefaultInternalAction {
         for (Map.Entry<String, Object> e : params.entrySet()) {
             Structure pair = ASSyntax.createStructure(
                 e.getKey(),
-                buildValue(e.getValue())
+                buildValue(e.getKey(), e.getValue())
             );
             tail = tail.append(pair);
         }
@@ -266,8 +274,19 @@ public class evaluate extends DefaultInternalAction {
     }
     
     private Term buildValue(Object value) {
+        return buildValue(null, value);
+    }
+
+    private Term buildValue(String key, Object value) {
         if (value == null) {
             return ASSyntax.createAtom("null");
+        }
+
+        if ("body".equals(key) && value instanceof String bodyText) {
+            Term parsedBody = parseBodyTerm(bodyText);
+            if (parsedBody != null) {
+                return parsedBody;
+            }
         }
     
         if (value instanceof List<?> list) {
@@ -275,7 +294,7 @@ public class evaluate extends DefaultInternalAction {
             ListTerm tail = jasonList;
         
             for (Object o : list) {
-                Term t = ASSyntax.createString(String.valueOf(o));
+                Term t = buildValue(o);
                 tail = tail.append(t);
             }
             return jasonList;
@@ -301,6 +320,160 @@ public class evaluate extends DefaultInternalAction {
         }
     
         return ASSyntax.createString(String.valueOf(value));
+    }
+
+    private Term parseBodyTerm(String bodyText) {
+        if (bodyText == null) {
+            return null;
+        }
+
+        String trimmed = bodyText.trim();
+        if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)) {
+            return null;
+        }
+
+        Term agentSpeakBody = parseAgentSpeakBody(trimmed);
+        if (agentSpeakBody != null) {
+            return agentSpeakBody;
+        }
+
+        Term simpleTurtleBody = parseTurtleTripleBody(trimmed);
+        if (simpleTurtleBody != null) {
+            return simpleTurtleBody;
+        }
+
+        return parseTurtleBody(trimmed);
+    }
+
+    private Term parseAgentSpeakBody(String bodyText) {
+        if (!looksLikeAgentSpeakBody(bodyText)) {
+            return null;
+        }
+
+        try {
+            return ASSyntax.parseTerm(bodyText);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to parse LLM body as AgentSpeak term: " + bodyText, e);
+            return null;
+        }
+    }
+
+    private boolean looksLikeAgentSpeakBody(String bodyText) {
+        return bodyText.startsWith("[") || bodyText.startsWith("rdf(");
+    }
+
+    private Term parseTurtleTripleBody(String bodyText) {
+        Pattern triplePattern = Pattern.compile(
+            "^\\s*<([^>]+)>\\s+<([^>]+)>\\s+(?:<([^>]+)>|\\\"((?:\\\\.|[^\\\"])*)\\\")\\s*\\.\\s*$",
+            Pattern.DOTALL
+        );
+        Matcher matcher = triplePattern.matcher(bodyText);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        String subject = matcher.group(1);
+        String predicate = matcher.group(2);
+        String uriObject = matcher.group(3);
+        String literalObject = matcher.group(4);
+        String object = uriObject != null ? uriObject : unescapeTurtleLiteral(literalObject);
+        String objectType = uriObject != null ? "uri" : "literal";
+
+        String agentSpeak = String.format(
+            "[rdf(\"%s\",\"%s\",\"%s\")[rdf_type_map(uri,uri,%s)]]",
+            escapeAgentSpeakString(subject),
+            escapeAgentSpeakString(predicate),
+            escapeAgentSpeakString(object),
+            objectType
+        );
+
+        try {
+            return ASSyntax.parseTerm(agentSpeak);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to parse converted Turtle LLM body: " + bodyText, e);
+            return null;
+        }
+    }
+
+    private Term parseTurtleBody(String bodyText) {
+        try {
+            Model model = ModelFactory.createDefaultModel();
+            model.read(new StringReader(bodyText), null, "TURTLE");
+
+            ListTerm body = new ListTermImpl();
+            ListTerm tail = body;
+            StmtIterator statements = model.listStatements();
+            try {
+                while (statements.hasNext()) {
+                    Term rdfTerm = buildRdfTerm(statements.nextStatement());
+                    if (rdfTerm != null) {
+                        tail = tail.append(rdfTerm);
+                    }
+                }
+            } finally {
+                statements.close();
+            }
+
+            return body.isEmpty() ? null : body;
+        } catch (Exception e) {
+            logger.log(Level.FINE, "LLM body is not parseable Turtle; forwarding as string");
+            return null;
+        }
+    }
+
+    private Term buildRdfTerm(Statement statement) {
+        if (statement == null || !statement.getSubject().isURIResource()) {
+            return null;
+        }
+
+        String subject = statement.getSubject().getURI();
+        String predicate = statement.getPredicate().getURI();
+        RDFNode objectNode = statement.getObject();
+        String object;
+        String objectType;
+
+        if (objectNode.isURIResource()) {
+            object = objectNode.asResource().getURI();
+            objectType = "uri";
+        } else if (objectNode.isLiteral()) {
+            org.apache.jena.rdf.model.Literal literal = objectNode.asLiteral();
+            object = literal.getLexicalForm();
+            objectType = "literal";
+        } else {
+            return null;
+        }
+
+        jason.asSyntax.Literal rdf = ASSyntax.createLiteral(
+            "rdf",
+            ASSyntax.createString(subject),
+            ASSyntax.createString(predicate),
+            ASSyntax.createString(object)
+        );
+        rdf.addAnnot(ASSyntax.createStructure(
+            "rdf_type_map",
+            ASSyntax.createAtom("uri"),
+            ASSyntax.createAtom("uri"),
+            ASSyntax.createAtom(objectType)
+        ));
+        return rdf;
+    }
+
+    private String unescapeTurtleLiteral(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t");
+    }
+
+    private String escapeAgentSpeakString(String value) {
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"");
     }
 
 

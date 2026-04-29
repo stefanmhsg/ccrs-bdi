@@ -142,7 +142,7 @@ MAIN LOOP
 
         if (.member(body(Body), Params)) {
             .print("post with body: ", Body) ;
-            !post(Target, [Body]) ;
+            !post(Target, Body) ;
         } else {
             .print("post without body") ;
             !post(Target, []) ;
@@ -322,7 +322,7 @@ REACTING TO EVENTS
     .
 
 // Detect open action
-+rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action)[rdf_type_map(uri, _, _), source(Anchor)] :
++rdf(Location, "http://www.w3.org/ns/hydra/core#operation", Action)[rdf_type_map(uri, _, _), source(Anchor)] :
     crawling & h.target(Location, Target)
     <-
         if (not rdf(Action, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#hasStatus", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#done")) {

@@ -113,11 +113,39 @@ public class TemplatePromptBuilder implements PromptBuilder {
             # Instructions
             Analyze the situation and suggest ONE concrete recovery action.
             Consider:
-            1. What resources/links are available in the local neighborhood and raw RDF memory
+            1. What is the current situation and state of the agent
             2. What exact requests, responses, and perceived RDF states appear in recent interaction history
-            3. What recovery strategies or suggestions have already been tried in previous CCRS invocations
-            4. Whether the error suggests a specific recovery path
-            5. Estimated confidence that the suggested action will succeed as is if the agent attempts it
+            3. If interaction history contains requests that did not have the desired effect and if the request may be wrong - even if not resulting in an error.
+            4. What resources/links are available in the local neighborhood
+            5. What recovery strategies or suggestions have already been tried in previous CCRS invocations
+            6. Whether the error suggests a specific recovery path
+            7. Hypermedia environment is modeled as RDF in Text/Turtle format. Triples are in the form <subject> <predicate> <object>.
+            8. Estimated confidence that the suggested action will improve the agent's situation
+            9. A discovered operation is an affordance description, not the payload:
+
+                When suggesting an HTTP action:
+                1. Select the operation from hydra:operation or another advertised affordance.
+                2. Use hydra:method as the HTTP method.
+                3. Use hydra:target as the request target if present, otherwise use the resource exposing the operation.
+                4. Use hydra:expects only to derive the payload constraints.
+                5. Do not copy operation metadata into the body unless the expected shape explicitly requires it.
+
+                Payload construction:
+                1. If hydra:expects points to a SHACL shape, inspect its sh:property constraints.
+                2. For each required property, use sh:path as the predicate in the payload.
+                3. Fill values from recent RDF observations, local memory, or literals linked to compatible resources.
+                4. Respect sh:datatype, sh:class, sh:nodeKind, sh:minCount, sh:maxCount, sh:in, and sh:hasValue when present.
+                5. If no safe value can be inferred, prefer GET, navigation, or stop over inventing a payload.
+
+                Validation before final answer:
+                1. The request body satisfies the expected shape.
+                2. The body uses predicates from sh:path, not operation names.
+                3. The operation URI appears only as target metadata, unless required by the shape.
+                4. The content type matches the body syntax.
+
+            Before answering, privately derive:
+                operation_uri, method, target, expected_shape, required_paths, candidate_values, body_serialization.
+            Only then output the final JSON.
             
             # Response Format
             Respond ONLY with valid JSON (no markdown, no explanations):
