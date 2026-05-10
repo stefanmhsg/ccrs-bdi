@@ -1,8 +1,6 @@
 package ccrs.capabilities.llm;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import ccrs.core.contingency.PromptBuilder;
 
@@ -39,8 +37,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
             .replace("{errorInfo}", getString(contextMap, "errorInfo", "none"))
             .replace("{recentActions}", getString(contextMap, "recentActions", "No action history available."))
             .replace("{ccrsHistory}", getString(contextMap, "ccrsHistory", "No previous CCRS invocations available."))
-            .replace("{localNeighborhood}", getString(contextMap, "localNeighborhood", "No local neighborhood available."))
-            .replace("{rawMemory}", getString(contextMap, "rawMemory", "No raw RDF memory available."));
+            .replace("{localNeighborhood}", getString(contextMap, "localNeighborhood", "No local neighborhood available."));
     }
        
     @Override
@@ -56,37 +53,6 @@ public class TemplatePromptBuilder implements PromptBuilder {
             return defaultValue;
         }
         return String.valueOf(value);
-    }
-    
-    private String formatContextMap(Map<String, Object> contextMap) {
-        if (contextMap == null || contextMap.isEmpty()) {
-            return "No additional context provided.";
-        }
-        
-        return contextMap.entrySet().stream()
-            .map(e -> {
-                Object value = e.getValue();
-                String valueStr;
-                
-                // Format complex types nicely
-                if (value instanceof List) {
-                    valueStr = String.format("List[%d items]", ((List<?>) value).size());
-                } else if (value instanceof Map) {
-                    valueStr = String.format("Map[%d entries]", ((Map<?, ?>) value).size());
-                } else {
-                    valueStr = truncate(String.valueOf(value), 100);
-                }
-                
-                return String.format("- %s: %s", e.getKey(), valueStr);
-            })
-            .collect(Collectors.joining("\n"));
-    }
-    
-    private String truncate(String text, int maxLength) {
-        if (text == null || text.length() <= maxLength) {
-            return text;
-        }
-        return text.substring(0, maxLength - 3) + "...";
     }
     
     // Standard templates
@@ -106,12 +72,9 @@ public class TemplatePromptBuilder implements PromptBuilder {
             
             # Local RDF Neighborhood
             {localNeighborhood}
-
-            # Raw RDF Memory
-            {rawMemory}
             
             # Instructions
-            Analyze the situation and suggest ONE concrete recovery action.
+            Analyze the situation and suggest ONE concrete recovery action only when the available evidence supports it.
             Consider:
             1. What is the current situation and state of the agent
             2. What exact requests, responses, and perceived RDF states appear in recent interaction history
@@ -121,7 +84,8 @@ public class TemplatePromptBuilder implements PromptBuilder {
             6. Whether the error suggests a specific recovery path
             7. Hypermedia environment is modeled as RDF in Text/Turtle format. Triples are in the form <subject> <predicate> <object>.
             8. Estimated confidence that the suggested action will improve the agent's situation
-            9. A discovered operation is an affordance description, not the payload:
+            9. If there is no safe, concrete, helpful action, explicitly return no suggestion by leaving the action and related fields null. This will be treated as a NoHelp result, not as an error.
+            10. A discovered operation is an affordance description, not the payload:
 
                 When suggesting an HTTP action:
                 1. Select the operation from hydra:operation or another advertised affordance.
@@ -150,19 +114,20 @@ public class TemplatePromptBuilder implements PromptBuilder {
             # Response Format
             Respond ONLY with valid JSON (no markdown, no explanations):
             {
-              "action": "<action_type>",
+              "action": "<action_type_or_null>",
               "target": "<uri_or_null>",
               "request": {
                 "method": "<GET|POST|PUT|PATCH|DELETE|null>",
-                "headers": {"<header_name>": "<header_value>"},
+                "headers": {},
                 "body": "<request_body_or_null>",
                 "bodyContentType": "<mime_type_or_null>"
               },
-              "reasoning": "<one_sentence>",
-              "confidence": <0.0_to_1.0>
+              "reasoning": "<one_sentence_or_null>",
+              "confidence": <0.0_to_1.0_or_null>
             }
             
-            Use an empty headers object when no headers are needed. Use null for request fields that are not needed.
+            Use an empty headers object when no headers are needed for a suggested action. Use null for request fields that are not needed.
+            To explicitly provide no suggestion, return: {"action": null, "target": null, "request": {"method": null, "headers": null, "body": null, "bodyContentType": null}, "reasoning": null, "confidence": null}
             Valid action_type values: navigate, get, post, put, patch, delete, retry, stop
             """;
     }

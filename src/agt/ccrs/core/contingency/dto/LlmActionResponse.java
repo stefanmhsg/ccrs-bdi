@@ -12,10 +12,12 @@ import java.util.Map;
  * - explanation: Why (reasoning, advice, rationale)
  * - confidence: How certain (optional)
  * - metadata: Additional parser context (optional)
+ * - noSuggestion: The LLM explicitly chose not to suggest any action
  */
 public class LlmActionResponse {
 
     private boolean valid;
+    private boolean noSuggestion;
     private String action;
     private String target;
     private String explanation;
@@ -39,6 +41,14 @@ public class LlmActionResponse {
         response.valid = true;
         response.action = action;
         response.target = target;
+        response.explanation = explanation;
+        return response;
+    }
+
+    public static LlmActionResponse noSuggestion(String explanation) {
+        LlmActionResponse response = new LlmActionResponse();
+        response.valid = true;
+        response.noSuggestion = true;
         response.explanation = explanation;
         return response;
     }
@@ -90,7 +100,11 @@ public class LlmActionResponse {
     }
 
     public boolean isValid() {
-        return valid && action != null && !action.isEmpty();
+        return valid && (noSuggestion || (action != null && !action.isEmpty()));
+    }
+
+    public boolean isNoSuggestion() {
+        return noSuggestion;
     }
 
     public String getAction() {
@@ -165,6 +179,9 @@ public class LlmActionResponse {
     public String toString() {
         if (!valid) {
             return "LlmActionResponse[invalid: " + parseError + "]";
+        }
+        if (noSuggestion) {
+            return "LlmActionResponse[noSuggestion: " + explanation + "]";
         }
         return String.format("LlmActionResponse[action=%s, target=%s, explanation=%s]",
             action, target, explanation != null && explanation.length() > 50 ?

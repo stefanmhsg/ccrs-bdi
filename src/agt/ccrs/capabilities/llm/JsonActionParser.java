@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
  * Handles the expected JSON schema:
  * {"action": "...", "target": "...", "request": {"method": "...", "headers": {...}, "body": "..."},
  *  "reasoning|advice|explanation": "..."}
+ * Also accepts {"action": null, ...} as an explicit no-suggestion answer.
  * 
  * Features:
  * - Flexible field name matching (reasoning, advice, explanation)
@@ -62,22 +63,17 @@ public class JsonActionParser implements LlmResponseParser {
         try {
             String action = extractJsonField(json, "action");
             if (action == null || action.isEmpty()) {
+                if (hasJsonField(json, "action")) {
+                    LlmActionResponse response = LlmActionResponse.noSuggestion(extractExplanation(json));
+                    response.withMetadata("parseMethod", "json");
+                    return response;
+                }
                 return LlmActionResponse.invalid("No 'action' field in JSON");
             }
             
             String target = extractJsonField(json, "target");
             
-            // Try multiple field names for explanation
-            String explanation = extractJsonField(json, "reasoning");
-            if (explanation == null) {
-                explanation = extractJsonField(json, "advice");
-            }
-            if (explanation == null) {
-                explanation = extractJsonField(json, "explanation");
-            }
-            if (explanation == null) {
-                explanation = extractJsonField(json, "rationale");
-            }
+            String explanation = extractExplanation(json);
             
             LlmActionResponse response = LlmActionResponse.valid(action, target, explanation);
             response.withMetadata("parseMethod", "json");
@@ -120,6 +116,20 @@ public class JsonActionParser implements LlmResponseParser {
         } catch (Exception e) {
             return LlmActionResponse.invalid("JSON parse error: " + e.getMessage());
         }
+    }
+
+    private String extractExplanation(String json) {
+        String explanation = extractJsonField(json, "reasoning");
+        if (explanation == null) {
+            explanation = extractJsonField(json, "advice");
+        }
+        if (explanation == null) {
+            explanation = extractJsonField(json, "explanation");
+        }
+        if (explanation == null) {
+            explanation = extractJsonField(json, "rationale");
+        }
+        return explanation;
     }
     
     /**
@@ -166,6 +176,17 @@ public class JsonActionParser implements LlmResponseParser {
         
         // Normalize "null" string to null
         return "null".equalsIgnoreCase(value.trim()) ? null : value;
+    }
+
+    private boolean hasJsonField(String json, String fieldName) {
+        if (json == null || fieldName == null || fieldName.isBlank()) {
+            return false;
+        }
+
+        Pattern pattern = Pattern.compile(
+            "(?s)(?:\\\"" + Pattern.quote(fieldName) + "\\\"|" + Pattern.quote(fieldName) + ")\\s*:"
+        );
+        return pattern.matcher(json).find();
     }
 
     private boolean startsWithLiteral(String json, int index, String literal) {

@@ -29,11 +29,12 @@ import ccrs.core.rdf.RdfTriple;
  *   <li>the current {@link Situation},</li>
  *   <li>detailed hypermedia interactions and their perceived RDF triples,</li>
  *   <li>a local RDF neighborhood around the current resource, and</li>
- *   <li>a broader bounded raw RDF memory snapshot.</li>
+ *   <li>previous CCRS invocation traces.</li>
  * </ul>
  *
- * The neighborhood is intentionally local link context. It must not be used as
- * the only memory-access path when the LLM needs a wider view of the graph.
+ * The neighborhood is intentionally local link context. Broader memory access is
+ * deliberately excluded from this prompt to keep prediction grounded in recent
+ * interaction and local affordance evidence.
  * 
  */
 public class PredictionLlmStrategy implements CcrsStrategy {
@@ -42,7 +43,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     public static final String ID = "prediction_llm";
     private static final String UI_NAMESPACE = "https://example.org/ui";
-    private static final int RAW_MEMORY_SCAN_MULTIPLIER = 5;
     
     // Configuration
     private LlmClient llmClient;
@@ -51,7 +51,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private double baseConfidence = 0.6;
     private int maxHistoryActions = 20;
     private int maxInteractionStateTriples = 100;
-    private int maxKnowledgeTriples = 1000;
     private int maxCcrsTraces = 5;
     private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
     private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
@@ -151,6 +150,18 @@ public class PredictionLlmStrategy implements CcrsStrategy {
                 logger.info("[PredictionLLM] Returning noHelp: " + result.asNoHelp().getReason());
                 return result;
             }
+
+            if (response.isNoSuggestion()) {
+                String explanation = response.hasExplanation()
+                    ? response.getExplanation()
+                    : "LLM explicitly returned no recovery suggestion";
+                StrategyResult result = StrategyResult.noHelp(ID,
+                    StrategyResult.NoHelpReason.INSUFFICIENT_CONTEXT,
+                    explanation);
+                logger.info("[PredictionLLM] Returning noHelp from explicit LLM null response: "
+                    + result.asNoHelp().getReason());
+                return result;
+            }
             
             // Determine confidence (use parser's if available, otherwise base)
             double confidence;
@@ -197,11 +208,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     /**
      * Prepare context map from situation and bounded context.
      * This is where we extract relevant data - NOT in the prompt builder.
-     *
-     * <p>The prompt receives local neighborhood context and raw RDF memory as
-     * distinct sections. This keeps {@code CcrsContext.getNeighborhood(...)}
-     * focused on local graph shape while still allowing the LLM to inspect a
-     * broader bounded memory snapshot.</p>
      */
     private Map<String, Object> prepareContextMap(Situation situation, CcrsContext context) {
         Map<String, Object> ctx = new HashMap<>();
@@ -226,9 +232,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
 
         // Local graph shape around the current resource.
         ctx.put("localNeighborhood", formatNeighborhood(context, currentResource));
-
-        // Broader bounded RDF memory snapshot.
-        // ctx.put("rawMemory", formatRawMemory(context));
         
         return ctx;
     }
@@ -364,31 +367,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             .append(neighborhood.incoming().size())
             .append("):\n");
         appendTriples(sb, incoming, incoming.size(), "  ");
-
-        return sb.toString().trim();
-    }
-
-    private String formatRawMemory(CcrsContext context) {
-        int scanLimit = Math.max(maxKnowledgeTriples, maxKnowledgeTriples * RAW_MEMORY_SCAN_MULTIPLIER);
-        List<RdfTriple> unfilteredTriples = context.getMemoryTriples(scanLimit);
-        List<RdfTriple> triples = filterPromptTriples(unfilteredTriples);
-        if (triples.isEmpty()) {
-            return "(no raw RDF memory triples available)";
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("(bounded raw memory snapshot; max ")
-            .append(maxKnowledgeTriples)
-            .append(" triples; filtered ")
-            .append(unfilteredTriples.size() - triples.size())
-            .append(" presentation/UI triples from ")
-            .append(unfilteredTriples.size())
-            .append(" scanned triples)\n");
-        appendTriples(sb, triples, maxKnowledgeTriples, "");
-
-        if (maxKnowledgeTriples > 0 && triples.size() >= maxKnowledgeTriples) {
-            sb.append("... (raw memory limit reached; context may contain more triples)\n");
-        }
 
         return sb.toString().trim();
     }
@@ -559,14 +537,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     }
     
     /**
-     * Limit raw RDF memory triples included in the LLM prompt.
-     */
-    public PredictionLlmStrategy maxKnowledgeTriples(int max) {
-        this.maxKnowledgeTriples = Math.max(0, max);
-        return this;
-    }
-
-    /**
      * Limit previous CCRS invocation traces included in the LLM prompt.
      */
     public PredictionLlmStrategy maxCcrsTraces(int max) {
@@ -574,9 +544,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return this;
     }
 
-    /**
-     * Configure local RDF neighborhood limits independently from raw memory.
-     */
     public PredictionLlmStrategy maxNeighborhood(int maxOutgoing, int maxIncoming) {
         this.maxNeighborhoodOutgoing = Math.max(0, maxOutgoing);
         this.maxNeighborhoodIncoming = Math.max(0, maxIncoming);
