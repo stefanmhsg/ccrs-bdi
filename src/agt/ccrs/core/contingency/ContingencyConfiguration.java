@@ -181,9 +181,10 @@ public class ContingencyConfiguration {
         private long l2CostReferenceTimeMs = 1000L;
         private long l3CostReferenceTimeMs = 2000L;
         private long l4CostReferenceTimeMs = 3000L;
-        // Learned selection keeps expected confidence and runtime separate.
-        // These thresholds define when another strategy is worth evaluating
-        // after at least one recovery suggestion is already available.
+        // The trace-based selection policy keeps expected confidence and
+        // runtime separate. These thresholds define when another strategy is
+        // worth evaluating after at least one recovery suggestion is already
+        // available.
         private double minimumExpectedConfidenceGain = 0.10;
         private double highConfidenceEvaluationFloor = 0.80;
         private long cheapEvaluationTimeMs = 250L;
@@ -246,7 +247,8 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Enable or disable trace-based strategy ordering and pruning.
+         * Enable or disable the configured strategy selection policy. The
+         * default policy is trace-based strategy ordering and pruning.
          */
         public Builder learnedSelection(boolean enabled) {
             this.learnedSelectionEnabled = enabled;
@@ -254,9 +256,9 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Set how many recent traces are used for learned strategy priors.
-         * A bounded window keeps selection adaptive and avoids unbounded memory
-         * or old data dominating current conditions.
+         * Set how many recent traces are made available for strategy selection.
+         * A bounded window keeps the trace-based default adaptive and avoids
+         * unbounded memory or old data dominating current conditions.
          */
         public Builder learningHistoryLimit(int max) {
             this.learningHistoryLimit = Math.max(1, max);
@@ -274,7 +276,7 @@ public class ContingencyConfiguration {
 
         /**
          * Legacy cost reference retained for configuration compatibility.
-         * Learned selection now uses minimumExpectedConfidenceGain,
+         * The trace-based selection policy now uses minimumExpectedConfidenceGain,
          * highConfidenceEvaluationFloor, and cheapEvaluationTimeMs instead.
          */
         @Deprecated
@@ -293,7 +295,7 @@ public class ContingencyConfiguration {
 
         /**
          * Set the minimum expected confidence improvement over the current best
-         * suggestion that justifies evaluating another learned strategy.
+         * suggestion that justifies evaluating another trace-profiled strategy.
          */
         public Builder minimumExpectedConfidenceGain(double gain) {
             this.minimumExpectedConfidenceGain = clampConfidence(gain);
@@ -301,7 +303,7 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Always continue to evaluate a learned strategy whose expected
+         * Always continue to evaluate a trace-profiled strategy whose expected
          * confidence meets this floor, even if another suggestion already exists.
          */
         public Builder highConfidenceEvaluationFloor(double floor) {
@@ -310,8 +312,8 @@ public class ContingencyConfiguration {
         }
 
         /**
-         * Always continue to evaluate learned strategies whose average runtime
-         * is no greater than this threshold.
+         * Always continue to evaluate trace-profiled strategies whose average
+         * runtime is no greater than this threshold.
          */
         public Builder cheapEvaluationTimeMs(long ms) {
             this.cheapEvaluationTimeMs = Math.max(0L, ms);

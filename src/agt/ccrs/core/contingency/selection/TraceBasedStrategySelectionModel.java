@@ -1,4 +1,4 @@
-package ccrs.core.contingency;
+package ccrs.core.contingency.selection;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -9,6 +9,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import ccrs.core.contingency.CcrsStrategy;
+import ccrs.core.contingency.ContingencyCcrs;
+import ccrs.core.contingency.ContingencyConfiguration;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.StrategyResult;
 
@@ -36,26 +39,28 @@ import ccrs.core.contingency.dto.StrategyResult;
  * <p>Evaluation cost is then used only for the pre-evaluation question of
  * whether running one more strategy is worth the extra time.</p>
  */
-final class StrategySelectionModel {
+final class TraceBasedStrategySelectionModel implements StrategySelectionPlan {
 
     private static final double RECENCY_DECAY = 0.85;
 
     private final Map<String, Profile> profiles;
+    private final ContingencyConfiguration config;
     private final int minimumSamples;
     private final int traceCount;
 
-    private StrategySelectionModel(
+    private TraceBasedStrategySelectionModel(
             Map<String, Profile> profiles,
-            int minimumSamples,
+            ContingencyConfiguration config,
             int traceCount) {
         this.profiles = profiles;
-        this.minimumSamples = minimumSamples;
+        this.config = config;
+        this.minimumSamples = Math.max(1, config.getMinimumLearningSamples());
         this.traceCount = traceCount;
     }
 
-    static StrategySelectionModel fromHistory(
+    static TraceBasedStrategySelectionModel fromHistory(
             List<CcrsTrace> recentTraces,
-            int minimumSamples) {
+            ContingencyConfiguration config) {
         Map<String, MutableProfile> mutableProfiles = new LinkedHashMap<>();
         double weight = 1.0;
 
@@ -98,9 +103,9 @@ final class StrategySelectionModel {
             profiles.put(profile.strategyId, profile.toProfile());
         }
 
-        return new StrategySelectionModel(
+        return new TraceBasedStrategySelectionModel(
             profiles,
-            Math.max(1, minimumSamples),
+            config,
             recentTraces.size());
     }
 
@@ -116,9 +121,8 @@ final class StrategySelectionModel {
         return minimumSamples;
     }
 
-    List<CcrsStrategy> orderForEvaluation(
-            List<CcrsStrategy> defaultOrder,
-            ContingencyConfiguration config) {
+    @Override
+    public List<CcrsStrategy> orderForEvaluation(List<CcrsStrategy> defaultOrder) {
         Map<String, Integer> defaultIndex = new HashMap<>();
         for (int i = 0; i < defaultOrder.size(); i++) {
             defaultIndex.put(defaultOrder.get(i).getId(), i);
@@ -127,49 +131,48 @@ final class StrategySelectionModel {
         List<CcrsStrategy> ordered = new ArrayList<>(defaultOrder);
         ordered.sort(Comparator
             .comparingInt((CcrsStrategy strategy) -> normalizedLevel(strategy.getEscalationLevel()))
-            .thenComparing((left, right) -> compareWithinLevel(left, right, defaultIndex, config)));
+            .thenComparing((left, right) -> compareWithinLevel(left, right, defaultIndex)));
         return ordered;
     }
 
-    boolean shouldEvaluate(
+    @Override
+    public boolean shouldEvaluate(
             CcrsStrategy candidate,
-            List<StrategyResult> currentSuggestions,
-            ContingencyConfiguration config) {
-        return evaluateGate(candidate, currentSuggestions, config).shouldEvaluate();
+            List<StrategyResult> currentSuggestions) {
+        return evaluateGate(candidate, currentSuggestions).shouldEvaluate();
     }
 
-    GateDecision evaluateGate(
+    @Override
+    public StrategyGateDecision evaluateGate(
             CcrsStrategy candidate,
-            List<StrategyResult> currentSuggestions,
-            ContingencyConfiguration config) {
+            List<StrategyResult> currentSuggestions) {
         double bestKnownConfidence = bestKnownConfidence(currentSuggestions);
         Profile profile = profiles.get(candidate.getId());
 
         if (currentSuggestions.isEmpty()) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                profile,
                 bestKnownConfidence,
-                "no current recovery suggestion exists");
+                "no current recovery suggestion exists",
+                diagnostics(profile));
         }
 
         if (profile == null) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                null,
                 bestKnownConfidence,
                 "no learned profile yet");
         }
 
         if (!profile.hasEnoughSamples(minimumSamples)) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                profile,
                 bestKnownConfidence,
                 String.format(Locale.ROOT,
                     "only %d/%d applicable samples are available",
                     profile.evaluationCount(),
-                    minimumSamples));
+                    minimumSamples),
+                diagnostics(profile));
         }
 
         // Keep quality and cost separate. An expensive high-confidence strategy
@@ -177,41 +180,40 @@ final class StrategySelectionModel {
         // the expected improvement over the current best is worth more work.
         double expectedGain = profile.expectedConfidence() - bestKnownConfidence;
         if (expectedGain >= config.getMinimumExpectedConfidenceGain()) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                profile,
                 bestKnownConfidence,
                 String.format(Locale.ROOT,
                     "expected gain %.3f meets min gain %.3f",
                     expectedGain,
-                    config.getMinimumExpectedConfidenceGain()));
+                    config.getMinimumExpectedConfidenceGain()),
+                diagnostics(profile));
         }
 
         if (profile.expectedConfidence() >= config.getHighConfidenceEvaluationFloor()) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                profile,
                 bestKnownConfidence,
                 String.format(Locale.ROOT,
                     "expected confidence %.3f meets high-confidence floor %.3f",
                     profile.expectedConfidence(),
-                    config.getHighConfidenceEvaluationFloor()));
+                    config.getHighConfidenceEvaluationFloor()),
+                diagnostics(profile));
         }
 
         if (profile.averageEvaluationTimeMs() <= config.getCheapEvaluationTimeMs()) {
-            return GateDecision.allow(
+            return StrategyGateDecision.allow(
                 candidate.getId(),
-                profile,
                 bestKnownConfidence,
                 String.format(Locale.ROOT,
                     "avg time %.0fms is within cheap threshold %dms",
                     profile.averageEvaluationTimeMs(),
-                    config.getCheapEvaluationTimeMs()));
+                    config.getCheapEvaluationTimeMs()),
+                diagnostics(profile));
         }
 
-        return GateDecision.skip(
+        return StrategyGateDecision.skip(
             candidate.getId(),
-            profile,
             bestKnownConfidence,
             String.format(Locale.ROOT,
                 "expected gain %.3f is below min gain %.3f, expected confidence %.3f is below high-confidence floor %.3f, and avg time %.0fms exceeds cheap threshold %dms",
@@ -220,14 +222,16 @@ final class StrategySelectionModel {
                 profile.expectedConfidence(),
                 config.getHighConfidenceEvaluationFloor(),
                 profile.averageEvaluationTimeMs(),
-                config.getCheapEvaluationTimeMs()));
+                config.getCheapEvaluationTimeMs()),
+            diagnostics(profile));
     }
 
     Profile profileFor(String strategyId) {
         return profiles.get(strategyId);
     }
 
-    String describeOrder(List<CcrsStrategy> orderedStrategies, ContingencyConfiguration config) {
+    @Override
+    public String describeOrder(List<CcrsStrategy> orderedStrategies) {
         return orderedStrategies.stream()
             .map(strategy -> {
                 Profile profile = profiles.get(strategy.getId());
@@ -249,11 +253,20 @@ final class StrategySelectionModel {
             .collect(Collectors.joining(", "));
     }
 
+    @Override
+    public String describeBuild() {
+        return String.format(Locale.ROOT,
+            "Built strategy selection model from %d/%d requested traces, %d strategy profiles, minimumSamplesPerStrategy=%d",
+            traceCount(),
+            config.getLearningHistoryLimit(),
+            profileCount(),
+            minimumSamples());
+    }
+
     private int compareWithinLevel(
             CcrsStrategy left,
             CcrsStrategy right,
-            Map<String, Integer> defaultIndex,
-            ContingencyConfiguration config) {
+            Map<String, Integer> defaultIndex) {
         Profile leftProfile = profiles.get(left.getId());
         Profile rightProfile = profiles.get(right.getId());
         boolean leftLearned = leftProfile != null && leftProfile.hasEnoughSamples(minimumSamples);
@@ -307,6 +320,20 @@ final class StrategySelectionModel {
     private static boolean isMeaningfulEvaluation(CcrsTrace.StrategyEvaluation evaluation) {
         return evaluation.getApplicability() != CcrsStrategy.Applicability.NOT_APPLICABLE
             && evaluation.getResult() != null;
+    }
+
+    private String diagnostics(Profile profile) {
+        if (profile == null) {
+            return null;
+        }
+
+        return String.format(Locale.ROOT,
+            "expectedConfidence=%.3f, suggestionRate=%.3f, avgConfidence=%.3f, avgTime=%.0fms, n=%d",
+            profile.expectedConfidence(),
+            profile.suggestionRate(),
+            profile.averageSuggestionConfidence(),
+            profile.averageEvaluationTimeMs(),
+            profile.evaluationCount());
     }
 
     static final class Profile {
@@ -381,76 +408,6 @@ final class StrategySelectionModel {
             return suggestionRate() * learnedConfidence();
         }
 
-    }
-
-    static final class GateDecision {
-        private final String strategyId;
-        private final boolean shouldEvaluate;
-        private final Profile profile;
-        private final double currentBestConfidence;
-        private final String reason;
-
-        private GateDecision(
-                String strategyId,
-                boolean shouldEvaluate,
-                Profile profile,
-                double currentBestConfidence,
-                String reason) {
-            this.strategyId = strategyId;
-            this.shouldEvaluate = shouldEvaluate;
-            this.profile = profile;
-            this.currentBestConfidence = currentBestConfidence;
-            this.reason = reason;
-        }
-
-        static GateDecision allow(
-                String strategyId,
-                Profile profile,
-                double currentBestConfidence,
-                String reason) {
-            return new GateDecision(strategyId, true, profile, currentBestConfidence, reason);
-        }
-
-        static GateDecision skip(
-                String strategyId,
-                Profile profile,
-                double currentBestConfidence,
-                String reason) {
-            return new GateDecision(strategyId, false, profile, currentBestConfidence, reason);
-        }
-
-        boolean shouldEvaluate() {
-            return shouldEvaluate;
-        }
-
-        Profile profile() {
-            return profile;
-        }
-
-        double currentBestConfidence() {
-            return currentBestConfidence;
-        }
-
-        String describe() {
-            if (profile == null) {
-                return String.format(Locale.ROOT,
-                    "%s: %s; currentBest=%.3f",
-                    strategyId,
-                    reason,
-                    currentBestConfidence);
-            }
-
-            return String.format(Locale.ROOT,
-                "%s: %s; currentBest=%.3f, expectedConfidence=%.3f, suggestionRate=%.3f, avgConfidence=%.3f, avgTime=%.0fms, n=%d",
-                strategyId,
-                reason,
-                currentBestConfidence,
-                profile.expectedConfidence(),
-                profile.suggestionRate(),
-                profile.averageSuggestionConfidence(),
-                profile.averageEvaluationTimeMs(),
-                profile.evaluationCount());
-        }
     }
 
     private static final class MutableProfile {

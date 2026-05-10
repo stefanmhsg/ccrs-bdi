@@ -3,9 +3,15 @@ package ccrs.core.contingency;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.logging.Logger;
 
+import ccrs.core.contingency.selection.StrategyGateDecision;
+import ccrs.core.contingency.selection.StrategySelectionPlan;
+import ccrs.core.contingency.selection.StrategySelectionPolicy;
+import ccrs.core.contingency.selection.StrategySelectionRequest;
+import ccrs.core.contingency.selection.TraceBasedStrategySelectionPolicy;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -22,15 +28,22 @@ public class ContingencyCcrs {
     
     private final StrategyRegistry registry;
     private ContingencyConfiguration config;
+    private StrategySelectionPolicy strategySelectionPolicy;
     
     public ContingencyCcrs() {
-        this.registry = new StrategyRegistry();
-        this.config = ContingencyConfiguration.defaults();
+        this(new StrategyRegistry());
     }
     
     public ContingencyCcrs(StrategyRegistry registry) {
-        this.registry = registry;
+        this(registry, new TraceBasedStrategySelectionPolicy());
+    }
+    
+    public ContingencyCcrs(StrategyRegistry registry, StrategySelectionPolicy strategySelectionPolicy) {
+        this.registry = Objects.requireNonNull(registry, "registry");
         this.config = ContingencyConfiguration.defaults();
+        this.strategySelectionPolicy = Objects.requireNonNull(
+            strategySelectionPolicy,
+            "strategySelectionPolicy");
     }
     
     /**
@@ -52,6 +65,25 @@ public class ContingencyCcrs {
      */
     public void setConfig(ContingencyConfiguration config) {
         this.config = config;
+    }
+    
+    /**
+     * Get current strategy selection policy.
+     */
+    public StrategySelectionPolicy getStrategySelectionPolicy() {
+        return strategySelectionPolicy;
+    }
+    
+    /**
+     * Set strategy selection policy.
+     * Available policies:
+     * - DefaultStrategySelectionPolicy: No gating or reordering; strategies evaluated in default escalation order.
+     * - TraceBasedStrategySelectionPolicy: Uses historical trace data to make gating and ordering decisions based on expected improvement and confidence thresholds.
+     */
+    public void setStrategySelectionPolicy(StrategySelectionPolicy strategySelectionPolicy) {
+        this.strategySelectionPolicy = Objects.requireNonNull(
+            strategySelectionPolicy,
+            "strategySelectionPolicy");
     }
     
     /**
@@ -81,8 +113,8 @@ public class ContingencyCcrs {
         
         List<StrategyResult> allSuggestions = new ArrayList<>();
         List<CcrsStrategy> defaultOrder = registry.getOrderedForEvaluation(config);
-        StrategySelectionModel selectionModel = buildSelectionModel(context);
-        List<CcrsStrategy> orderedStrategies = orderStrategies(defaultOrder, selectionModel);
+        StrategySelectionPlan selectionPlan = buildSelectionPlan(situation, context, defaultOrder);
+        List<CcrsStrategy> orderedStrategies = orderStrategies(defaultOrder, selectionPlan);
         
         int currentLevel = -1;
         boolean foundAtCurrentLevel = false;
@@ -98,32 +130,44 @@ public class ContingencyCcrs {
                 foundAtCurrentLevel = false;
                 evaluatedCandidateAtCurrentLevel = false;
                 logger.info(String.format(
-                    "[ContingencyCcrs] Entering escalation level L%d with policy %s",
+                    "[StrategySelectionPolicy] Entering escalation level L%d with policy %s",
                     level, config.getEscalationPolicy()));
             }
 
             // L0 is a last-resort fallback, not a confidence competitor.
             if (level == 0 && !allSuggestions.isEmpty()) {
-                logger.info("[ContingencyCcrs] Skipping L0 (STOP) fallback because recovery suggestions already exist");
+                logger.info("[StrategySelectionPolicy] Skipping L0 (STOP) fallback because recovery suggestions already exist");
                 break;
             }
 
             if (config.getEscalationPolicy() == ContingencyConfiguration.EscalationPolicy.BEST_PER_LEVEL
                 && evaluatedCandidateAtCurrentLevel) {
                 logger.info(String.format(
-                    "[ContingencyCcrs] Skipping %s in L%d because BEST_PER_LEVEL already evaluated the most promising applicable strategy at this level",
+                    "[StrategySelectionPolicy] Skipping %s in L%d because BEST_PER_LEVEL already evaluated the most promising applicable strategy at this level",
                     strategy.getId(), level));
                 continue;
             }
 
-            // Learned selection may prune remaining work once a suggestion
-            // exists, but it compares expected improvement against thresholds
-            // rather than comparing cost-discounted history to raw confidence.
-            if (selectionModel != null) {
-                StrategySelectionModel.GateDecision gateDecision =
-                    selectionModel.evaluateGate(strategy, allSuggestions, config);
+            // Strategy selection may prune remaining work once a suggestion
+            // exists. The trace-based default compares expected improvement
+            // against thresholds rather than comparing cost-discounted history
+            // to raw confidence.
+            if (selectionPlan != null) {
+                StrategyGateDecision gateDecision;
+                try {
+                    gateDecision = selectionPlan.evaluateGate(strategy, allSuggestions);
+                } catch (RuntimeException e) {
+                    logger.warning(String.format(
+                        "[StrategySelectionPolicy] Selection gate failed for %s: %s; evaluating candidate",
+                        strategy.getId(),
+                        e.getMessage()));
+                    gateDecision = StrategyGateDecision.allow(
+                        strategy.getId(),
+                        bestSuggestionConfidence(allSuggestions),
+                        "selection gate failed; evaluating candidate");
+                }
                 logger.info(String.format(
-                    "[ContingencyCcrs] Learned gate %s %s",
+                    "[StrategySelectionPolicy] Selection gate %s %s",
                     gateDecision.shouldEvaluate() ? "ALLOW" : "SKIP",
                     gateDecision.describe()));
                 if (!gateDecision.shouldEvaluate()) {
@@ -238,35 +282,80 @@ public class ContingencyCcrs {
             top.getStrategyId(), top.getConfidence(), results.size(), totalEvaluated);
     }
 
-    private StrategySelectionModel buildSelectionModel(CcrsContext context) {
+    private StrategySelectionPlan buildSelectionPlan(
+            Situation situation,
+            CcrsContext context,
+            List<CcrsStrategy> defaultOrder) {
         if (!config.isLearnedSelectionEnabled()) {
-            logger.info("[StrategySelectionModel] Learned strategy selection disabled; using default escalation order");
+            logger.info("[StrategySelectionPolicy] Strategy selection policy disabled; using default escalation order");
             return null;
         }
 
         List<CcrsTrace> recentHistory = context.getCcrsHistory(config.getLearningHistoryLimit());
-        StrategySelectionModel model = StrategySelectionModel.fromHistory(
-            recentHistory,
-            config.getMinimumLearningSamples());
-        logger.info(String.format(
-            "[StrategySelectionModel] Built strategy selection model from %d/%d requested traces, %d strategy profiles, minimumSamplesPerStrategy=%d",
-            model.traceCount(),
-            config.getLearningHistoryLimit(),
-            model.profileCount(),
-            model.minimumSamples()));
-        return model;
+        StrategySelectionRequest request = new StrategySelectionRequest(
+            situation,
+            context,
+            defaultOrder,
+            config,
+            recentHistory);
+        StrategySelectionPlan plan;
+        try {
+            plan = strategySelectionPolicy.createPlan(request);
+        } catch (Exception e) {
+            logger.warning(String.format(
+                "[StrategySelectionPolicy] %s failed to create plan: %s; using default escalation order",
+                strategySelectionPolicy.getDescription(),
+                e.getMessage()));
+            return null;
+        }
+
+        if (plan == null) {
+            logger.warning(String.format(
+                "[StrategySelectionPolicy] %s returned no plan; using default escalation order",
+                strategySelectionPolicy.getDescription()));
+            return null;
+        }
+
+        try {
+            logger.info("[StrategySelectionPolicy] " + plan.describeBuild());
+        } catch (RuntimeException e) {
+            logger.warning(String.format(
+                "[StrategySelectionPolicy] %s created a plan but could not describe it: %s",
+                strategySelectionPolicy.getDescription(),
+                e.getMessage()));
+        }
+        return plan;
     }
 
     private List<CcrsStrategy> orderStrategies(
             List<CcrsStrategy> defaultOrder,
-            StrategySelectionModel selectionModel) {
-        if (selectionModel == null) {
+            StrategySelectionPlan selectionPlan) {
+        if (selectionPlan == null) {
             return defaultOrder;
         }
 
-        List<CcrsStrategy> ordered = selectionModel.orderForEvaluation(defaultOrder, config);
-        logger.info("[ContingencyCcrs] Strategy evaluation order: "
-            + selectionModel.describeOrder(ordered, config));
+        List<CcrsStrategy> ordered;
+        try {
+            ordered = selectionPlan.orderForEvaluation(defaultOrder);
+        } catch (RuntimeException e) {
+            logger.warning(String.format(
+                "[ContingencyCcrs] Strategy selection ordering failed: %s; using default escalation order",
+                e.getMessage()));
+            return defaultOrder;
+        }
+        String orderDescription;
+        try {
+            orderDescription = selectionPlan.describeOrder(ordered);
+        } catch (RuntimeException e) {
+            logger.warning(String.format(
+                "[ContingencyCcrs] Strategy selection order description failed: %s",
+                e.getMessage()));
+            orderDescription = ordered.stream()
+                .map(CcrsStrategy::getId)
+                .collect(Collectors.joining(", "));
+        }
+
+        logger.info("[ContingencyCcrs] Strategy evaluation order: " + orderDescription);
         return ordered;
     }
 
