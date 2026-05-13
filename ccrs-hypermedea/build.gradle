@@ -1,0 +1,10 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+dependencies {
+    api project(':ccrs-core')
+    api project(':ccrs-jacamo')
+    api 'org.hypermedea:hypermedea:0.4.2'
+}

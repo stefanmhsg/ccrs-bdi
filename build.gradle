@@ -18,34 +18,32 @@ apply from: '.jcm-deps.gradle' // this file contains dependencies declared in th
 version '1.0'
 group   'org.jacamo'
 
-repositories {
-    maven { url "https://raw.githubusercontent.com/jacamo-lang/mvn-repo/master" }
-    maven { url "https://repo.gradle.org/gradle/libs-releases" }
+allprojects {
+    version '1.0'
+    group 'org.jacamo'
 
-    //maven { url "http://jacamo.sourceforge.net/maven2" }
-    //maven { url "https://jade.tilab.com/maven/" }
+    repositories {
+        maven { url "https://raw.githubusercontent.com/jacamo-lang/mvn-repo/master" }
+        maven { url "https://repo.gradle.org/gradle/libs-releases" }
 
-    flatDir { dirs 'lib' }
+        //maven { url "http://jacamo.sourceforge.net/maven2" }
+        //maven { url "https://jade.tilab.com/maven/" }
 
-    mavenCentral()
-    maven { url "https://jitpack.io" }
+        flatDir { dirs "${rootProject.projectDir}/lib" }
 
-    maven { url 'https://hypermedea.github.io/maven' }
+        mavenCentral()
+        maven { url "https://jitpack.io" }
 
+        maven { url 'https://hypermedea.github.io/maven' }
+    }
 }
 
 dependencies {
-    implementation('org.jacamo:jacamo:1.3.0')
-    implementation('org.hypermedea:hypermedea:0.4.2')
-    // CCRS Dependencies:
-    implementation('org.apache.jena:apache-jena-libs:5.6.0')
-    implementation('dev.langchain4j:langchain4j-open-ai:1.10.0')
-    implementation('dev.langchain4j:langchain4j:1.10.0')
-    implementation('io.github.cdimascio:dotenv-java:3.0.0')
-        // Agent-to-Agent A2A
-    implementation "io.github.a2asdk:a2a-java-sdk-reference-rest:0.3.3.Final"
-    implementation 'io.github.a2asdk:a2a-java-sdk-client:0.3.3.Final'
-    implementation 'io.github.a2asdk:a2a-java-sdk-client-transport-rest:0.3.3.Final'
+    implementation project(':ccrs-core')
+    implementation project(':ccrs-jacamo')
+    implementation project(':ccrs-hypermedea')
+    implementation project(':ccrs-langchain4j')
+    implementation project(':ccrs-a2a')
 }
 
 sourceSets {
@@ -148,68 +146,22 @@ shadowJar {
 }
 
 
-task testJaCaMo {
+task testJaCaMo(type: JavaExec) {
     description 'runs JaCaMo unit tests'
-    def errorOnTests = false
     outputs.upToDateWhen { false } // disable cache
 
     doFirst {
-        try {
-            javaexec {
-                mainClass = 'jacamo.infra.JaCaMoLauncher'
-                if (gradle.startParameter.logLevel.toString().equals("DEBUG")) {
-                    args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-debug-logging.properties']
-                } else if (gradle.startParameter.logLevel.toString().equals("INFO")) {
-                    args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-info-logging.properties']
-                } else {
-                    args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-lifecycle-logging.properties']
-                }
-                classpath sourceSets.main.runtimeClasspath
-
-                errorOutput = new ByteArrayOutputStream()
-                standardOutput = new ByteArrayOutputStream()
-
-                ext.stdout = {
-                    return standardOutput.toString()
-                }
-                ext.errout = {
-                    return errorOutput.toString()
-                }
-            }
-        } catch (Exception e) {
-            errorOnTests = true
+        if (gradle.startParameter.logLevel.toString().equals("DEBUG")) {
+            args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-debug-logging.properties']
+        } else if (gradle.startParameter.logLevel.toString().equals("INFO")) {
+            args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-info-logging.properties']
+        } else {
+            args = ['src/test/tests.jcm', '--log-conf', '$jason/templates/console-lifecycle-logging.properties']
         }
     }
 
-    doLast {
-        def styler = 'black red green yellow blue magenta cyan white'
-            .split().toList().withIndex(30)
-            .collectEntries { key, val -> [(key) : { "\033[${val}m${it}\033[0m" }] }
-
-        def std = stdout()
-        std.splitEachLine('\n') { String line ->
-            line = line.replace("TESTING","${styler['yellow']('TESTING')}")
-            line = line.replace("PASSED","${styler['green']('PASSED')}")
-            line = line.replace("FAILED","${styler['red']('FAILED')}")
-            line = line.replace("TODO","${styler['magenta']('TODO')}")
-            line = line.replace("LAUNCHING","${styler['blue']('LAUNCHING')}")
-            println line
-        }
-
-        def err = errout()
-        err.splitEachLine('\n') { String line ->
-            line = line.replace("TESTING","${styler['yellow']('TESTING')}")
-            line = line.replace("PASSED","${styler['green']('PASSED')}")
-            line = line.replace("FAILED","${styler['red']('FAILED')}")
-            line = line.replace("TODO","${styler['magenta']('TODO')}")
-            line = line.replace("LAUNCHING","${styler['blue']('LAUNCHING')}")
-            println line
-        }
-
-        if (errorOnTests) {
-            throw new GradleException('JaCaMo unit tests: ERROR!')
-        }
-    }
+    mainClass = 'jacamo.infra.JaCaMoLauncher'
+    classpath sourceSets.main.runtimeClasspath
 }
 tasks.test.finalizedBy testJaCaMo
 

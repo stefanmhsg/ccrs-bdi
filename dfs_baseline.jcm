@@ -15,11 +15,14 @@
 mas ccrs_bdi {
 
     agent dfs_baseline_nesw_1: dfs_baseline.asl {
-      // Jason Agent Class
+      // Baseline profile: keep Jason's default Agent class.
       // ag-class: ccrs.jacamo.jason.opportunistic.CcrsAgent
 
-      // JaCaMo Agent Architecture
+      // Baseline profile: keep JaCaMo/CArtAgO's default AgentArch.
       // ag-arch: ccrs.jacamo.jaca.CcrsAgentArch
+
+      // Baseline profile: keep Jason's default BeliefBase.
+      // ag-bb-class: ccrs.jacamo.jason.TimestampedBeliefBase
 
       //  debug: mindinspector(gui(cycle,html,history))
       verbose: 1 // 0=minimal, 1=actions/messages, 2=debugging
@@ -27,7 +30,7 @@ mas ccrs_bdi {
     }    
 
     workspace w {
-    //  artifact h: ccrs.jacamo.jason.hypermedia.hypermedea.CcrsHypermedeaArtifact()
+    //  artifact h: ccrs.hypermedea.CcrsHypermedeaArtifact()
       artifact h: org.hypermedea.HypermedeaArtifact() 
     //  debug
     }
