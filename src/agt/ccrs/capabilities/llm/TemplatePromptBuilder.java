@@ -89,21 +89,21 @@ public class TemplatePromptBuilder implements PromptBuilder {
 
                 When suggesting an HTTP action:
                 1. Select the operation from hydra:operation or another advertised affordance.
-                2. Use hydra:method as the HTTP method.
-                3. Use hydra:target as the request target if present, otherwise use the resource exposing the operation.
-                4. Use hydra:expects only to derive the payload constraints.
+                2. Use the HTTP method as specified.
+                3. Use the request target as specified, otherwise use the resource exposing the operation.
+                4. Understand that the operation could point to additional information for example to derive the payload constraints.
                 5. Do not copy operation metadata into the body unless the expected shape explicitly requires it.
 
                 Payload construction:
-                1. If hydra:expects points to a SHACL shape, inspect its sh:property constraints.
-                2. For each required property, use sh:path as the predicate in the payload.
+                1. If the operation points to a shape - for example, a SHACL shape, inspect its constraints.
+                2. For each required property, use it as required in the payload.
                 3. Fill values from recent RDF observations, local memory, or literals linked to compatible resources.
-                4. Respect sh:datatype, sh:class, sh:nodeKind, sh:minCount, sh:maxCount, sh:in, and sh:hasValue when present.
+                4. Respect SHACL or any other validation rules when present.
                 5. If no safe value can be inferred, prefer GET, navigation, or stop over inventing a payload.
 
                 Validation before final answer:
                 1. The request body satisfies the expected shape.
-                2. The body uses predicates from sh:path, not operation names.
+                2. The body uses predicates as required, not operation names.
                 3. The operation URI appears only as target metadata, unless required by the shape.
                 4. The content type matches the body syntax.
 
