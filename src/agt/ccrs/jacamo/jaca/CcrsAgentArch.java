@@ -2,13 +2,10 @@ package ccrs.jacamo.jaca;
 
 import cartago.ArtifactId;
 import cartago.ArtifactObsProperty;
-import ccrs.capabilities.ConfigResolver;
 import ccrs.core.opportunistic.*;
 import ccrs.core.rdf.*;
 import ccrs.jacamo.jason.JasonRdfAdapter;
 import ccrs.jacamo.jason.contingency.JasonCcrsContext;
-import io.github.cdimascio.dotenv.Dotenv;
-import io.github.cdimascio.dotenv.DotenvEntry;
 import jaca.CAgentArch;
 import jason.JasonException;
 import jason.asSemantics.Intention;
@@ -19,8 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * CArtAgO architecture extension with opportunistic CCRS for artifact observables.
@@ -30,20 +25,6 @@ import java.util.stream.Collectors;
 public class CcrsAgentArch extends CAgentArch {
     
     private static final Logger logger = Logger.getLogger(CcrsAgentArch.class.getName());
-
-    static {
-        Dotenv dotenv = Dotenv.configure()
-            .ignoreIfMissing()
-            .load();
-
-        ConfigResolver.enableDotenvFallback(() ->
-            dotenv.entries().stream()
-                .collect(Collectors.toMap(
-                    DotenvEntry::getKey,
-                    DotenvEntry::getValue
-                ))
-        );
-    }
 
     private OpportunisticCcrs ccrsScanner;
     private CcrsVocabulary vocabulary;
@@ -70,8 +51,8 @@ public class CcrsAgentArch extends CAgentArch {
     public void init() throws Exception {
         super.init();
 
-        // Initialize the Context. 
-        // Note: The context automatically connects to the CcrsGlobalRegistry.SHARED_LOG
+        // Initialize the context. Interaction history is supplied through
+        // CcrsJacamoRuntime, so Hypermedea remains an optional provider.
         JasonCcrsContext context = new JasonCcrsContext(getTS().getAg());
         
         // Store it in Agent Settings so 'evaluate' can find it later

@@ -13,6 +13,7 @@ import org.hypermedea.op.Operation;
 import org.hypermedea.op.Response;
 
 import ccrs.core.contingency.dto.Interaction;
+import ccrs.jacamo.jason.contingency.InteractionHistoryProvider;
 
 /**
  * A centralized interaction log that partitions history by Agent Name.
@@ -21,7 +22,7 @@ import ccrs.core.contingency.dto.Interaction;
  * and Hypermedea's asynchronous I/O (Responses) by preserving the agent identity
  * in an inflight context.
  */
-public class JasonInteractionLog implements InteractionLogSink {
+public class JasonInteractionLog implements InteractionLogSink, InteractionHistoryProvider {
 
     private static final Logger logger = Logger.getLogger(JasonInteractionLog.class.getName());
 

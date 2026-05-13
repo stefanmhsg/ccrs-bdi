@@ -1,5 +1,7 @@
 package ccrs.jacamo.jason.hypermedia.hypermedea;
 
+import ccrs.jacamo.CcrsJacamoRuntime;
+
 /**
  * A thread-local registry to pass the InteractionLogSink from the 
  * CArtAgO Artifact (Application Layer) to the HttpBinding (Network Layer).
@@ -13,6 +15,10 @@ public class CcrsGlobalRegistry {
     // 1. The Shared Log Instance (Singleton)
     // All artifacts write here. All agents read from here.
     private static final JasonInteractionLog SHARED_LOG = new JasonInteractionLog();
+
+    static {
+        CcrsJacamoRuntime.setInteractionHistoryProvider(SHARED_LOG);
+    }
 
     // 2. The ThreadLocal Context
     // Used to pass the specific logging hook to the low-level HTTP client

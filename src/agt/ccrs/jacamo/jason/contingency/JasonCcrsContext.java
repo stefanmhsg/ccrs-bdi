@@ -5,9 +5,8 @@ import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.InMemoryCcrsTraceHistory;
 import ccrs.core.rdf.RdfTriple;
+import ccrs.jacamo.CcrsJacamoRuntime;
 import ccrs.jacamo.jason.JasonRdfAdapter;
-import ccrs.jacamo.jason.hypermedia.hypermedea.CcrsGlobalRegistry;
-import ccrs.jacamo.jason.hypermedia.hypermedea.JasonInteractionLog;
 import jason.asSemantics.Agent;
 import jason.asSemantics.Unifier;
 import jason.asSyntax.*;
@@ -15,6 +14,7 @@ import jason.bb.BeliefBase;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -32,8 +32,9 @@ public class JasonCcrsContext implements CcrsContext {
     private final Agent agent;
     private final String agentId;
 
-    // Direct reference to the shared log
-    private final JasonInteractionLog interactionLog;
+    // Resolved lazily so optional artifact modules can install providers after
+    // the context is constructed during MAS startup.
+    private final Supplier<InteractionHistoryProvider> interactionHistoryProvider;
     // Ttrack CCRS invocations in ccrs-core-memory (not in BB)
     private static final int MAX_CCRS_HISTORY = 50;
     private final InMemoryCcrsTraceHistory ccrsHistory = new InMemoryCcrsTraceHistory(MAX_CCRS_HISTORY);
@@ -42,10 +43,21 @@ public class JasonCcrsContext implements CcrsContext {
     private String currentResource;
     
     public JasonCcrsContext(Agent agent) {
+        this(agent, CcrsJacamoRuntime::getInteractionHistoryProvider);
+    }
+
+    public JasonCcrsContext(Agent agent, InteractionHistoryProvider interactionHistoryProvider) {
+        this(agent, () -> interactionHistoryProvider != null
+            ? interactionHistoryProvider
+            : InteractionHistoryProvider.empty());
+    }
+
+    public JasonCcrsContext(Agent agent, Supplier<InteractionHistoryProvider> interactionHistoryProvider) {
         this.agent = agent;
         this.agentId = agent.getTS().getAgArch().getAgName();
-        // Automatically link to the shared log
-        this.interactionLog = CcrsGlobalRegistry.getSharedLog();
+        this.interactionHistoryProvider = interactionHistoryProvider != null
+            ? interactionHistoryProvider
+            : InteractionHistoryProvider::empty;
     }
     
     // ========== RDF Query Implementation ==========
@@ -108,19 +120,19 @@ public class JasonCcrsContext implements CcrsContext {
     @Override
     public List<Interaction> getRecentInteractions(int maxCount) {
         logger.fine("[JasonCcrsContext] Getting recent interactions for agent: " + agentId);
-        return interactionLog.getRecentInteractions(agentId, maxCount);
+        return historyProvider().getRecentInteractions(agentId, maxCount);
     }
 
     @Override
     public Optional<Interaction> getLastInteraction() {
         logger.fine("[JasonCcrsContext] Getting last interaction for agent: " + agentId);
-        return interactionLog.getLastInteraction(agentId);
+        return historyProvider().getLastInteraction(agentId);
     }
 
     @Override
     public List<Interaction> getInteractionsFor(String source) {
         logger.fine("[JasonCcrsContext] Getting interactions for agent: " + agentId + " and source: " + source);
-        return interactionLog.getInteractionsFor(agentId, source);
+        return historyProvider().getInteractionsFor(agentId, source);
     }
     
     @Override
@@ -135,6 +147,11 @@ public class JasonCcrsContext implements CcrsContext {
     
     @Override public boolean hasHistory() { return !getRecentInteractions(1).isEmpty(); }
     @Override public String getAgentId() { return agentId; }
+
+    private InteractionHistoryProvider historyProvider() {
+        InteractionHistoryProvider provider = interactionHistoryProvider.get();
+        return provider != null ? provider : InteractionHistoryProvider.empty();
+    }
 
     
     /**
@@ -241,7 +258,7 @@ public class JasonCcrsContext implements CcrsContext {
     return "[JasonCcrsContext] {agentId='" + agentId
         + "', currentResource='" + currentResource
         + "', interactionLog="
-        + interactionLog.formatAgentHistory(agentId)
+        + historyProvider().formatAgentHistory(agentId)
         + "}";
     }
 

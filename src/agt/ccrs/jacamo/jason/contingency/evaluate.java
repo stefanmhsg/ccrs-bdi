@@ -1,16 +1,9 @@
 package ccrs.jacamo.jason.contingency;
-import ccrs.capabilities.a2a.A2aConfig;
-import ccrs.capabilities.a2a.A2aConsultationChannel;
-import ccrs.capabilities.llm.JsonActionParser;
-import ccrs.capabilities.llm.TemplatePromptBuilder;
-import ccrs.capabilities.llm.langchain4j.Langchain4jLlmClient;
 import ccrs.core.contingency.ContingencyCcrs;
-import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
-import ccrs.core.contingency.strategies.internal.PredictionLlmStrategy;
-import ccrs.core.contingency.strategies.social.ConsultationStrategy;
 import ccrs.core.rdf.CcrsContext;
+import ccrs.jacamo.CcrsJacamoRuntime;
 import ccrs.jacamo.jason.JasonRdfAdapter;
 import jason.JasonException;
 import jason.asSemantics.DefaultInternalAction;
@@ -74,12 +67,18 @@ public class evaluate extends DefaultInternalAction {
 
         ContingencyCcrs ccrs = getCcrs();
 
-        // Retrieve the pre-initialized context
+        // Retrieve the pre-initialized context. CcrsAgentArch normally installs
+        // this, but creating a fallback keeps the internal action usable in
+        // minimal Jason-only tests.
         Object ctxParam = ts.getAg().getTS().getSettings().getUserParameters().get("ccrs_context");
-        if (!(ctxParam instanceof CcrsContext)) {
-             throw new JasonException("CCRS Context not found in agent settings. Ensure JasonCcrsContext is initialized.");
+        CcrsContext context;
+        if (ctxParam instanceof CcrsContext configuredContext) {
+            context = configuredContext;
+        } else {
+            context = new JasonCcrsContext(ts.getAg());
+            ts.getAg().getTS().getSettings().addOption("ccrs_context", context);
+            logger.info("[ContingencyCcrs] Created fallback JasonCcrsContext; CcrsAgentArch was not pre-initialized");
         }
-        CcrsContext context = (CcrsContext) ctxParam;
 
         if (context instanceof JasonCcrsContext jCtx) {
             logger.fine("[ContingencyCcrs] Current context: " + jCtx.toString());
@@ -520,46 +519,8 @@ public class evaluate extends DefaultInternalAction {
 
     private synchronized ContingencyCcrs getCcrs() {
         if (contingencyCcrs == null) {
-            contingencyCcrs = ContingencyCcrs.withDefaults();
-            
-            // Register LLM-based prediction strategy if available
-            try {
-                LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
-                
-                if (llmClient.isAvailable()) {
-                    // Register PredictionLlmStrategy (L4)
-                    PredictionLlmStrategy predictionStrategy = new PredictionLlmStrategy(
-                        llmClient,
-                        TemplatePromptBuilder.create(),
-                        JsonActionParser.create()
-                    );
-                    contingencyCcrs.getRegistry().register(predictionStrategy);
-
-                    logger.info("[ContingencyCcrs] LLM strategy enabled (PredictionLlm)");
-                } else {
-                    logger.warning("[ContingencyCcrs] LLM client not available");
-                }
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "[ContingencyCcrs] LLM initialization failed: " + e.getMessage());
-            }
-
-            // Register A2A-based consultation strategy if configured
-            try {
-                ConsultationStrategy.ConsultationChannel channel =
-                    new A2aConsultationChannel(A2aConfig.fromEnvironment().build());
-
-                if (channel.isAvailable()) {
-                    ConsultationStrategy consultationStrategy = new ConsultationStrategy(channel);
-                    contingencyCcrs.getRegistry().register(consultationStrategy);
-                    logger.info("[ContingencyCcrs] A2A consultation strategy enabled");
-                } else {
-                    logger.info("[ContingencyCcrs] A2A consultation channel not configured");
-                }
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "[ContingencyCcrs] A2A consultation initialization failed: " + e.getMessage());
-            }
-            
-            logger.info("[ContingencyCcrs] Contingency CCRS initialized");
+            contingencyCcrs = CcrsJacamoRuntime.createContingencyCcrs();
+            logger.info("[ContingencyCcrs] Contingency CCRS initialized via CcrsJacamoRuntime");
         }
         return contingencyCcrs;
     }
