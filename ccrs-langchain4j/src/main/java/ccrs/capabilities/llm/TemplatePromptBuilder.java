@@ -91,6 +91,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
                 1. Select the operation from hydra:operation or another advertised affordance.
                 2. Use the HTTP method as specified.
                 3. Use the request target as specified, otherwise use the resource exposing the operation.
+                4. Use the request target also as the <subject> value in the body if no other instructions provided.
                 4. Understand that the operation could point to additional information for example to derive the payload constraints.
                 5. Do not copy operation metadata into the body unless the expected shape explicitly requires it.
 
@@ -106,6 +107,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
                 2. The body uses predicates as required, not operation names.
                 3. The operation URI appears only as target metadata, unless required by the shape.
                 4. The content type matches the body syntax.
+                5. The <subject> in the body is consistent with the request target when required.
 
             Before answering, privately derive:
                 operation_uri, method, target, expected_shape, required_paths, candidate_values, body_serialization.
