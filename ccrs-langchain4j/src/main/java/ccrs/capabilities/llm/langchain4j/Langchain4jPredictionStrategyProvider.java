@@ -4,12 +4,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import ccrs.capabilities.DotenvConfigFallback;
-import ccrs.capabilities.llm.JsonActionParser;
-import ccrs.capabilities.llm.TemplatePromptBuilder;
 import ccrs.core.contingency.CcrsStrategyProvider;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.StrategyRegistry;
-import ccrs.core.contingency.strategies.internal.PredictionLlmStrategy;
+import ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy;
 
 /**
  * ServiceLoader provider for LangChain4j-backed LLM prediction.
@@ -34,11 +32,7 @@ public class Langchain4jPredictionStrategyProvider implements CcrsStrategyProvid
                 return;
             }
 
-            registry.register(new PredictionLlmStrategy(
-                llmClient,
-                TemplatePromptBuilder.create(),
-                JsonActionParser.create()
-            ));
+            registry.register(new PredictionLlmStrategy(llmClient));
             logger.info("[Langchain4jProvider] Registered PredictionLlmStrategy");
         } catch (Exception e) {
             logger.log(Level.WARNING,

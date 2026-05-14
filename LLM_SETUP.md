@@ -85,7 +85,7 @@ private synchronized ContingencyCcrs getCcrs() {
                 // PredictionLlmStrategy (L2) - autonomous prediction
                 PredictionLlmStrategy predictionStrategy = new PredictionLlmStrategy(
                     llmClient,
-                    TemplatePromptBuilder.create(),
+                    DefaultPredictionPromptBuilder.create(),
                     JsonActionParser.create()
                 );
                 contingencyCcrs.getRegistry().register(predictionStrategy);
@@ -94,7 +94,7 @@ private synchronized ContingencyCcrs getCcrs() {
                 ConsultationStrategy.ConsultationChannel channel = 
                     ConsultationStrategy.llmChannel(
                         llmClient,
-                        TemplatePromptBuilder.create(),
+                        DefaultPredictionPromptBuilder.create(),
                         JsonActionParser.create()
                     );
                 ConsultationStrategy consultationStrategy = new ConsultationStrategy(channel);

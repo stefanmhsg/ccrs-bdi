@@ -1,181 +1,106 @@
-# CCRS LLM Integration
+# CCRS LangChain4j LLM Provider
 
 This Gradle module (`ccrs-langchain4j`) contains the optional LangChain4j/OpenAI
-capability wiring for CCRS. It depends on `ccrs-core`, contributes
-`Langchain4jPredictionStrategyProvider` through Java `ServiceLoader`, and can be
-omitted from applications that do not need LLM-backed prediction.
+adapter for the CCRS core [`LlmClient`](../ccrs-core/src/main/java/ccrs/core/contingency/LlmClient.java)
+interface. It depends on `ccrs-core`, contributes
+[`Langchain4jPredictionStrategyProvider.java`](src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java)
+through Java `ServiceLoader`, and can be omitted from applications that do not
+need LangChain4j-backed LLM access.
 
-This module provides LLM integration for CCRS contingency strategies through three main abstractions:
-- **LlmClient**: Interface for executing LLM completions
-- **PromptBuilder**: Interface for constructing prompts
-- **LlmResponseParser**: Interface for parsing LLM responses
+The module is intentionally provider-focused. Prompt templates, prompt-building
+contracts, response parsing, and LLM strategy behavior belong to `ccrs-core`:
 
-## Architecture
+- [`PromptBuilder.java`](../ccrs-core/src/main/java/ccrs/core/contingency/PromptBuilder.java)
+- [`LlmResponseParser.java`](../ccrs-core/src/main/java/ccrs/core/contingency/LlmResponseParser.java)
+- [`PredictionLlmStrategy.java`](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java)
+- [`DefaultPredictionPromptBuilder.java`](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/DefaultPredictionPromptBuilder.java)
+- [`JsonActionParser.java`](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/JsonActionParser.java)
+
+Keeping these pieces in core means the same strategy prompt and parser can be
+used with any `LlmClient` implementation, not only LangChain4j.
+
+## Architecture Overview
 
 ```text
-Contingency strategies
-  |-- PredictionLlmStrategy
-  `-- ConsultationStrategy
-        |
-        | use core interfaces
-        v
-  +------------------+      +--------------------+
-  | PromptBuilder    |      | LlmResponseParser  |
-  +---------+--------+      +----------+---------+
-            |                          |
-            v                          v
-  +-----------------------+  +-------------------+
-  | TemplatePromptBuilder |  | JsonActionParser  |
-  +-----------------------+  +-------------------+
++--------------------------------------------------------------+
+| Application / JaCaMo adapter                                 |
+| - depends on selected CCRS modules                           |
+| - calls ContingencyCcrsFactory / strategy registry           |
++-------------------------------+------------------------------+
+                                |
+                                v
++--------------------------------------------------------------+
+| ccrs-core                                                    |
+|                                                              |
+|  PredictionLlmStrategy                                       |
+|    -> owns prediction behavior and prompt defaults           |
+|    -> uses PromptBuilder + LlmResponseParser contracts       |
+|                                                              |
+|  DefaultPredictionPromptBuilder                              |
+|    -> builds the standard prediction prompt                  |
+|                                                              |
+|  JsonActionParser                                            |
+|    -> maps model output into LlmActionResponse               |
+|                                                              |
+|  LlmClient                                                   |
+|    -> small provider-neutral completion interface            |
++-------------------------------+------------------------------+
+                                |
+                                | implemented by
+                                v
++--------------------------------------------------------------+
+| ccrs-langchain4j                                             |
+|                                                              |
+|  Langchain4jLlmClient                                        |
+|    -> adapts LangChain4j ChatModel to LlmClient              |
+|                                                              |
+|  Langchain4jConfig + DotenvConfigFallback                    |
+|    -> provider configuration only                            |
+|                                                              |
+|  Langchain4jPredictionStrategyProvider                       |
+|    -> ServiceLoader provider; supplies only the LLM client   |
++--------------------------------------------------------------+
 ```
 
-## Usage Examples
+The important dependency direction is:
 
-### Recommended Setup
+```text
+application -> ccrs-langchain4j -> ccrs-core
+application -> ccrs-core
+
+ccrs-core does not depend on LangChain4j.
+```
+
+## Provided Classes
+
+- [`Langchain4jLlmClient.java`](src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jLlmClient.java)
+  adapts a LangChain4j `ChatModel` to the core `LlmClient` interface.
+- [`Langchain4jConfig.java`](src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jConfig.java)
+  reads OpenAI-compatible model settings from explicit configuration or the
+  environment.
+- [`Langchain4jPredictionStrategyProvider.java`](src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java)
+  registers `PredictionLlmStrategy` when the provider can create an available
+  LangChain4j-backed client.
+
+## Usage
 
 ```java
-import ccrs.core.contingency.*;
-import ccrs.capabilities.llm.*;
-import ccrs.capabilities.llm.langchain4j.*;
+import ccrs.capabilities.llm.langchain4j.Langchain4jLlmClient;
+import ccrs.core.contingency.LlmClient;
+import ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy;
 
-// Create LLM client
 LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
 
-// Use standard implementations (recommended)
-PromptBuilder promptBuilder = TemplatePromptBuilder.create();
-LlmResponseParser parser = JsonActionParser.create();
-
-// Create strategy with all components
-PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuilder, parser);
+PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient);
 ```
 
-### Custom Templates
+Applications that use `ContingencyCcrsFactory` can rely on the service file in
+[`META-INF/services/ccrs.core.contingency.CcrsStrategyProvider`](src/main/resources/META-INF/services/ccrs.core.contingency.CcrsStrategyProvider)
+instead of wiring the strategy manually.
 
-```java
-// Customize templates for your experiment
-TemplatePromptBuilder promptBuilder = TemplatePromptBuilder.create()
-    .withPredictionTemplate("""
-        Custom template with {currentResource} and {failedAction}
-        ...
-        """)
-    .withConsultationTemplate("""
-        Custom consultation template...
-        """);
+## Boundary Rule
 
-PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient, promptBuilder);
-```
-
-### Custom Prompt Builders
-
-Implement the `PromptBuilder` interface for experiment-specific or domain-specific prompts:
-
-```java
-public class ExperimentPromptBuilder implements PromptBuilder {
-    
-    @Override
-    public String buildPredictionPrompt(Map<String, Object> contextMap) {
-        // Custom logic for your experiment
-        return "...";
-    }
-    
-    @Override
-    public String buildConsultationPrompt(String question, Map<String, Object> contextMap) {
-        // Custom consultation prompts
-        return "...";
-    }
-    
-    @Override
-    public String getDescription() {
-        return "ExperimentPromptBuilder[v1]";
-    }
-}
-```
-
-### Custom Response Parsers
-
-Implement the `LlmResponseParser` interface for specialized parsing logic:
-
-```java
-public class CustomParser implements LlmResponseParser {
-    
-    @Override
-    public LlmActionResponse parse(String rawResponse) {
-        // Custom parsing logic
-        // - Handle your specific response format
-        // - Extract action, target, explanation
-        // - Return LlmActionResponse.valid() or .invalid()
-        return LlmActionResponse.valid(action, target, explanation)
-            .withConfidence(0.8)
-            .withMetadata("parseMethod", "custom");
-    }
-    
-    @Override
-    public String getDescription() {
-        return "CustomParser[v1]";
-    }
-}
-```
-
-## Benefits
-
-1. **Separation of Concerns**: Strategy logic separate from prompt engineering and parsing
-2. **Centralized Parsing**: Single source of truth for response schemas
-3. **Testability**: Easy to mock prompts and responses for testing
-4. **Experimentation**: Swap components without changing strategy code
-5. **Error Handling**: Robust parsing with clear error reporting
-6. **Experimentation**: Swap prompt builders without changing strategy code
-4. **Backend Agnostic**: Works with any LLM provider
-5. **Versioning**: Track prompt versions independently from code
-
-## Implementations
-
-### TemplatePromptBuilder (Recommended)
-**Location**: `ccrs.capabilities.llm.TemplatePromptBuilder`
-- Standard reference implementation
-- Backend agnostic - works with any LLM client
-- Structured formatting with clear sections
-- Smart formatting for complex data types
-- Explicit JSON output format
-- Use this for production and most experiments
-
-### DefaultPromptBuilder (Minimal)
-**Location**: `ccrs.core.contingency.DefaultPromptBuilder`
-- Simple string replacement only
-- Minimal formatting
-- Fallback when nothing else specified
-- Use for quick prototyping or when you need absolute minimal dependencies
-
-## Architectural Principles
-
-**PromptBuilder = Pure Formatter**
-- Accepts only pre-prepared context maps
-- NO dependencies on Situation, CcrsContext, or CCRS internals
-- Backend agnostic - no LLM client dependencies
-- Simple, stable, and easy to test
-
-**Strategies Prepare Context**
-- Strategies extract and format bounded data
-- Use `getNeighborhood(...)` for the bounded local resource neighborhood
-- Detailed interaction history should be formatted explicitly for prompts. `Interaction.toString()` stays compact for logs and intentionally reports only the perceived-state triple count.
-- Prepare context map before calling prompt builder
-
-## Prediction Prompt Context
-
-`PredictionLlmStrategy` prepares the standard prediction context map with these sections:
-
-- `situationDetails`: current situation, trigger, agent, resource, error, and compact last-interaction/last-trace summary
-- `recentActions`: recent hypermedia interactions, including method, URI, headers, body, outcome, timestamps, and perceived RDF triples
-- `ccrsHistory`: previous CCRS invocation traces with evaluated strategies, selected suggestions, and reported outcomes
-- `localNeighborhood`: outgoing and incoming triples around the current resource, bounded by neighborhood limits
-
-The intention is that interaction history captures what was requested and what each response exposed, while neighborhood provides a concise local map around the current resource.
-
-Before triples are serialized into the prompt, `PredictionLlmStrategy` filters presentation/UI triples whose subject, predicate, or object contains `https://example.org/ui`. This keeps UI drawing data out of the token budget in the same spirit as converting a web page from raw HTML to content-focused markdown before asking an LLM to reason over it.
-
-## Future Extensions
-
-- Few-shot learning examples
-- Dynamic prompt selection based on situation type
-- Prompt caching and reuse
-- Integration with platform-specific prompt template systems
-
+Do not add prompt templates, prompt builders, response parsers, or strategy
+logic to this module. Add provider-specific code here only when it depends on
+LangChain4j, OpenAI-compatible model configuration, or the optional dotenv
+bridge used to load provider configuration.

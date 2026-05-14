@@ -1,11 +1,11 @@
-package ccrs.capabilities.llm;
+package ccrs.core.contingency.strategies.internal.prediction;
 
 import java.util.Map;
 
 import ccrs.core.contingency.PromptBuilder;
 
 /**
- * Standard reference implementation of PromptBuilder using template-based formatting.
+ * Default prompt builder for {@link PredictionLlmStrategy}.
  * 
  * This is a pure formatter that accepts already-prepared context maps.
  * It does NOT access Situation, CcrsContext, or any CCRS internals.
@@ -19,11 +19,11 @@ import ccrs.core.contingency.PromptBuilder;
  * - Optimized token usage
  * - Smart formatting of complex data types
  */
-public class TemplatePromptBuilder implements PromptBuilder {
+public class DefaultPredictionPromptBuilder implements PromptBuilder {
     
     private String predictionTemplate;
     
-    public TemplatePromptBuilder() {
+    public DefaultPredictionPromptBuilder() {
         this.predictionTemplate = buildPredictionTemplate();
     }
     
@@ -42,7 +42,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
        
     @Override
     public String getDescription() {
-        return "TemplatePromptBuilder[standard]";
+        return "DefaultPredictionPromptBuilder";
     }
     
     // Formatting helpers
@@ -136,7 +136,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
         
     // Configuration
     
-    public TemplatePromptBuilder withPredictionTemplate(String template) {
+    public DefaultPredictionPromptBuilder withPredictionTemplate(String template) {
         this.predictionTemplate = template;
         return this;
     }
@@ -145,7 +145,7 @@ public class TemplatePromptBuilder implements PromptBuilder {
      * Create a new instance with standard templates.
      * This is the recommended prompt builder for most use cases.
      */
-    public static TemplatePromptBuilder create() {
-        return new TemplatePromptBuilder();
+    public static DefaultPredictionPromptBuilder create() {
+        return new DefaultPredictionPromptBuilder();
     }
 }

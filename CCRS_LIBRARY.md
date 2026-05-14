@@ -25,7 +25,7 @@ ccrs-hypermedea
 
 ccrs-langchain4j
   depends on ccrs-core
-  provides LangChain4j/OpenAI-backed LLM strategy wiring
+  provides LangChain4j/OpenAI-backed LLM client/provider wiring
 
 ccrs-a2a
   depends on ccrs-core
@@ -188,17 +188,30 @@ Move:
 ```text
 ccrs-langchain4j/src/main/java/ccrs/capabilities/ConfigResolver.java
 ccrs-langchain4j/src/main/java/ccrs/capabilities/DotenvConfigFallback.java
-ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/**
+ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/**
 ccrs-langchain4j/src/main/resources/META-INF/services/ccrs.core.contingency.CcrsStrategyProvider
 ```
 
-Potentially split generic LLM helper code from LangChain4j later:
+The LangChain4j module should stay a provider adapter. It may create a
+LangChain4j-backed `LlmClient`, read provider configuration, and register an
+LLM-backed strategy through `ServiceLoader`, but it should not own strategy
+prompts or parsing policy.
 
-- `TemplatePromptBuilder`
-- `JsonActionParser`
+Provider-agnostic LLM strategy support belongs in `ccrs-core`:
 
-These do not depend on LangChain4j directly. They could live in a future
-`ccrs-llm` module if that becomes useful.
+- `ccrs.core.contingency.PromptBuilder`
+- `ccrs.core.contingency.LlmResponseParser`
+- `ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy`
+- `ccrs.core.contingency.strategies.internal.prediction.DefaultPredictionPromptBuilder`
+- `ccrs.core.contingency.strategies.internal.prediction.JsonActionParser`
+
+This keeps the prompt with the consultation/prediction strategy behavior rather
+than with one concrete LLM provider. Applications can then plug in a different
+`LlmClient` capability without changing the core prompt contract.
+
+The default provider path should instantiate the core strategy with the
+provider client only, for example `new PredictionLlmStrategy(llmClient)`, so
+the core strategy selects its own standard prompt builder and response parser.
 
 ### ccrs-a2a
 
@@ -304,8 +317,10 @@ Todos:
 
 ### PredictionLlmStrategy
 
-Current status: API-level decoupled from LangChain4j, but still an optional
-LLM strategy rather than a core built-in.
+Current status: provider-level decoupled from LangChain4j. The standard prompt
+builder and JSON action parser now live in core beside the LLM strategy
+contract, while `ccrs-langchain4j` supplies only the concrete LLM client and
+provider registration.
 
 Concerns:
 
@@ -321,7 +336,7 @@ Todos:
   - move the strategy to a generic `ccrs-llm` module, or keep it in core only
     if core is allowed to contain optional strategy types.
 - Consider extracting prompt context preparation from the strategy.
-- Keep `TemplatePromptBuilder` and `JsonActionParser` outside LangChain4j if
+- Keep `DefaultPredictionPromptBuilder` and `JsonActionParser` outside LangChain4j while
   they remain provider-agnostic.
 - Add tests with fake `LlmClient`, fake parser, and deterministic context.
 
@@ -498,6 +513,8 @@ Implemented toward the split:
 - `InteractionHistoryProvider`
 - provider classes for LangChain4j prediction and A2A consultation
 - module-local service files for LangChain4j prediction and A2A consultation
+- provider-agnostic LLM prompt and JSON parser implementations moved into
+  `ccrs-core`
 - `JasonCcrsContext` no longer directly imports Hypermedea classes
 - `evaluate` no longer directly imports LangChain4j or A2A classes
 - `CcrsAgentArch` no longer loads `.env`; dotenv fallback is now capability-side
@@ -520,6 +537,9 @@ Known remaining coupling:
 - Do not make `ccrs-jacamo` depend on Hypermedea.
 - Do not make `evaluate` import LangChain4j or A2A classes directly again.
 - Do not put dotenv loading back into `CcrsAgentArch`.
+- Do not put provider-agnostic prompt builders, prompt templates, response
+  parsers, or LLM strategy policy into `ccrs-langchain4j`; it is only the
+  LangChain4j/OpenAI provider adapter.
 - Do not split `CcrsAgent` away from `CcrsAgentArch` as if one replaces the
   other. They are complementary in the JaCaMo integration.
 - Keep the Hypermedea implementation outside `ccrs.jacamo`; if compatibility

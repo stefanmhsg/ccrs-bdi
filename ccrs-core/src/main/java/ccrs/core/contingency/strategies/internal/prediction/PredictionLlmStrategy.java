@@ -1,4 +1,4 @@
-package ccrs.core.contingency.strategies.internal;
+package ccrs.core.contingency.strategies.internal.prediction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,7 +56,10 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
     private List<String> filteredTripleNamespaces = List.of(UI_NAMESPACE);
 
-        
+    public PredictionLlmStrategy(LlmClient llmClient) {
+        this(llmClient, DefaultPredictionPromptBuilder.create(), JsonActionParser.create());
+    }
+
     public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {
         this.llmClient = llmClient;
         this.promptBuilder = promptBuilder;

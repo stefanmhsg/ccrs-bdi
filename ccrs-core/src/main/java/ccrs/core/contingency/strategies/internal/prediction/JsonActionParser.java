@@ -1,4 +1,4 @@
-package ccrs.capabilities.llm;
+package ccrs.core.contingency.strategies.internal.prediction;
 
 import ccrs.core.contingency.LlmResponseParser;
 import ccrs.core.contingency.dto.LlmActionResponse;
@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 /**
  * JSON shaped response parser for LLM action responses.
- * Used by {@link ccrs.core.contingency.strategies.internal.PredictionLlmStrategy}
+ * Used by {@link PredictionLlmStrategy}
  * 
  * Handles the expected JSON schema:
  * {"action": "...", "target": "...", "request": {"method": "...", "headers": {...}, "body": "..."},
