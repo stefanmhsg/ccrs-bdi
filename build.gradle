@@ -8,19 +8,18 @@
 plugins {
     id 'com.gradleup.shadow' version '8.3.3'
     id 'java'
-    id 'maven-publish'
 }
 
 defaultTasks 'run'
 
 apply from: '.jcm-deps.gradle' // this file contains dependencies declared in the .jcm files
 
-version '1.0'
-group   'org.jacamo'
+version '0.1.0-SNAPSHOT'
+group   'io.github.stefanmhsg.ccrs'
 
 allprojects {
-    version '1.0'
-    group 'org.jacamo'
+    version '0.1.0-SNAPSHOT'
+    group 'io.github.stefanmhsg.ccrs'
 
     repositories {
         maven { url "https://raw.githubusercontent.com/jacamo-lang/mvn-repo/master" }
@@ -35,6 +34,36 @@ allprojects {
         maven { url "https://jitpack.io" }
 
         maven { url 'https://hypermedea.github.io/maven' }
+    }
+}
+
+configure(subprojects.findAll { it.name.startsWith('ccrs-') }) {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+
+    java {
+        withSourcesJar()
+        withJavadocJar()
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+
+                pom {
+                    name = project.name
+                    description = "CCRS library module ${project.name}"
+                }
+            }
+        }
+
+        repositories {
+            maven {
+                name = 'ccrsLocal'
+                url = rootProject.layout.buildDirectory.dir('local-maven-repo')
+            }
+        }
     }
 }
 
@@ -101,14 +130,6 @@ jar {
     }
     manifest {
         attributes 'Main-Class': 'jacamo.infra.JaCaMoLauncher'
-    }
-}
-
-publishing {
-    publications {
-        maven(MavenPublication) {
-            from components.java
-        }
     }
 }
 

@@ -439,6 +439,23 @@ root project as the user application
   `src/main/resources`.
 - The root project remains the concrete JaCaMo application and depends on the
   selected CCRS modules.
+- `ccrs-*` modules are configured as Maven publications in
+  [build.gradle](build.gradle) under the group
+  `io.github.stefanmhsg.ccrs` with version `0.1.0-SNAPSHOT`.
+- The root JaCaMo application is not configured as a Maven publication.
+- Local library publishing works through:
+
+```text
+./gradlew :ccrs-core:publishToMavenLocal \
+  :ccrs-jacamo:publishToMavenLocal \
+  :ccrs-hypermedea:publishToMavenLocal \
+  :ccrs-langchain4j:publishToMavenLocal \
+  :ccrs-a2a:publishToMavenLocal
+```
+
+- A clean file-based local Maven repository for smoke tests is available at
+  `build/local-maven-repo` through each module's
+  `publishMavenJavaPublicationToCcrsLocalRepository` task.
 
 Remaining:
 

@@ -11,7 +11,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * <p>
  * Internal action for prioritizing hypermedia options based on CCRS utilities.
  * 
  * Usage: ccrs.prioritize(DefaultList, PlainCcrsList, DetailedCcrsList)
@@ -29,12 +28,13 @@ import java.util.logging.Logger;
  * 4. Returns both plain (backward compatible) and detailed (annotated) versions
  * 
  * Example:
+ * <pre>{@code
  * +! select_action(Options) :  true
  *   <- ccrs.prioritize(Options, PlainList, DetailedList);
  *      .print("Plain prioritized: ", PlainList);
  *      .print("Detailed: ", DetailedList);
  *      !execute(.nth(0, PlainList, BestOption)).
- * </p>
+ * }</pre>
  */
 public class prioritize extends DefaultInternalAction {
 
