@@ -228,6 +228,14 @@ registers `ConsultationStrategy` when A2A is available.
 The A2A module has its own small config resolver and dotenv bridge, so it does
 not depend on `ccrs-langchain4j` for optional `.env` support.
 
+The A2A module should stay a consultation-channel adapter. It may resolve agent
+cards, invoke the A2A SDK, extract returned payload text and metadata, and
+register an A2A-backed `ConsultationChannel` through `ServiceLoader`. It should
+not own generic social escalation policy. The current proof-of-concept still
+leaves some A2A-shaped target discovery and RDF projection behavior inside
+`ConsultationStrategy`; that is tracked under the ConsultationStrategy cleanup
+below.
+
 ### User Application Repository
 
 This repository should remain the user/application repository, not become a

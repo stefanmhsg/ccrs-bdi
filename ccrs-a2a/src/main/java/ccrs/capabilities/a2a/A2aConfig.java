@@ -34,7 +34,7 @@ public class A2aConfig {
     @Override
     public String toString() {
         return "A2aConfig{" +
-            ", logEvents=" + logEvents +
+            "logEvents=" + logEvents +
             '}';
     }
 

@@ -5,11 +5,70 @@ capability used by contingency CCRS. It depends on `ccrs-core`, contributes
 `A2aConsultationStrategyProvider` through Java `ServiceLoader`, and can be
 omitted from applications that do not need A2A-backed consultation.
 
-The main entry point is `A2aConsultationChannel`, which implements the generic `ConsultationStrategy.ConsultationChannel` contract and translates a CCRS consultation request into an A2A SDK interaction.
+The main entry point is `A2aConsultationChannel`, which implements the generic
+`ConsultationStrategy.ConsultationChannel` contract and translates a CCRS
+consultation request into an A2A SDK interaction.
 
 For the strategy-side reasoning and selection behavior, see the consultation
 strategy documentation in
 [Consultation strategy README.md](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/social/README.md).
+
+## Architecture Overview
+
+```text
++--------------------------------------------------------------+
+| Application / JaCaMo adapter                                 |
+| - depends on selected CCRS modules                           |
+| - calls ContingencyCcrsFactory / strategy registry           |
++-------------------------------+------------------------------+
+                                |
+                                v
++--------------------------------------------------------------+
+| ccrs-core                                                    |
+|                                                              |
+|  ConsultationStrategy                                        |
+|    -> owns social escalation and result selection            |
+|    -> uses ConsultationChannel contract                      |
+|                                                              |
+|  ConsultationChannel                                         |
+|    -> provider-neutral consultation interface                |
+|                                                              |
+|  Current strategy-side helpers                               |
+|    -> peer target discovery from context                     |
+|    -> response projection into StrategyResult                |
++-------------------------------+------------------------------+
+                                |
+                                | implemented by
+                                v
++--------------------------------------------------------------+
+| ccrs-a2a                                                     |
+|                                                              |
+|  A2aConsultationChannel                                      |
+|    -> adapts ConsultationChannel to the A2A SDK              |
+|    -> resolves agent cards and invokes selected skills       |
+|                                                              |
+|  A2aConfig + A2aDotenvConfigFallback                         |
+|    -> provider configuration only                            |
+|                                                              |
+|  A2aConsultationStrategyProvider                             |
+|    -> ServiceLoader provider; supplies the A2A channel       |
++--------------------------------------------------------------+
+```
+
+The important dependency direction is:
+
+```text
+application -> ccrs-a2a -> ccrs-core
+application -> ccrs-core
+
+ccrs-core does not depend on the A2A SDK.
+```
+
+Current boundary note: the A2A SDK dependency is isolated in `ccrs-a2a`.
+However, `ConsultationStrategy` still contains the current proof-of-concept
+target-discovery and RDF projection heuristics. Before a stable library release,
+those pieces should either become explicit core extension points or move behind
+provider-owned collaborators in this module.
 
 ## Purpose
 
