@@ -1,0 +1,23 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenLocal()
+        maven {
+            name = 'ccrsLocal'
+            url = uri('../../build/local-maven-repo')
+        }
+        maven { url = uri('https://raw.githubusercontent.com/jacamo-lang/mvn-repo/master') }
+        maven { url = uri('https://hypermedea.github.io/maven') }
+        maven { url = uri('https://jitpack.io') }
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'ccrs-library-consumer'

@@ -456,6 +456,9 @@ root project as the user application
 - A clean file-based local Maven repository for smoke tests is available at
   `build/local-maven-repo` through each module's
   `publishMavenJavaPublicationToCcrsLocalRepository` task.
+- [CCRS library consumer README.md](examples/ccrs-library-consumer/README.md)
+  is a standalone get-started example that consumes
+  `io.github.stefanmhsg.ccrs:ccrs-core` as a Maven dependency.
 
 Remaining:
 

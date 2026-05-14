@@ -1,0 +1,24 @@
+plugins {
+    id 'application'
+}
+
+group = 'io.github.stefanmhsg.ccrs.examples'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    implementation 'io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT'
+
+    // Add optional CCRS capability modules as needed:
+    // runtimeOnly 'io.github.stefanmhsg.ccrs:ccrs-langchain4j:0.1.0-SNAPSHOT'
+    // runtimeOnly 'io.github.stefanmhsg.ccrs:ccrs-a2a:0.1.0-SNAPSHOT'
+}
+
+application {
+    mainClass = 'example.CcrsLibraryConsumer'
+}
