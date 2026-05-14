@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 import ccrs.core.contingency.CcrsStrategy;
-import ccrs.core.contingency.CcrsStrategy.Applicability;
 
 /**
  * Trace of a CCRS contingency evaluation.

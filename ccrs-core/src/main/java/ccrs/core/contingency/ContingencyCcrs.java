@@ -117,7 +117,6 @@ public class ContingencyCcrs {
         List<CcrsStrategy> orderedStrategies = orderStrategies(defaultOrder, selectionPlan);
         
         int currentLevel = -1;
-        boolean foundAtCurrentLevel = false;
         boolean evaluatedCandidateAtCurrentLevel = false;
         int evaluatedCount = 0;
         
@@ -127,7 +126,6 @@ public class ContingencyCcrs {
             // Track level transitions. Policies decide per-strategy evaluation below.
             if (level != currentLevel) {
                 currentLevel = level;
-                foundAtCurrentLevel = false;
                 evaluatedCandidateAtCurrentLevel = false;
                 logger.info(String.format(
                     "[StrategySelectionPolicy] Entering escalation level L%d with policy %s",
@@ -195,7 +193,6 @@ public class ContingencyCcrs {
                     
                     if (result.isSuggestion()) {
                         allSuggestions.add(result);
-                        foundAtCurrentLevel = true;
                         logger.info(String.format(
                             "[ContingencyCcrs] %s produced suggestion with confidence %.3f",
                             strategy.getId(), result.asSuggestion().getConfidence()));

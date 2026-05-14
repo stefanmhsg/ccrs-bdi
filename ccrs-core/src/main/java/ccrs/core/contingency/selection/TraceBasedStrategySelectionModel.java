@@ -337,7 +337,6 @@ final class TraceBasedStrategySelectionModel implements StrategySelectionPlan {
     }
 
     static final class Profile {
-        private final String strategyId;
         private final int evaluationCount;
         private final double evaluationWeight;
         private final double suggestionWeight;
@@ -347,7 +346,6 @@ final class TraceBasedStrategySelectionModel implements StrategySelectionPlan {
         private final double totalOutcomeScore;
 
         private Profile(
-                String strategyId,
                 int evaluationCount,
                 double evaluationWeight,
                 double suggestionWeight,
@@ -355,7 +353,6 @@ final class TraceBasedStrategySelectionModel implements StrategySelectionPlan {
                 double totalSuggestionConfidence,
                 double outcomeWeight,
                 double totalOutcomeScore) {
-            this.strategyId = strategyId;
             this.evaluationCount = evaluationCount;
             this.evaluationWeight = evaluationWeight;
             this.suggestionWeight = suggestionWeight;
@@ -442,7 +439,6 @@ final class TraceBasedStrategySelectionModel implements StrategySelectionPlan {
 
         private Profile toProfile() {
             return new Profile(
-                strategyId,
                 evaluationCount,
                 evaluationWeight,
                 suggestionWeight,

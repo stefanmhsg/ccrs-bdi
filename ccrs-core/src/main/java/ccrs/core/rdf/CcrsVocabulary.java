@@ -253,10 +253,6 @@ public class CcrsVocabulary {
         Statement s = r.getProperty(p); return s == null ? null : s.getString();
     }
 
-    private int getInt(Resource r, Property p, int def) {
-        Statement s = r.getProperty(p); return s == null ? def : s.getInt();
-    }
-    
     private double getDouble(Resource r, Property p, double def) {
         Statement s = r.getProperty(p);
         if (s == null) return def;
