@@ -7,11 +7,15 @@ import jason.asSyntax.Literal;
 import java.util.Collection;
 import java.io.IOException;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * An HttpOperation that logs lifecycle events to the CCRS sink.
  */
 public class CcrsHttpOperation extends HttpOperation {
+
+    private static final Logger logger = Logger.getLogger(CcrsHttpOperation.class.getName());
 
     private final InteractionLogSink sink;
     private final long createdTimestamp;
@@ -38,15 +42,11 @@ public class CcrsHttpOperation extends HttpOperation {
 
     @Override
     public void sendRequest() throws IOException {
-        if (sink != null) {
-            sink.onRequest(this, createdTimestamp);
-        }
+        notifyRequest(createdTimestamp);
         try {
             super.sendRequest();
         } catch (IOException e) {
-            if (sink != null) {
-                sink.onError(this, System.currentTimeMillis());
-            }
+            notifyError(System.currentTimeMillis());
             throw e;
         }
     }
@@ -54,22 +54,53 @@ public class CcrsHttpOperation extends HttpOperation {
 
     @Override
     protected void onResponse(Response r) {
-        // Hook: When response comes back
-        if (sink != null) {
-            sink.onResponse(this, r, System.currentTimeMillis());
+        try {
+            // Critical: pass data back to HypermedeaArtifact first.
+            super.onResponse(r);
+        } finally {
+            notifyResponse(r, System.currentTimeMillis());
         }
-        
-        // Critical: pass data back to HypermedeaArtifact
-        super.onResponse(r);
     }
 
     @Override
     protected void onError() {
-        // Hook: On network failure
-        if (sink != null) {
-            sink.onError(this, System.currentTimeMillis());
+        try {
+            super.onError();
+        } finally {
+            notifyError(System.currentTimeMillis());
         }
-        
-        super.onError();
+    }
+
+    private void notifyRequest(long timestamp) {
+        if (sink == null) {
+            return;
+        }
+        try {
+            sink.onRequest(this, timestamp);
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "CCRS interaction logging failed during HTTP request", e);
+        }
+    }
+
+    private void notifyResponse(Response response, long timestamp) {
+        if (sink == null) {
+            return;
+        }
+        try {
+            sink.onResponse(this, response, timestamp);
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "CCRS interaction logging failed during HTTP response", e);
+        }
+    }
+
+    private void notifyError(long timestamp) {
+        if (sink == null) {
+            return;
+        }
+        try {
+            sink.onError(this, timestamp);
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "CCRS interaction logging failed during HTTP error", e);
+        }
     }
 }

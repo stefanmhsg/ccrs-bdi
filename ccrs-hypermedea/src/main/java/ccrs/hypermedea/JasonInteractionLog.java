@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.hypermedea.op.Operation;
@@ -65,8 +66,13 @@ public class JasonInteractionLog implements InteractionLogSink, InteractionHisto
         if (context == null) return;
 
         logger.fine("[JasonInteractionLog] onResponse for agent: '" + context.agentName() + "'");
-        Interaction interaction = context.builder().withResponse(res, ts).build();
-        append(context.agentName(), interaction);
+        try {
+            Interaction interaction = context.builder().withResponse(res, ts).build();
+            append(context.agentName(), interaction);
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "[JasonInteractionLog] Failed to append response interaction for agent: '" + context.agentName() + "'", e);
+            append(context.agentName(), context.builder().withError(ts).build());
+        }
     }
 
     @Override
@@ -75,8 +81,12 @@ public class JasonInteractionLog implements InteractionLogSink, InteractionHisto
         if (context == null) return;
 
         logger.fine("[JasonInteractionLog] onError for agent: '" + context.agentName() + "'");
-        Interaction interaction = context.builder().withError(ts).build();
-        append(context.agentName(), interaction);
+        try {
+            Interaction interaction = context.builder().withError(ts).build();
+            append(context.agentName(), interaction);
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "[JasonInteractionLog] Failed to append error interaction for agent: '" + context.agentName() + "'", e);
+        }
     }
 
     private synchronized void append(String agentName, Interaction interaction) {

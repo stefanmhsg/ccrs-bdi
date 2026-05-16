@@ -1,10 +1,15 @@
 package ccrs.hypermedea;
 
 import java.util.Collections;
+import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.rdf.RdfTriple;
@@ -23,6 +28,10 @@ import org.hypermedea.op.Response;
 final class InteractionBuilder {
 
     private static final Logger logger = Logger.getLogger(InteractionBuilder.class.getName());
+    private static final String FALLBACK_RAW_RESPONSE =
+        "https://example.org/ccrs#unparsedResponse";
+    private static final String FALLBACK_PARSE_ERROR =
+        "https://example.org/ccrs#responseParseError";
 
     // ===== Request side =====
 
@@ -178,13 +187,78 @@ final class InteractionBuilder {
     }
 
     private static List<RdfTriple> extractTriples(Response response) {
-        if (response.getPayload() == null) {
+        final List<jason.asSyntax.Literal> payload;
+        try {
+            Collection<jason.asSyntax.Literal> responsePayload = response.getPayload();
+            if (responsePayload == null) {
+                return Collections.emptyList();
+            }
+            payload = List.copyOf(responsePayload);
+        } catch (RuntimeException e) {
+            logger.log(Level.FINE, "Falling back to a generic RDF triple for an unparseable response payload", e);
+            return fallbackTriples(response, e);
+        }
+
+        if (payload.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return response.getPayload().stream()
-            .map(JasonRdfAdapter::toRdfTriple)
-            .filter(t -> t != null)
-            .toList();
+        List<RdfTriple> triples = new ArrayList<>();
+        String fallbackSubject = responseSubject(response);
+        for (jason.asSyntax.Literal literal : payload) {
+            try {
+                RdfTriple triple = JasonRdfAdapter.toRdfTriple(literal);
+                if (triple == null) {
+                    triples.add(new RdfTriple(fallbackSubject, FALLBACK_RAW_RESPONSE, literal.toString()));
+                } else {
+                    triples.add(triple);
+                }
+            } catch (RuntimeException e) {
+                logger.log(Level.FINE, "Wrapping response payload literal that could not be converted to an RDF triple: " + literal, e);
+                triples.add(new RdfTriple(fallbackSubject, FALLBACK_RAW_RESPONSE, literal.toString()));
+                triples.add(new RdfTriple(fallbackSubject, FALLBACK_PARSE_ERROR, e.toString()));
+            }
+        }
+        return triples;
+    }
+
+    private static List<RdfTriple> fallbackTriples(Response response, RuntimeException parseError) {
+        String subject = responseSubject(response);
+        String rawBody = rawResponseBody(response)
+            .orElseGet(() -> parseError.getMessage() == null ? parseError.toString() : parseError.getMessage());
+
+        return List.of(
+            new RdfTriple(subject, FALLBACK_RAW_RESPONSE, rawBody),
+            new RdfTriple(subject, FALLBACK_PARSE_ERROR, parseError.toString())
+        );
+    }
+
+    private static String responseSubject(Response response) {
+        try {
+            if (response.getOperation() != null && response.getOperation().getTargetURI() != null) {
+                return response.getOperation().getTargetURI();
+            }
+        } catch (RuntimeException e) {
+            logger.log(Level.FINE, "Could not extract response operation target URI for fallback triple", e);
+        }
+        return "urn:ccrs:hypermedea:unknown-response";
+    }
+
+    private static Optional<String> rawResponseBody(Response response) {
+        try {
+            Field rawResponseField = response.getClass().getDeclaredField("response");
+            rawResponseField.setAccessible(true);
+            Object rawResponse = rawResponseField.get(response);
+            if (rawResponse == null) {
+                return Optional.empty();
+            }
+
+            Method getBodyText = rawResponse.getClass().getMethod("getBodyText");
+            Object bodyText = getBodyText.invoke(rawResponse);
+            return bodyText == null ? Optional.empty() : Optional.of(bodyText.toString());
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            logger.log(Level.FINE, "Could not extract raw HTTP response body for fallback triple", e);
+            return Optional.empty();
+        }
     }
 }
