@@ -111,6 +111,12 @@ The core operates on RDF triples without domain-specific assumptions:
 *   **Backtrack Heuristic:** A "parent" is any resource that links TO the current resource (where current appears as the object in a triple). This follows linked data principles.
 *   **No Hardcoded Predicates:** Strategies query the RDF graph generically rather than looking for specific vocabulary terms.
 
+#### Opportunistic path convention
+
+Strategies may attach opportunistic guidance to a concrete suggestion so adapters can inject `ccrs/3` mental notes while the agent continues through its normal option-selection flow. If such a suggestion includes an ordered path parameter, that path must exclude the current resource and must be ordered as executable steps. The first element is the immediate navigation target away from the current context; later elements remain guidance for normal opportunistic prioritization.
+
+[BacktrackStrategy.java](strategies/internal/BacktrackStrategy.java) follows this convention with `backtrackPath`: the path is derived from interaction history, excludes the blocked current resource, and starts with the first cell the agent can move toward.
+
 ### 3. Pluggable External Services
 
 Knowledge and Social strategies use pluggable interfaces:

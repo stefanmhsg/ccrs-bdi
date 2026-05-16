@@ -63,13 +63,16 @@ import ccrs.core.rdf.CcrsContext;
  * <h2>Backtrack Path Computation</h2>
  * <p>Extracts navigation path from interaction history: sequence of unique requestUri values
  * showing steps from current location to checkpoint. Path excludes current location (only
- * includes steps to take). Each URI appears at most once. Uses predecessor map derived from
- * chronological interaction transitions to build an implicit tree - no explicit graph search
- * required.</p>
+ * includes steps to take). The first URI is therefore the immediate navigation target away
+ * from the blocked current resource. Each URI appears at most once. Uses predecessor map
+ * derived from chronological interaction transitions to build an implicit tree - no explicit
+ * graph search required.</p>
  * 
  * <h2>Opportunistic CCRS Mental Notes (B2)</h2>
  * <p>Generates structured mental notes for integration with prioritization:</p>
  * <ul>
+ *   <li><b>Backtrack steps:</b> type="backtrack_step"; ordered by the {@code backtrackPath}
+ *       action parameter whose first element is the first navigation step</li>
  *   <li><b>Unexplored options:</b> type="unexplored_option", utility=0.7</li>
  *   <li><b>Metadata:</b> source="contingency-ccrs", strategy="backtrack", checkpoint=uri</li>
  * </ul>

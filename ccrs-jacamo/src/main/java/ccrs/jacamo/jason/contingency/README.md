@@ -231,7 +231,7 @@ All `evaluate` calls return a list of `suggestion/6` structures. When multiple s
 
 Strategy evaluation cost is not part of the suggestion term. Cost is learned from trace history before future evaluations are run, using the measured evaluation time and recent strategy performance.
 
-Treat `hasOpportunisticGuidance(true)` as an execution-mode signal: refresh the current location and let normal opportunistic behavior pick up the injected `ccrs/3` trail. When the flag is false, execute only direct action types your agent explicitly supports, then continue the loop.
+Treat `hasOpportunisticGuidance(true)` as a signal that `evaluate` injected `ccrs/3` beliefs for the agent's normal option-selection flow. When the suggestion also carries a non-empty ordered path parameter, the path follows the same convention used by [BacktrackStrategy.java](../../../../../../../../ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java): the current resource is excluded, and the first list element is the immediate navigation target to leave the blocked context. In that case, move to the first path element and then let normal opportunistic prioritization influence subsequent navigation. If no ordered path is available, refresh the current location so ordinary flow can pick up the injected notes. When the flag is false, execute only direct action types your agent explicitly supports, then continue the loop.
 
 ```asl
 suggestion(
@@ -250,6 +250,13 @@ suggestion(
 +!handle_suggestions([]) : true <-
     .print("[CONTINGENCY] No suggestions available - giving up");
     !stop_crawl;
+.
+
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :
+    .member(hasOpportunisticGuidance(true), Params) & .member(backtrackPath([Next | Rest]), Params)
+    <-
+    .print("[CONTINGENCY] Following first contingency backtrack step from ", Id, ": ", Next);
+    !access(Next);
 .
 
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :

@@ -126,10 +126,10 @@ MAIN LOOP
         !handle_suggestions(Suggestions) ;
     .
 
-// Opportunistic guidance was injected as ccrs/3 beliefs.
-// Refresh the current location so the normal BDI flow can pick up the new signal.
+// Opportunistic guidance includes an ordered path whose first element
+// is the immediate navigation step away from the blocked current cell.
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :
-    .member(hasOpportunisticGuidance(true), Params) & at(Current)
+    .member(hasOpportunisticGuidance(true), Params) & .member(backtrackPath([Next | Rest]), Params)
     <-
         .print(" --- ") ;
         .print("CCRS OUTPUT RECEIVED") ;
@@ -139,8 +139,8 @@ MAIN LOOP
         .print("Confidence: ", Conf) ;
         .print("Reason: ", Reason) ;
         .print("Params: ", Params) ;
-        .print("CCRS opportunistic guidance present; refreshing current location: ", Current) ;
-        !crawl(Current) ;
+        .print("CCRS opportunistic backtrack guidance present; moving to first path step: ", Next) ;
+        !access(Next) ;
     .
 
 // Executes a HTTP POST request based on a contingency suggestion
