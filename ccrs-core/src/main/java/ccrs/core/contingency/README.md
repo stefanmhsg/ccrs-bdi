@@ -166,6 +166,16 @@ expectedConfidence = suggestionRate * learnedConfidence
 
 `learnedConfidence` is the average suggestion confidence, optionally blended with reported outcome feedback when available. `suggestionRate` keeps strategies honest when they are applicable but often return `NoHelp`.
 
+Concretely, `NoHelp` does not reduce the average confidence of suggestions the strategy actually made. It reduces the estimated chance that running the strategy will produce an actionable suggestion at all. With recent-first weighted traces such as:
+
+```text
+prediction_llm -> NoHelp
+prediction_llm -> Suggestion(confidence=0.72)
+prediction_llm -> Suggestion(confidence=0.92)
+```
+
+and the default recency decay in [TraceBasedStrategySelectionModel.java](selection/TraceBasedStrategySelectionModel.java), the model reports an average suggestion confidence near `0.812`, but a suggestion rate near `0.611`. The resulting expected confidence is therefore `0.611 * 0.812 = 0.496`. This is the intended interpretation: the LLM can remain high quality when it speaks, while the selector also learns that it may spend significant time and correctly decline to guess. That keeps an expensive strategy from being re-run when a cheaper current suggestion is already available and the expected incremental value is low.
+
 Evaluation time is kept separate:
 
 ```text
