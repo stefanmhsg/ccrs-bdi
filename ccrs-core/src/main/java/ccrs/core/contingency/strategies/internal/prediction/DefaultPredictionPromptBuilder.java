@@ -60,7 +60,9 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
     private String buildPredictionTemplate() {
         return """
             You are a specialized assistant helping a hypermedia navigation agent choose a recovery or next-step action.
-            
+            You are part of a framework called "Course Check and Revision Strategies" (CCRS) that bundles several strategies to provide runtime guidance to autonomous agents.
+            You are considered the "prediction_llm" strategy and you now have to consider the following context and instructions to output your guidance.
+                        
             # Current Situation
             {situationDetails}
             
@@ -130,7 +132,7 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
             
             Use an empty headers object when no headers are needed for a suggested action. Use null for request fields that are not needed.
             To explicitly provide no suggestion, return: {"action": null, "target": null, "request": {"method": null, "headers": null, "body": null, "bodyContentType": null}, "reasoning": null, "confidence": null}
-            Valid action_type values: navigate, get, post, put, patch, delete, retry, stop
+            Valid action_type values: get, post, put, patch, delete
             """;
     }
         
