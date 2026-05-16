@@ -6,7 +6,7 @@ This document provides examples for using the `evaluate` internal action to invo
 
 The `evaluate` internal action bridges AgentSpeak agents with Contingency-CCRS strategies. It supports multiple signatures for different situation complexity levels.
 
-Besides returning `suggestion/6` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events.
+Besides returning `suggestion/6` terms, `evaluate` can also inject contingency-generated mental notes into the agent belief base. Strategies may attach `OpportunisticResult` guidance to a suggestion; `evaluate` converts that guidance into persistent `ccrs/3` beliefs and emits matching `+ccrs(...)` belief events. Each suggestion's `ActionParams` includes `hasOpportunisticGuidance(true|false)` so caller agents can decide whether to execute the concrete suggestion directly or resume normal flow to pick up the injected guidance.
 
 The internal action uses the default `ContingencyCcrs.evaluate(...)` path. That path always delegates to `evaluateWithTrace(...)`, records the resulting `CcrsTrace` in the context history, and then returns the selected suggestions.
 
@@ -227,9 +227,11 @@ ccrs.jacamo.jason.contingency.evaluate("proactive", "risky_action", map(
 
 ## Handling Suggestions
 
-All `evaluate` calls return a list of `suggestion/6` structures. When multiple suggestions are returned, the list is ordered by the confidence of the already-derived action suggestion.
+All `evaluate` calls return a list of `suggestion/6` structures. When multiple suggestions are returned, the list is ordered by the confidence of the already-derived action suggestion. If no strategy produces a selected suggestion, the returned list is empty.
 
 Strategy evaluation cost is not part of the suggestion term. Cost is learned from trace history before future evaluations are run, using the measured evaluation time and recent strategy performance.
+
+Treat `hasOpportunisticGuidance(true)` as an execution-mode signal: refresh the current location and let normal opportunistic behavior pick up the injected `ccrs/3` trail. When the flag is false, execute only direct action types your agent explicitly supports, then continue the loop.
 
 ```asl
 suggestion(
@@ -238,7 +240,7 @@ suggestion(
     ActionTarget,      // URI or "null"
     Confidence,        // 0.0 to 1.0
     Rationale,         // Human-readable explanation
-    ActionParams       // List of key(value) pairs
+    ActionParams       // List of key(value) pairs, always including hasOpportunisticGuidance(Bool)
 )
 ```
 
@@ -250,15 +252,16 @@ suggestion(
     !stop_crawl;
 .
 
-+!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
-    Conf > 0.7 & Type = "backtrack"
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :
+    .member(hasOpportunisticGuidance(true), Params)
     <-
-    .print("[CONTINGENCY] Accepting ", Type, " suggestion: ", Reason);
-    !execute_backtrack(Target, Params);
+    .print("[CONTINGENCY] Guidance injected by ", Id, "; refreshing current location");
+    ?at(Current);
+    !crawl(Current);
 .
 
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
-    Conf > 0.8 & Type = "retry"
+    Conf > 0.8 & Type = "retry" & not .member(hasOpportunisticGuidance(true), Params)
     <-
     .print("[CONTINGENCY] Accepting retry suggestion: ", Reason);
     .member(delayMs(DelayMs), Params);

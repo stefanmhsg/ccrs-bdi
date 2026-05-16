@@ -17,6 +17,7 @@ import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
 
 import java.io.StringReader;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -244,13 +245,20 @@ public class evaluate extends DefaultInternalAction {
                 ASSyntax.createString(
                     s.getRationale() != null ? s.getRationale() : ""
                 ),
-                buildParams(s.getActionParams())
+                buildParams(withSuggestionMetadata(s))
             );
 
             tail = tail.append(sug);
         }
 
         return list;
+    }
+
+    private Map<String, Object> withSuggestionMetadata(StrategyResult.Suggestion suggestion) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.putAll(suggestion.getActionParams());
+        params.put("hasOpportunisticGuidance", suggestion.hasOpportunisticGuidance());
+        return params;
     }
 
     private Term buildParams(Map<String, Object> params) {
@@ -316,6 +324,10 @@ public class evaluate extends DefaultInternalAction {
     
         if (value instanceof Number n) {
             return ASSyntax.createNumber(n.doubleValue());
+        }
+
+        if (value instanceof Boolean b) {
+            return ASSyntax.createAtom(b ? "true" : "false");
         }
     
         return ASSyntax.createString(String.valueOf(value));

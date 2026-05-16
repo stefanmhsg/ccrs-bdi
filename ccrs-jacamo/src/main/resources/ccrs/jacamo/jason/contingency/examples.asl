@@ -101,8 +101,16 @@
     !stop_crawl;
 .
 
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :
+    .member(hasOpportunisticGuidance(true), Params)
+    <-
+    .print("[GUIDANCE] Contingency guidance injected by ", Id, "; refreshing current location");
+    ?at(Current);
+    !crawl(Current);
+.
+
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|Rest]) : 
-    Conf > 0.8 & Type = "retry"
+    Conf > 0.8 & Type = "retry" & not .member(hasOpportunisticGuidance(true), Params)
     <-
     .print("[ACCEPT] High-confidence retry: ", Reason);
     .member(delayMs(DelayMs), Params);

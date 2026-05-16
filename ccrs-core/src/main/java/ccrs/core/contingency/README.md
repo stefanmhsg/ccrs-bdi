@@ -69,7 +69,7 @@ ccrs/jason/contingency/         # JASON PLATFORM ADAPTERS
 
 ### Jason Adapters
 
-*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, ResultList)` that invokes the default `ContingencyCcrs.evaluate(...)` path. This returns suggestions as a list of literals and also records trace history in the background.
+*   **`evaluate.java`**: Internal action `ccrs.contingency.evaluate(Type, Trigger, Current, Target, Action, Error, ResultList)` that invokes the default `ContingencyCcrs.evaluate(...)` path. This returns selected suggestions as a list of literals, or an empty list when no recovery suggestion is selected, and also records trace history in the background. Suggestion params include `hasOpportunisticGuidance(true|false)` so caller agents can tell whether contingency-generated `ccrs/3` guidance was injected.
 
 *   **`track.java`**: Internal action for history tracking:
     *   `ccrs.contingency.track(action, Type, Target, Outcome)` — record an action.
@@ -362,17 +362,26 @@ The filter is configurable on `PredictionLlmStrategy` through `filteredTripleNam
     .
 
 // Process suggestions
-+!handle_suggestions([suggest(ActionType, Target, Confidence, Rationale, Params)|_]) :
++!handle_suggestions([]) :
+    true
+    <-
+        .print("No contingency suggestions available") ;
+        !!stop ;
+    .
+
++!handle_suggestions([suggestion(Id, ActionType, Target, Confidence, Rationale, Params)|_]) :
+    .member(hasOpportunisticGuidance(true), Params)
+    <-
+        .print("Guidance injected by: ", Id) ;
+        ?at(Current) ;
+        !crawl(Current) ;
+    .
+
++!handle_suggestions([suggestion(Id, ActionType, Target, Confidence, Rationale, Params)|_]) :
     Confidence > 0.5
     <-
         .print("Trying: ", ActionType, " on ", Target) ;
         !execute_suggestion(ActionType, Target, Params) ;
-    .
-
-+!handle_suggestions([no_help(Reason, Explanation)|Rest]) : true
-    <-
-        .print("Strategy couldn't help: ", Explanation) ;
-        !handle_suggestions(Rest) ;
     .
 
 // Report outcome for learning

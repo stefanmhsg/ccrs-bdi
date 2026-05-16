@@ -125,10 +125,37 @@ MAIN LOOP
         !handle_suggestions(Suggestions) ;
     .
 
+// Contingency CCRS could not produce a recovery action.
++!handle_suggestions([]) :
+    true
+    <-
+        .print(" --- ") ;
+        .print("CCRS produced no suggestions") ;
+        .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
+        -+finished(Y,M,D,H,Min,Sec,MilSec) ;
+        !!stop ;
+    .
+
+// Opportunistic guidance was injected as ccrs/3 beliefs.
+// Refresh the current location so the normal BDI flow can pick up the new signal.
++!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) :
+    .member(hasOpportunisticGuidance(true), Params) & at(Current)
+    <-
+        .print(" --- ") ;
+        .print("CCRS OUTPUT RECEIVED") ;
+        .print("Id: ", Id) ;
+        .print("Type: ", Type) ;
+        .print("Target: ", Target) ;
+        .print("Confidence: ", Conf) ;
+        .print("Reason: ", Reason) ;
+        .print("Params: ", Params) ;
+        .print("CCRS opportunistic guidance present; refreshing current location: ", Current) ;
+        !crawl(Current) ;
+    .
 
 // Executes a HTTP POST request based on a contingency suggestion
 +!handle_suggestions([suggestion(Id, "post", Target, Conf, Reason, Params)|_]) :
-    true
+    not .member(hasOpportunisticGuidance(true), Params)
     <-
         .print(" --- ") ;
         .print("CCRS OUTPUT RECEIVED") ;
