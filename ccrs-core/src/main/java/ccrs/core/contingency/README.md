@@ -246,6 +246,8 @@ averageEvaluationTimeMs = 12000ms
 
 it is skipped by default because the expected improvement is small, the strategy is not above the high-confidence floor, and it is expensive.
 
+Observed side effect: once a cheap strategy such as backtrack consistently produces a medium-confidence suggestion, an expensive strategy such as `prediction_llm` can be skipped repeatedly after one or more `NoHelp` results lower its suggestion rate. Because skipped strategies do not produce fresh samples, their learned profile may recover only when the current best suggestion is weaker or no competing suggestion exists. A possible future mitigation is a bounded probe rule, for example evaluating an otherwise skipped strategy once after a small number of consecutive learned skips when its expected confidence remains plausibly close to the current best. This would keep the confidence and cost model unchanged while adding explicit exploration for stale estimates.
+
 `learningHistoryLimit` bounds how many recent traces are read into the model. It keeps the runtime selector local, cheap, and adaptive to recent behavior instead of letting old evaluations dominate forever. `minimumLearningSamples` is counted per strategy profile, not globally; with the default value `2`, a strategy needs two applicable, evaluated samples before its learned value can reorder or prune it.
 
 ### 6. Context Integration

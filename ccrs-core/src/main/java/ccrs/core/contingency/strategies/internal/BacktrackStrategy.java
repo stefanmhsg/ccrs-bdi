@@ -611,12 +611,12 @@ public class BacktrackStrategy implements CcrsStrategy {
     /**
      * Calculate confidence from checkpoint utility.
      *
-     * <p>Starts from a neutral 0.5. Nearby checkpoints lose little confidence;
+     * <p>Starts from a neutral 0.3. Nearby checkpoints lose little confidence;
      * distant checkpoints are discounted logarithmically. Multiple unexplored
      * options increase confidence with diminishing returns.</p>
      */
     private ConfidenceBreakdown calculateConfidence(CheckpointCandidate checkpoint) {
-        double base = 0.5;
+        double base = 0.3;
         double optionBonus = Math.min(0.25,
             Math.log1p(checkpoint.unexploredAlternatives().size()) * 0.10);
         double distanceDiscount = Math.min(0.35,

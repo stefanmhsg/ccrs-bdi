@@ -49,9 +49,9 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private PromptBuilder promptBuilder;
     private LlmResponseParser responseParser;
     private double baseConfidence = 0.6;
-    private int maxHistoryActions = 20;
+    private int maxHistoryActions = 50;
     private int maxInteractionStateTriples = 100;
-    private int maxCcrsTraces = 5;
+    private int maxCcrsTraces = 10;
     private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
     private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
     private List<String> filteredTripleNamespaces = List.of(UI_NAMESPACE);
