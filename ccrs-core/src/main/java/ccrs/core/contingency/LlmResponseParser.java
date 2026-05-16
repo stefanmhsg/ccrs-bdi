@@ -16,7 +16,9 @@ public interface LlmResponseParser {
      * Parse a raw LLM response into a structured action response.
      *
      * @param rawResponse The raw text returned by the LLM
-     * @return Parsed LLM action response, or invalid response if parsing fails
+     * @return Parsed LLM action response, or invalid response if parsing fails.
+     *         Explicit no-suggestion responses may still carry an explanation
+     *         that callers should preserve for diagnostics.
      */
     LlmActionResponse parse(String rawResponse);
 

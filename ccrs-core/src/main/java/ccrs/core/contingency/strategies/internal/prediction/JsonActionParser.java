@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
  * Handles the expected JSON schema:
  * {"action": "...", "target": "...", "request": {"method": "...", "headers": {...}, "body": "..."},
  *  "reasoning|advice|explanation": "..."}
- * Also accepts {"action": null, ...} as an explicit no-suggestion answer.
+ * Also accepts {"action": null, ...} as an explicit no-suggestion answer and
+ * preserves any reasoning/advice/explanation/rationale text for diagnostics.
  * 
  * Features:
  * - Flexible field name matching (reasoning, advice, explanation)

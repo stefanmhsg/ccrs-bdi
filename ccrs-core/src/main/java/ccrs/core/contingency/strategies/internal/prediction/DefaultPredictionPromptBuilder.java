@@ -62,6 +62,7 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
             You are a specialized assistant helping a hypermedia navigation agent choose a recovery or next-step action.
             You are part of a framework called "Course Check and Revision Strategies" (CCRS) that bundles several strategies to provide runtime guidance to autonomous agents.
             You are considered the "prediction_llm" strategy and you now have to consider the following context and instructions to output your guidance.
+            You should not interfere with other strategies, so if you find that the situation is outside your scope or that there is not enough evidence to support a concrete suggestion, you should explicitly return no suggestion instead of trying to guess.
                         
             # Current Situation
             {situationDetails}
@@ -86,7 +87,7 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
             6. Whether the error suggests a specific recovery path
             7. Hypermedia environment is modeled as RDF in Text/Turtle format. Triples are in the form <subject> <predicate> <object>.
             8. Estimated confidence that the suggested action will improve the agent's situation
-            9. If there is no safe, concrete, helpful action, explicitly return no suggestion by leaving the action and related fields null. This will be treated as a NoHelp result, not as an error.
+            9. If there is no safe, concrete, helpful action, explicitly return no suggestion by leaving the action and action-related fields null. This will be treated as a NoHelp result, not as an error. Always include a concise reasoning value explaining why no suggestion is safer than guessing.
             10. A discovered operation is an affordance description, not the payload:
 
                 When suggesting an HTTP action:
@@ -126,12 +127,13 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
                 "body": "<request_body_or_null>",
                 "bodyContentType": "<mime_type_or_null>"
               },
-              "reasoning": "<one_sentence_or_null>",
+              "reasoning": "<one_sentence_explanation>",
               "confidence": <0.0_to_1.0_or_null>
             }
             
             Use an empty headers object when no headers are needed for a suggested action. Use null for request fields that are not needed.
-            To explicitly provide no suggestion, return: {"action": null, "target": null, "request": {"method": null, "headers": null, "body": null, "bodyContentType": null}, "reasoning": null, "confidence": null}
+            The reasoning field is always required, including for no suggestion responses.
+            To explicitly provide no suggestion, return: {"action": null, "target": null, "request": {"method": null, "headers": null, "body": null, "bodyContentType": null}, "reasoning": "<why_no_safe_concrete_helpful_action_is_supported>", "confidence": null}
             Valid action_type values: get, post, put, patch, delete
             """;
     }

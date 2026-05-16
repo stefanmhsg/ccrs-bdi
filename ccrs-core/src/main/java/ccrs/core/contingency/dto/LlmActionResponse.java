@@ -9,7 +9,7 @@ import java.util.Map;
  * Captures the common structure of an LLM answer used by CCRS prediction:
  * - action: What to do (navigate, get, post, retry, stop, etc.)
  * - target: Where to do it (URI or null)
- * - explanation: Why (reasoning, advice, rationale)
+ * - explanation: Why (reasoning, advice, rationale), including for explicit no-suggestion answers
  * - confidence: How certain (optional)
  * - metadata: Additional parser context (optional)
  * - noSuggestion: The LLM explicitly chose not to suggest any action
