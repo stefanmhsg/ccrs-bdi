@@ -39,6 +39,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     private static final String A2A_PROVIDES_TYPE = "https://example.org/a2a#providesType";
     private static final String A2A_PROVIDES_PROPERTY = "https://example.org/a2a#providesProperty";
     private static final int MAX_AGENT_CANDIDATES = 3;
+    private static final int DEFAULT_MAX_RECENT_INTERACTIONS = 10;
     private static final double DEFAULT_CONFIDENCE = 0.5;
 
     public static final String ID = "consultation";
@@ -102,12 +103,18 @@ public class ConsultationStrategy implements CcrsStrategy {
     
     // Configuration
     private ConsultationChannel channel;
+    private int maxRecentInteractions = DEFAULT_MAX_RECENT_INTERACTIONS;
     
     public ConsultationStrategy() {
     }
     
     public ConsultationStrategy(ConsultationChannel channel) {
+        this(channel, DEFAULT_MAX_RECENT_INTERACTIONS);
+    }
+
+    public ConsultationStrategy(ConsultationChannel channel, int maxRecentInteractions) {
         this.channel = channel;
+        this.maxRecentInteractions = clampPositive(maxRecentInteractions, DEFAULT_MAX_RECENT_INTERACTIONS);
     }
     
     @Override
@@ -318,7 +325,7 @@ public class ConsultationStrategy implements CcrsStrategy {
         
         // Add history if available
         if (context.hasHistory()) {
-            List<Interaction> actions = context.getRecentInteractions(10);
+            List<Interaction> actions = context.getRecentInteractions(maxRecentInteractions);
             ctx.put("recentActions", actions.stream()
                 .map(a -> Map.of(
                     "action", a.method(),
@@ -411,7 +418,7 @@ public class ConsultationStrategy implements CcrsStrategy {
 
         List<String> orderedAgents = new ArrayList<>();
         String selfAgentId = context.getAgentId();
-        List<Interaction> interactions = context.getRecentInteractions(10);
+        List<Interaction> interactions = context.getRecentInteractions(maxRecentInteractions);
 
         for (Interaction interaction : interactions) {
             if (interaction == null || interaction.perceivedState() == null) {
@@ -586,6 +593,15 @@ public class ConsultationStrategy implements CcrsStrategy {
     public ConsultationStrategy withChannel(ConsultationChannel channel) {
         this.channel = channel;
         return this;
+    }
+
+    public ConsultationStrategy withMaxRecentInteractions(int maxRecentInteractions) {
+        this.maxRecentInteractions = clampPositive(maxRecentInteractions, DEFAULT_MAX_RECENT_INTERACTIONS);
+        return this;
+    }
+
+    private int clampPositive(int candidate, int fallback) {
+        return candidate > 0 ? candidate : fallback;
     }
 
     private String escapeTurtleLiteral(String value) {
