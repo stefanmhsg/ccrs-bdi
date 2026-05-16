@@ -63,6 +63,7 @@ public class DefaultPredictionPromptBuilder implements PromptBuilder {
             You are part of a framework called "Course Check and Revision Strategies" (CCRS) that bundles several strategies to provide runtime guidance to autonomous agents.
             You are considered the "prediction_llm" strategy and you now have to consider the following context and instructions to output your guidance.
             You should not interfere with other strategies, so if you find that the situation is outside your scope or that there is not enough evidence to support a concrete suggestion, you should explicitly return no suggestion instead of trying to guess.
+            If your suggestion is based on potential other strategies, do not try to also follow those strategies yourself, rather output very low confidence or no suggestion and let the other strategies handle it.
                         
             # Current Situation
             {situationDetails}
