@@ -113,6 +113,7 @@ MAIN LOOP
         .print("Unable to cope with actions in: ", Location) ;
     .
 
+// ************************* CONTINGENCY CCRS ********************************** //
 // CONTINGENCY CCRS HOOK
 -!evaluate_actions(Location) :
     true
@@ -123,17 +124,6 @@ MAIN LOOP
         ccrs.jacamo.jason.contingency.evaluate("failure", "!evaluate_actions(Location) failed", Location, Suggestions) ;
 
         !handle_suggestions(Suggestions) ;
-    .
-
-// Contingency CCRS could not produce a recovery action.
-+!handle_suggestions([]) :
-    true
-    <-
-        .print(" --- ") ;
-        .print("CCRS produced no suggestions") ;
-        .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
-        -+finished(Y,M,D,H,Min,Sec,MilSec) ;
-        !!stop ;
     .
 
 // Opportunistic guidance was injected as ccrs/3 beliefs.
@@ -178,22 +168,22 @@ MAIN LOOP
         !crawl(Target) ;
     .
 
-//// Executes a consultation suggestion if it can be projected to a POST body
-//+!handle_suggestions([suggestion("consultation", "post", Target, Conf, Reason, Params)|_]) :
-//    .member(predicate(Predicate), Params) & .member(object(Object), Params)
-//    <-
-//        .print(" --- ") ;
-//        .print("CCRS CONSULTATION OUTPUT RECEIVED") ;
-//        .print("Id: consultation") ;
-//        .print("Type: post") ;
-//        .print("Target: ", Target) ;
-//        .print("Confidence: ", Conf) ;
-//        .print("Reason: ", Reason) ;
-//        .print("Params: ", Params) ;
-//        .print("CCRS executing consultation POST suggestion") ;
-//        !post(Target, [rdf(Target, Predicate, Object)[rdf_type_map(uri,uri,literal)]]) ;
-//        !crawl(Target) ;
-//    .
+// Executes a HTTP GET request based on a contingency suggestion
++!handle_suggestions([suggestion(Id, "get", Target, Conf, Reason, Params)|_]) :
+    not .member(hasOpportunisticGuidance(true), Params)
+    <-
+        .print(" --- ") ;
+        .print("CCRS OUTPUT RECEIVED") ;
+        .print("Id: ", Id) ;
+        .print("Type: get") ;
+        .print("Target: ", Target) ;
+        .print("Confidence: ", Conf) ;
+        .print("Reason: ", Reason) ;
+        .print("Params: ", Params) ;
+        .print("CCRS executing get suggestion") ;
+
+        !crawl(Target) ;
+    .
 
 // Logs the first suggestion (which is the highest ranking)
 +!handle_suggestions([suggestion(Id, Type, Target, Conf, Reason, Params)|_]) : 
@@ -201,9 +191,11 @@ MAIN LOOP
     <-
         .print(" --- ") ;
         .print("CCRS OUTPUT RECEIVED") ;
+        .print("CCRS OUTPUT COULD NOT BE LEVERAGED BY EXISTING PLANS") ;
         .print("CCRS suggests: ", Type, " target=", Target, " reason=", Reason) ;
         .print("Params: ", Params) ;
     .
+// *************************************************************************** //
 
 // DFS: Annotate valid affordances
 +!evaluate_affordances(Location) :
