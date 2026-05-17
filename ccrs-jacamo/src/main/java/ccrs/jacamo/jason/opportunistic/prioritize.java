@@ -57,11 +57,11 @@ public class prioritize extends DefaultInternalAction {
             
             ListTerm inputList = (ListTerm) inputListTerm;
 
-            logger.log(Level.INFO, "[CCRS-Prioritize] Input options: " + inputList);
+            logger.info("[CCRS-Prioritize] Input options: " + inputList);
 
             // Return early if input list is empty. Even for 1 option it can be useful to know associated utility e.g. to avoid certain options.
             if (inputList.isEmpty()) {
-                logger.log(Level.INFO, "[CCRS-Prioritize] Input list has 0 elements, no prioritization needed.");
+                logger.info("[CCRS-Prioritize] Input list has 0 elements, no prioritization needed.");
                 // Return same list for both outputs
                 return un.unifies(inputList, args[1]) && un.unifies(inputList, args[2]);
             }
@@ -72,7 +72,7 @@ public class prioritize extends DefaultInternalAction {
             // 4. Categorize and prioritize the options
             List<PrioritizedOption> prioritizedOptions = categorizeOptions(inputList, ccrsBeliefs);
 
-            logger.log(Level.INFO, "[CCRS-Prioritize] Categorized options: " + prioritizedOptions.toString());
+            logger.info("[CCRS-Prioritize] Categorized options: " + prioritizedOptions.toString());
             
             // 5. Build the plain result list (backward compatible)
             ListTerm plainList = buildPlainList(prioritizedOptions);
@@ -80,8 +80,8 @@ public class prioritize extends DefaultInternalAction {
             // 6. Build the detailed result list (with annotations)
             ListTerm detailedList = buildDetailedList(prioritizedOptions);
 
-            logger.log(Level.FINE, "[CCRS-Prioritize] Plain list (output): " + plainList);
-            logger.log(Level.FINE, "[CCRS-Prioritize] Detailed list (output): " + detailedList);
+            logger.info("[CCRS-Prioritize] Plain list (output): " + plainList);
+            logger.info("[CCRS-Prioritize] Detailed list (output): " + detailedList);
             
             // 7. Unify with the output parameters
             return un.unifies(plainList, args[1]) && un.unifies(detailedList, args[2]);

@@ -78,12 +78,11 @@ public class evaluate extends DefaultInternalAction {
         } else {
             context = new JasonCcrsContext(ts.getAg());
             ts.getAg().getTS().getSettings().addOption("ccrs_context", context);
-            logger.info("[ContingencyCcrs] Created fallback JasonCcrsContext; CcrsAgentArch was not pre-initialized");
+            logger.warning("[ContingencyCcrs] Created fallback JasonCcrsContext; CcrsAgentArch was not pre-initialized");
         }
 
         if (context instanceof JasonCcrsContext jCtx) {
-            logger.fine("[ContingencyCcrs] Current context: " + jCtx.toString());
-            logger.fine("[ContingencyCcrs] Context details: " + jCtx.toDebugString());
+            logger.fine("[ContingencyCcrs] JasonCcrsContext details: " + jCtx.toDebugString());
         }
 
         Situation situation = parseSituation(args);
@@ -93,22 +92,21 @@ public class evaluate extends DefaultInternalAction {
         if (currentResource != null && !currentResource.isEmpty() 
             && context instanceof ccrs.jacamo.jason.contingency.JasonCcrsContext) {
             ((ccrs.jacamo.jason.contingency.JasonCcrsContext) context).setCurrentResource(currentResource);
-            logger.log(Level.FINE, "[ContingencyCcrs] Set current resource to: " + currentResource);
+            logger.fine("[ContingencyCcrs] Set current resource to: " + currentResource);
         }
 
-        logger.log(Level.FINE,
-            "[ContingencyCcrs] Evaluating situation: " + situation + " with context");
+        logger.info("[ContingencyCcrs] Evaluating situation: " + situation + " with context");
 
         // Evaluate Contingency Strategies via the default path, which also records trace history.
         List<StrategyResult> results = ccrs.evaluate(situation, context);
 
-        logger.log(Level.INFO, "[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
+        logger.info("[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
         
         // Inject OpportunisticResult mental notes as ccrs/3 beliefs (B2)
         injectOpportunisticNotes(ts, results);
 
         ListTerm resultList = buildResultList(results);
-        logger.log(Level.INFO, "[ContingencyCcrs] Result list: " + resultList);
+        logger.info("[ContingencyCcrs] Result list: " + resultList);
         Term out = args[args.length - 1];
         return un.unifies(out, resultList);
     }
@@ -427,7 +425,7 @@ public class evaluate extends DefaultInternalAction {
 
             return body.isEmpty() ? null : body;
         } catch (Exception e) {
-            logger.log(Level.FINE, "LLM body is not parseable Turtle; forwarding as string");
+            logger.log(Level.WARNING, "LLM body is not parseable Turtle; forwarding as string");
             return null;
         }
     }

@@ -38,7 +38,7 @@ public class ConsultationStrategy implements CcrsStrategy {
     private static final String A2A_AGENT_CARD = "https://example.org/a2a#agentCard";
     private static final String A2A_PROVIDES_TYPE = "https://example.org/a2a#providesType";
     private static final String A2A_PROVIDES_PROPERTY = "https://example.org/a2a#providesProperty";
-    private static final int MAX_AGENT_CANDIDATES = 3;
+    private static final int MAX_AGENT_CANDIDATES = 5;
     private static final int DEFAULT_MAX_RECENT_INTERACTIONS = 10;
     private static final double DEFAULT_CONFIDENCE = 0.5;
 
@@ -425,7 +425,7 @@ public class ConsultationStrategy implements CcrsStrategy {
                 continue;
             }
 
-            logger.info("[Consultation] Inspecting interaction from " + interaction.requestUri()
+            logger.fine("[Consultation] Inspecting interaction from " + interaction.requestUri()
                 + " with " + interaction.perceivedState().size() + " perceived triples");
 
             for (RdfTriple triple : interaction.perceivedState()) {
@@ -434,9 +434,9 @@ public class ConsultationStrategy implements CcrsStrategy {
                 }
 
                 String candidate = triple.object;
-                logger.info("[Consultation] Encountered peer candidate via maze:contains: " + candidate);
+                logger.fine("[Consultation] Encountered peer candidate via maze:contains: " + candidate);
                 if (!isConsultableAgent(candidate, selfAgentId)) {
-                    logger.info("[Consultation] Skipping non-consultable candidate: " + candidate);
+                    logger.fine("[Consultation] Skipping non-consultable candidate: " + candidate);
                     continue;
                 }
 

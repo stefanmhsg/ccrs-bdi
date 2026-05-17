@@ -271,7 +271,7 @@ public class CcrsAgentArch extends CAgentArch {
                 Trigger te = new Trigger(Trigger.TEOperator.add, Trigger.TEType.belief, ccrsBelief.copy());
                 getTS().updateEvents(new jason.asSemantics.Event(te, Intention.EmptyInt));
                 
-                logger.fine("✓ CCRS detected: " + r.type + " in " + sourceKey);
+                logger.info("✓ CCRS detected: " + r.type + " in " + sourceKey);
             }
         }
     }

@@ -117,7 +117,7 @@ public class BacktrackStrategy implements CcrsStrategy {
     public Applicability appliesTo(Situation situation, CcrsContext context) {
         if (situation.getType() != Situation.Type.STUCK && 
             situation.getType() != Situation.Type.FAILURE) {
-                logger.fine("[Backtrack] Situation type not applicable: " + situation.getType());
+                logger.info("[Backtrack] Situation type not applicable: " + situation.getType());
                 return Applicability.NOT_APPLICABLE;
         }
         
@@ -126,13 +126,13 @@ public class BacktrackStrategy implements CcrsStrategy {
             currentResource = context.getCurrentResource().orElse(null);
         }
         if (currentResource == null) {
-            logger.fine("[Backtrack] Cannot determine current resource");
+            logger.info("[Backtrack] Cannot determine current resource");
             return Applicability.NOT_APPLICABLE;
         }
         
         // Quick check: do we have any potential checkpoints?
         if (context.hasHistory()) {
-            logger.fine("[Backtrack] is applicable because hasHistory() is true");
+            logger.info("[Backtrack] is applicable because hasHistory() is true");
             return Applicability.APPLICABLE;
         }
         
@@ -219,7 +219,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         }
         
         final String current = currentResource;  // Make effectively final for lambdas
-        logger.fine("[Backtrack] Current resource: " + current);
+        logger.info("[Backtrack] Current resource: " + current);
         
         // STEP 1: Build a domain-independent graph from interaction history
         InteractionGraph graph = buildInteractionGraph(context);
@@ -248,7 +248,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             .filter(c -> !c.unexploredAlternatives().isEmpty())
             .toList();
         
-        logger.fine(String.format("[Backtrack] %d checkpoints passed validation", validatedCheckpoints.size()));
+        logger.info(String.format("[Backtrack] %d checkpoints passed validation", validatedCheckpoints.size()));
         
         if (validatedCheckpoints.isEmpty()) {
             logger.warning("[Backtrack] No valid checkpoints with unexplored alternatives found");
@@ -266,7 +266,7 @@ public class BacktrackStrategy implements CcrsStrategy {
             .filter(c -> c.backtrackDistance() < Integer.MAX_VALUE)
             .toList();
         
-        logger.finer(String.format("[Backtrack] %d checkpoints reachable on the observed backtrack path",
+        logger.info(String.format("[Backtrack] %d checkpoints reachable on the observed backtrack path",
             withDistances.size()));
         
         if (withDistances.isEmpty()) {
@@ -287,7 +287,7 @@ public class BacktrackStrategy implements CcrsStrategy {
         
         // STEP 7: Compute backtrack path from current to checkpoint
         List<String> backtrackPath = computeBacktrackPath(current, bestCheckpoint.uri(), graph);
-        logger.fine(String.format("[Backtrack] Path length: %d steps", backtrackPath.size()));
+        logger.info(String.format("[Backtrack] Path length: %d steps", backtrackPath.size()));
         
         // STEP 8: Build result with rich metadata
         // Use checkpoint-specific attempt key to avoid different checkpoints sharing counters

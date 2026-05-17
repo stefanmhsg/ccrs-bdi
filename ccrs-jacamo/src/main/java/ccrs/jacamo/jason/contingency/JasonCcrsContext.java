@@ -257,7 +257,7 @@ public class JasonCcrsContext implements CcrsContext {
     public String toDebugString() {
     return "[JasonCcrsContext] {agentId='" + agentId
         + "', currentResource='" + currentResource
-        + "', interactionLog="
+        + "', interactionLog (preview)="
         + historyProvider().formatAgentHistory(agentId)
         + "}";
     }
