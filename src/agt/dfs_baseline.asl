@@ -204,7 +204,22 @@ REACTING TO EVENTS
         // DFS: Path tracking
         ?at(Previous) ;
         -+at(Target) ; // update location. (Same as -at(_) ; +at(Target) ;)
-        .print("I'm now at: ", Target) ;         
+        .print("I'm now at: ", Target) ;
+        .date(Y,M,D) ;
+        .time(H,Min,Sec,MilSec) ;
+        NowMs = ((H * 3600 + Min * 60 + Sec) * 1000) + MilSec ;
+        if (not cycle_step(_)) {
+            +cycle_step(0)
+        } ;
+        ?cycle_step(PreviousStep) ;
+        Step = PreviousStep + 1 ;
+        -+cycle_step(Step) ;
+        .print("[METRIC] event=agent.cycle.location step=", Step,
+               " y=", Y, " m=", M, " d=", D,
+               " h=", H, " min=", Min, " sec=", Sec, " ms=", MilSec,
+               " t_ms=", NowMs,
+               " previous=", Previous,
+               " cell=", Target) ;
         if (not (discovered(Target))) { // Only add once on first encounter.
             +discovered(Target)[parent(Previous)] ; // mark current location as discovered (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
             .print("Discovered: ", Target, " from: ", Previous) ;
@@ -275,6 +290,10 @@ HELPER PLANS
         ?(rdf(TargetURI, related, CreatedResourceURI)) ; 
         .abolish(rdf(_,"https://kaefer3000.github.io/2021-02-dagstuhl/vocab#contains", AgentName)) ;
         .print("Access approved: ", CreatedResourceURI) ;
+        if (not (discovered(TargetURI))) {
+            +discovered(TargetURI)[parent(URI)] ;
+            .print("Discovered: ", TargetURI, " from: ", URI) ;
+        } ;
     .
 
   +!post(RequestURI, Body) :
