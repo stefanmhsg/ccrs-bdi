@@ -11,7 +11,7 @@ build
 *.class
 
 # Log file
-*.log
+*.log*
 
 # BlueJ files
 *.ctxt
@@ -35,7 +35,12 @@ replay_pid*
 .vscode/tasks.json
 
 log/mas-0.log.lck
+*.lck
 bin/
 
 # Environment variables (contains API keys)
 .env
+/experiments/*
+!/experiments/*.md
+!/experiments/scripts/
+!/experiments/scripts/**

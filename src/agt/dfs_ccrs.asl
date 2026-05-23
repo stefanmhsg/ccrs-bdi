@@ -86,26 +86,6 @@ MAIN LOOP
         !evaluate_actions(Location) ; // Check for necessary actions
     .
 
-// Unlock Action if Cell is of type Lock
-//+!evaluate_actions(Location) :
-//    rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock")
-//    <-
-//        ?rdf(Location, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsAction", Action) ;
-//        ?rdf(Action, "http://www.w3.org/2011/http#body", Body) ;
-//        ?rdf(Action, "http://www.w3.org/2011/http#mthd", Method) ;
-//        
-//        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#needsProperty", Property) ;
-//        ?rdf(Body, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#foundAt", Keyname) ;
-//        
-//        ?rdf(KeyId, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", Keyname) ;
-//        ?rdf(KeyId, "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#keyValue", Keyvalue) ;
-//
-//        .print(Location, " needs ", Action, " with Method ", Method, " and Body ", Body, " with Property ", Property, " of ", Keyname, " which is ", Keyvalue) ;
-//
-//        !post(Location, [rdf(Location, Property, Keyvalue)[rdf_type_map(uri,uri,literal)]]) ;
-//        !crawl(Location) ;
-//    .
-
 // Unspecified or Unknown Action
 +!evaluate_actions(Location) :
     not rdf(Location, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type", "https://paul.ti.rw.fau.de/~am52etar/dynmaze/dynmaze#Lock") // DT assumption that only Lock related actions exist
@@ -325,7 +305,9 @@ REACTING TO EVENTS
         // DFS: Path tracking
         ?at(Previous) ;
         -+at(Target) ; // update location. (Same as -at(_) ; +at(Target) ;)
-        .print("I'm now at: ", Target) ;         
+        .print("I'm now at: ", Target) ;
+        .time(H,Min,Sec,MilSec) ;
+        .print("TIMESTAMP CYCLE: H:",          
         if (not (discovered(Target))) { // Only add once on first encounter.
             +discovered(Target)[parent(Previous)] ; // mark current location as discovered (path tracking, not same as fully explored). Keep track of where we came from with a custom annotation.
             .print("Discovered: ", Target, " from: ", Previous) ;
