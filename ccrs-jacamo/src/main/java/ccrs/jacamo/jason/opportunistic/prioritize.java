@@ -1,5 +1,6 @@
 package ccrs.jacamo.jason.opportunistic;
 
+import ccrs.core.logging.CcrsEventLogger;
 import jason.asSemantics.DefaultInternalAction;
 import jason.asSemantics.TransitionSystem;
 import jason.asSemantics.Unifier;
@@ -62,6 +63,15 @@ public class prioritize extends DefaultInternalAction {
             // Return early if input list is empty. Even for 1 option it can be useful to know associated utility e.g. to avoid certain options.
             if (inputList.isEmpty()) {
                 logger.info("[CCRS-Prioritize] Input list has 0 elements, no prioritization needed.");
+                CcrsEventLogger.info(logger, "ccrs.opportunistic.prioritize", CcrsEventLogger.fields(
+                    "agent_id", agentId(ts),
+                    "options_count", 0,
+                    "matched_count", 0,
+                    "selected_uri", null,
+                    "selected_original_index", null,
+                    "selected_has_ccrs", false,
+                    "selected_reordered", false
+                ));
                 // Return same list for both outputs
                 return un.unifies(inputList, args[1]) && un.unifies(inputList, args[2]);
             }
@@ -73,6 +83,7 @@ public class prioritize extends DefaultInternalAction {
             List<PrioritizedOption> prioritizedOptions = categorizeOptions(inputList, ccrsBeliefs);
 
             logger.info("[CCRS-Prioritize] Categorized options: " + prioritizedOptions.toString());
+            logPrioritizationEvent(ts, prioritizedOptions);
             
             // 5. Build the plain result list (backward compatible)
             ListTerm plainList = buildPlainList(prioritizedOptions);
@@ -93,6 +104,71 @@ public class prioritize extends DefaultInternalAction {
         } catch (Exception e) {
             throw new JasonException("Error in ccrs.prioritize: " + e.getMessage());
         }
+    }
+
+    private void logPrioritizationEvent(TransitionSystem ts, List<PrioritizedOption> options) {
+        int matchedCount = 0;
+        for (PrioritizedOption option : options) {
+            if (option.ccrsBelief != null) {
+                matchedCount++;
+            }
+        }
+
+        PrioritizedOption selected = options.isEmpty() ? null : options.get(0);
+        boolean selectedHasCcrs = selected != null && selected.ccrsBelief != null;
+        boolean selectedReordered = selectedHasCcrs && selected.originalIndex > 0;
+
+        CcrsEventLogger.info(logger, "ccrs.opportunistic.prioritize", CcrsEventLogger.fields(
+            "agent_id", agentId(ts),
+            "options_count", options.size(),
+            "matched_count", matchedCount,
+            "selected_uri", selected != null ? selected.uri : null,
+            "selected_original_index", selected != null ? selected.originalIndex : null,
+            "selected_has_ccrs", selectedHasCcrs,
+            "selected_reordered", selectedReordered,
+            "selected_origin", selectedHasCcrs ? annotationValue(selected.ccrsBelief, "origin") : null,
+            "selected_type", selectedHasCcrs ? termValue(selected.ccrsBelief.getTerm(1)) : null,
+            "selected_utility", selected != null ? selected.utility : null,
+            "selected_strategy", selectedHasCcrs ? annotationValue(selected.ccrsBelief, "strategy") : null
+        ));
+    }
+
+    private String agentId(TransitionSystem ts) {
+        try {
+            return ts.getAg().getTS().getAgArch().getAgName();
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private String annotationValue(Literal belief, String annotationName) {
+        if (belief == null || annotationName == null) {
+            return null;
+        }
+
+        Term annot = belief.getAnnot(annotationName);
+        if (annot == null) {
+            return null;
+        }
+
+        if (annot.isStructure()) {
+            Structure structure = (Structure) annot;
+            if (structure.getArity() > 0) {
+                return termValue(structure.getTerm(0));
+            }
+        }
+
+        return termValue(annot);
+    }
+
+    private String termValue(Term term) {
+        if (term == null) {
+            return null;
+        }
+        if (term.isString()) {
+            return ((StringTerm) term).getString();
+        }
+        return term.toString().replace("\"", "");
     }
     
     /**

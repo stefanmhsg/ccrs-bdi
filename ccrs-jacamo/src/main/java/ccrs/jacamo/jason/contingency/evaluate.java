@@ -1,4 +1,5 @@
 package ccrs.jacamo.jason.contingency;
+import ccrs.core.logging.CcrsEventLogger;
 import ccrs.core.contingency.ContingencyCcrs;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -96,11 +97,20 @@ public class evaluate extends DefaultInternalAction {
         }
 
         logger.info("[ContingencyCcrs] Evaluating situation: " + situation + " with context");
+        CcrsEventLogger.info(logger, "ccrs.contingency.evaluate.request", CcrsEventLogger.fields(
+            "agent_id", context.getAgentId(),
+            "situation_type", situation.getType(),
+            "current_resource", situation.getCurrentResource(),
+            "target_resource", situation.getTargetResource(),
+            "failed_action", situation.getFailedAction(),
+            "has_history", context.hasHistory()
+        ));
 
         // Evaluate Contingency Strategies via the default path, which also records trace history.
         List<StrategyResult> results = ccrs.evaluate(situation, context);
 
         logger.info("[ContingencyCcrs] Evaluation produced " + results.size() + " results.");
+        logEvaluationReturned(context, results);
         
         // Inject OpportunisticResult mental notes as ccrs/3 beliefs (B2)
         injectOpportunisticNotes(ts, results);
@@ -109,6 +119,39 @@ public class evaluate extends DefaultInternalAction {
         logger.info("[ContingencyCcrs] Result list: " + resultList);
         Term out = args[args.length - 1];
         return un.unifies(out, resultList);
+    }
+
+    private void logEvaluationReturned(CcrsContext context, List<StrategyResult> results) {
+        StrategyResult.Suggestion topSuggestion = null;
+        int suggestionCount = 0;
+        int opportunisticGuidanceCount = 0;
+
+        for (StrategyResult result : results) {
+            if (!result.isSuggestion()) {
+                continue;
+            }
+
+            suggestionCount++;
+            StrategyResult.Suggestion suggestion = result.asSuggestion();
+            if (topSuggestion == null) {
+                topSuggestion = suggestion;
+            }
+            if (suggestion.hasOpportunisticGuidance()) {
+                opportunisticGuidanceCount++;
+            }
+        }
+
+        CcrsEventLogger.info(logger, "ccrs.contingency.evaluate.returned", CcrsEventLogger.fields(
+            "agent_id", context.getAgentId(),
+            "result_count", results.size(),
+            "suggestion_count", suggestionCount,
+            "opportunistic_guidance_count", opportunisticGuidanceCount,
+            "top_strategy", topSuggestion != null ? topSuggestion.getStrategyId() : null,
+            "top_action", topSuggestion != null ? topSuggestion.getActionType() : null,
+            "top_target", topSuggestion != null ? topSuggestion.getActionTarget() : null,
+            "top_confidence", topSuggestion != null ? topSuggestion.getConfidence() : null,
+            "top_has_opportunistic_guidance", topSuggestion != null && topSuggestion.hasOpportunisticGuidance()
+        ));
     }
 
     // ------------------------------------------------------------------
@@ -536,4 +579,3 @@ public class evaluate extends DefaultInternalAction {
     }
 
 }
-

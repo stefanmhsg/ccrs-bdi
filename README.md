@@ -26,6 +26,7 @@ application code and are not intended to be published as libraries.
 | [ccrs-langchain4j](ccrs-langchain4j) | Optional LangChain4j/OpenAI-backed LLM capability provider. |
 | [ccrs-a2a](ccrs-a2a) | Optional A2A-backed consultation capability provider. |
 | [src/agt](src/agt) and `*.jcm` | This repository's JaCaMo/Jason application agents and launch configurations. |
+| [experiments](experiments) | Manual MASE experiment workflow, metrics documentation, analysis scripts, run archives, and generated reports. |
 | [examples/ccrs-library-consumer](examples/ccrs-library-consumer) | Standalone example project that consumes the published CCRS modules from Maven coordinates. |
 | [CCRS_LIBRARY.md](CCRS_LIBRARY.md) | Library extraction notes, module boundaries, and remaining library-readiness tasks. |
 

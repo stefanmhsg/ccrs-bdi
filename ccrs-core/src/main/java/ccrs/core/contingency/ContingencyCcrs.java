@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.logging.Logger;
 
+import ccrs.core.logging.CcrsEventLogger;
 import ccrs.core.contingency.selection.StrategyGateDecision;
 import ccrs.core.contingency.selection.StrategySelectionPlan;
 import ccrs.core.contingency.selection.StrategySelectionPolicy;
@@ -207,6 +208,7 @@ public class ContingencyCcrs {
                                     evalTime
                                 );
                             }
+                            logStrategyEvent(context, strategy.getId(), result, evalTime);
                             break;
                         }
                     }
@@ -233,6 +235,7 @@ public class ContingencyCcrs {
                     evalTime
                 );
             }
+            logStrategyEvent(context, strategy.getId(), result, evalTime);
         }
         
         // Rank already-derived suggestions by confidence only.
@@ -277,6 +280,32 @@ public class ContingencyCcrs {
         StrategyResult.Suggestion top = results.get(0).asSuggestion();
         return String.format("Selected %s (confidence=%.2f) from %d candidates, evaluated %d strategies",
             top.getStrategyId(), top.getConfidence(), results.size(), totalEvaluated);
+    }
+
+    private void logStrategyEvent(
+            CcrsContext context,
+            String strategyId,
+            StrategyResult result,
+            long evaluationTimeMs) {
+        StrategyResult.Suggestion suggestion = result != null && result.isSuggestion()
+            ? result.asSuggestion()
+            : null;
+        StrategyResult.NoHelp noHelp = result != null && !result.isSuggestion()
+            ? result.asNoHelp()
+            : null;
+
+        CcrsEventLogger.info(logger, "ccrs.contingency.strategy.evaluated", CcrsEventLogger.fields(
+            "agent_id", context != null ? context.getAgentId() : "unknown",
+            "strategy_id", strategyId,
+            "result_type", result == null ? "none" : (result.isSuggestion() ? "suggestion" : "no_help"),
+            "confidence", suggestion != null ? suggestion.getConfidence() : null,
+            "action_type", suggestion != null ? suggestion.getActionType() : null,
+            "action_target", suggestion != null ? suggestion.getActionTarget() : null,
+            "has_opportunistic_guidance", suggestion != null && suggestion.hasOpportunisticGuidance(),
+            "no_help_reason", noHelp != null ? noHelp.getReason() : null,
+            "rationale", suggestion != null ? suggestion.getRationale() : (noHelp != null ? noHelp.getExplanation() : null),
+            "evaluation_time_ms", evaluationTimeMs
+        ));
     }
 
     private StrategySelectionPlan buildSelectionPlan(

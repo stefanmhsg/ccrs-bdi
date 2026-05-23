@@ -2,6 +2,7 @@ package ccrs.jacamo.jaca;
 
 import cartago.ArtifactId;
 import cartago.ArtifactObsProperty;
+import ccrs.core.logging.CcrsEventLogger;
 import ccrs.core.opportunistic.*;
 import ccrs.core.rdf.*;
 import ccrs.jacamo.jason.JasonRdfAdapter;
@@ -272,7 +273,27 @@ public class CcrsAgentArch extends CAgentArch {
                 getTS().updateEvents(new jason.asSemantics.Event(te, Intention.EmptyInt));
                 
                 logger.info("✓ CCRS detected: " + r.type + " in " + sourceKey);
+                CcrsEventLogger.info(logger, "ccrs.opportunistic.detected", CcrsEventLogger.fields(
+                    "agent_id", agentId(),
+                    "source", sourceKey,
+                    "artifact_name", artifactId != null ? artifactId.getName() : null,
+                    "workspace", artifactId != null && artifactId.getWorkspaceId() != null
+                        ? artifactId.getWorkspaceId().getName()
+                        : null,
+                    "target", r.target,
+                    "type", r.type,
+                    "pattern_id", r.patternId,
+                    "utility", r.utility
+                ));
             }
+        }
+    }
+
+    private String agentId() {
+        try {
+            return getTS().getAgArch().getAgName();
+        } catch (Exception e) {
+            return "unknown";
         }
     }
     
