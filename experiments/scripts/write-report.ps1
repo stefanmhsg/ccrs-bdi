@@ -153,10 +153,36 @@ function ConvertTo-SvgPoint {
     return ("{0:F2},{1:F2}" -f $px, $py)
 }
 
+function ConvertTo-SvgCoordinate {
+    param(
+        [double]$X,
+        [double]$Y,
+        [double]$MinX,
+        [double]$MaxX,
+        [double]$MinY,
+        [double]$MaxY,
+        [double]$PlotX,
+        [double]$PlotY,
+        [double]$PlotWidth,
+        [double]$PlotHeight
+    )
+
+    $xRange = [math]::Max(1.0, $MaxX - $MinX)
+    $yRange = [math]::Max(1.0, $MaxY - $MinY)
+    $px = $PlotX + (($X - $MinX) / $xRange) * $PlotWidth
+    $py = $PlotY + $PlotHeight - (($Y - $MinY) / $yRange) * $PlotHeight
+
+    return [pscustomobject][ordered]@{
+        x = $px
+        y = $py
+    }
+}
+
 function New-CycleDurationChart {
     param(
         [object[]]$Rows,
-        [string]$OutputPath
+        [string]$OutputPath,
+        [double]$YCapMs = 300
     )
 
     $plotRows = @($Rows | Where-Object { $_.duration_ms -ne $null -and "$($_.duration_ms)" -ne "" })
@@ -164,11 +190,11 @@ function New-CycleDurationChart {
         return $null
     }
 
-    $width = 960
-    $height = 420
+    $width = 1040
+    $height = 460
     $plotX = 72
-    $plotY = 40
-    $plotWidth = 820
+    $plotY = 72
+    $plotWidth = 880
     $plotHeight = 300
     $colors = @("#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e")
     $steps = @($plotRows | ForEach-Object { Convert-ToDouble $_.step })
@@ -176,16 +202,20 @@ function New-CycleDurationChart {
     $minX = ($steps | Measure-Object -Minimum).Minimum
     $maxX = ($steps | Measure-Object -Maximum).Maximum
     $minY = 0
-    $maxY = [math]::Ceiling((($durations | Measure-Object -Maximum).Maximum) * 1.1)
+    $maxObservedY = [math]::Ceiling(($durations | Measure-Object -Maximum).Maximum)
+    $maxY = $YCapMs
     if ($maxY -le 0) { $maxY = 1 }
 
     $svg = New-Object System.Collections.Generic.List[string]
     $svg.Add("<svg xmlns=""http://www.w3.org/2000/svg"" width=""$width"" height=""$height"" viewBox=""0 0 $width $height"" role=""img"" aria-labelledby=""title desc"">")
     $svg.Add("<title id=""title"">Cycle duration comparison</title>")
-    $svg.Add("<desc id=""desc"">Line chart comparing cycle duration by movement step for experiment runs.</desc>")
+    $svg.Add("<desc id=""desc"">Line chart comparing cycle duration by movement step for experiment runs. The y-axis is capped at $YCapMs ms; clipped outliers are labeled with their actual duration.</desc>")
     $svg.Add("<rect width=""100%"" height=""100%"" fill=""#ffffff""/>")
+    $svg.Add("<text x=""$plotX"" y=""28"" font-family=""Arial, sans-serif"" font-size=""14"" font-weight=""700"">Cycle duration comparison</text>")
+    $svg.Add("<text x=""$plotX"" y=""48"" font-family=""Arial, sans-serif"" font-size=""12"" fill=""#555"">Y-axis capped at $YCapMs ms; outliers are clipped and labeled with actual duration. Max observed: $maxObservedY ms.</text>")
     $svg.Add("<line x1=""$plotX"" y1=""$($plotY + $plotHeight)"" x2=""$($plotX + $plotWidth)"" y2=""$($plotY + $plotHeight)"" stroke=""#333"" stroke-width=""1""/>")
     $svg.Add("<line x1=""$plotX"" y1=""$plotY"" x2=""$plotX"" y2=""$($plotY + $plotHeight)"" stroke=""#333"" stroke-width=""1""/>")
+    $svg.Add("<line x1=""$plotX"" y1=""$plotY"" x2=""$($plotX + $plotWidth)"" y2=""$plotY"" stroke=""#999"" stroke-width=""1"" stroke-dasharray=""4 4""/>")
     $svg.Add("<text x=""$($plotX + ($plotWidth / 2))"" y=""$($height - 24)"" text-anchor=""middle"" font-family=""Arial, sans-serif"" font-size=""13"">Step number</text>")
     $svg.Add("<text x=""18"" y=""$($plotY + ($plotHeight / 2))"" text-anchor=""middle"" transform=""rotate(-90 18 $($plotY + ($plotHeight / 2)))"" font-family=""Arial, sans-serif"" font-size=""13"">Duration ms</text>")
     $svg.Add("<text x=""$plotX"" y=""$($plotY + $plotHeight + 18)"" text-anchor=""middle"" font-family=""Arial, sans-serif"" font-size=""11"">$minX</text>")
@@ -199,10 +229,13 @@ function New-CycleDurationChart {
         $color = $colors[$colorIndex % $colors.Count]
         $colorIndex++
         $points = @()
+        $outliers = @()
         foreach ($row in ($group.Group | Sort-Object @{ Expression = { Convert-ToDouble $_.step } })) {
+            $duration = Convert-ToDouble $row.duration_ms
+            $plottedDuration = [math]::Min($duration, $YCapMs)
             $points += ConvertTo-SvgPoint `
                 -X (Convert-ToDouble $row.step) `
-                -Y (Convert-ToDouble $row.duration_ms) `
+                -Y $plottedDuration `
                 -MinX $minX `
                 -MaxX $maxX `
                 -MinY $minY `
@@ -211,6 +244,25 @@ function New-CycleDurationChart {
                 -PlotY $plotY `
                 -PlotWidth $plotWidth `
                 -PlotHeight $plotHeight
+            if ($duration -gt $YCapMs) {
+                $point = ConvertTo-SvgCoordinate `
+                    -X (Convert-ToDouble $row.step) `
+                    -Y $YCapMs `
+                    -MinX $minX `
+                    -MaxX $maxX `
+                    -MinY $minY `
+                    -MaxY $maxY `
+                    -PlotX $plotX `
+                    -PlotY $plotY `
+                    -PlotWidth $plotWidth `
+                    -PlotHeight $plotHeight
+                $outliers += [pscustomobject][ordered]@{
+                    step = Convert-ToDouble $row.step
+                    duration = $duration
+                    x = $point.x
+                    y = $point.y
+                }
+            }
         }
         if ($points.Count -gt 0) {
             $label = [System.Security.SecurityElement]::Escape($group.Name)
@@ -218,6 +270,21 @@ function New-CycleDurationChart {
             $legendY = 34 + (($colorIndex - 1) * 20)
             $svg.Add("<line x1=""$($plotX + 610)"" y1=""$legendY"" x2=""$($plotX + 640)"" y2=""$legendY"" stroke=""$color"" stroke-width=""2""/>")
             $svg.Add("<text x=""$($plotX + 648)"" y=""$legendY"" dominant-baseline=""middle"" font-family=""Arial, sans-serif"" font-size=""12"">$label</text>")
+            $outlierIndex = 0
+            foreach ($outlier in $outliers) {
+                $outlierIndex++
+                $markerX = $outlier.x.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+                $markerY = $outlier.y.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+                $labelOffset = if ($outlierIndex % 2 -eq 0) { -18 } else { -34 }
+                $labelXValue = [math]::Min([math]::Max($outlier.x + 8, $plotX + 24), $plotX + $plotWidth - 34)
+                $labelYValue = [math]::Max(16, $outlier.y + $labelOffset)
+                $labelX = $labelXValue.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+                $labelY = $labelYValue.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture)
+                $durationLabel = $outlier.duration.ToString("0.##", [System.Globalization.CultureInfo]::InvariantCulture) + " ms"
+                $svg.Add("<circle cx=""$markerX"" cy=""$markerY"" r=""4"" fill=""#ffffff"" stroke=""$color"" stroke-width=""2""/>")
+                $svg.Add("<line x1=""$markerX"" y1=""$markerY"" x2=""$labelX"" y2=""$labelY"" stroke=""$color"" stroke-width=""1"" opacity=""0.75""/>")
+                $svg.Add("<text x=""$labelX"" y=""$labelY"" font-family=""Arial, sans-serif"" font-size=""11"" fill=""#222"">$durationLabel</text>")
+            }
         }
     }
 
@@ -281,9 +348,10 @@ $cycleDurations = @(if (Test-Path -LiteralPath $cycleDurationsCsv) { Import-Csv 
 $batchName = if ($BatchId) { $BatchId } else { Split-Path -Leaf $RunRoot }
 $summaryPath = Join-Path $OutputDir "summary.md"
 $cycleChartPath = Join-Path $OutputDir "cycle-duration-comparison.svg"
+$cycleChartCapMs = 300
 $cycleChartFile = $null
 if ($cycleDurations.Count -gt 0) {
-    $generatedChart = New-CycleDurationChart -Rows $cycleDurations -OutputPath $cycleChartPath
+    $generatedChart = New-CycleDurationChart -Rows $cycleDurations -OutputPath $cycleChartPath -YCapMs $cycleChartCapMs
     if ($generatedChart) {
         $cycleChartFile = Split-Path -Leaf $generatedChart
     }
@@ -349,6 +417,8 @@ if ($cycleChartFile) {
     $lines.Add("## Cycle Duration Chart")
     $lines.Add("")
     $lines.Add("![Cycle duration comparison]($cycleChartFile)")
+    $lines.Add("")
+    $lines.Add("Y-axis capped at $cycleChartCapMs ms; clipped outliers are labeled with their actual duration.")
 }
 
 $lines.Add("")
@@ -425,7 +495,7 @@ $lines.Add('- `mase-transactions.csv`: MASE transaction events normalized for ac
 $lines.Add('- `agents.csv`: one row per observed agent per run with movement and transaction totals.')
 $lines.Add('- `cycle-durations.csv`: one row per structured agent cycle marker with derived cycle duration and CCRS event counts.')
 if ($cycleChartFile) {
-    $lines.Add("- `$cycleChartFile`: SVG line chart comparing cycle duration by step.")
+    $lines.Add("- ``$cycleChartFile``: SVG line chart comparing cycle duration by step.")
 }
 $lines.Add('- `path-analysis-inputs/*.cells.txt`: copy-paste cell sequences for the MASE viewer Path Analysis overlay.')
 $lines.Add('- `path-analysis-inputs.csv`: index of generated Path Analysis copy-paste files.')
