@@ -378,14 +378,14 @@ function Get-ScenarioReportMetadata {
     if ($BatchName -match "(?i)(^|[-_])v1($|[-_])") {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV1"
-            description = "Scenario CcrsMazeV1 contains no lock cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
+            description = "Scenario CcrsMazeV1 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
         }
     }
 
     if ($BatchName -match "(?i)(^|[-_])v2($|[-_])") {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV2"
-            description = "Scenario CcrsMazeV2 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
+            description = "Scenario CcrsMazeV2 contains no locked cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
         }
     }
 
