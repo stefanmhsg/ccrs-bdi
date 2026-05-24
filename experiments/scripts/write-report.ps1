@@ -107,6 +107,51 @@ function Average-Field {
     return ($values | Measure-Object -Average).Average
 }
 
+function Get-Average {
+    param([object[]]$Values)
+
+    $numbers = @()
+    foreach ($value in $Values) {
+        if ($null -ne $value -and "$value" -ne "") {
+            $numbers += (Convert-ToDouble $value)
+        }
+    }
+
+    if ($numbers.Count -eq 0) {
+        return $null
+    }
+
+    return [math]::Round(($numbers | Measure-Object -Average).Average, 2)
+}
+
+function Get-ContingencyInvocationCycleAverages {
+    param(
+        [object[]]$CycleRows,
+        [string]$RunId
+    )
+
+    if (-not $RunId) {
+        return @()
+    }
+
+    $contingencyCycles = @($CycleRows | Where-Object {
+        $_.run_id -eq $RunId -and
+        $_.duration_ms -ne $null -and
+        "$($_.duration_ms)" -ne "" -and
+        [int]$_.contingency_ccrs_invocation_count -gt 0
+    } | Sort-Object @{ Expression = { [int]$_.sequence } }, @{ Expression = { [int]$_.line } })
+
+    $rows = @()
+    for ($i = 0; $i -lt $contingencyCycles.Count; $i++) {
+        $rows += [pscustomobject][ordered]@{
+            invocation = $i + 1
+            average_ms = Get-Average @($contingencyCycles[$i].duration_ms)
+        }
+    }
+
+    return $rows
+}
+
 function Get-FirstRunMatching {
     param(
         [object[]]$Rows,
@@ -327,6 +372,29 @@ function Get-RunRootHelp {
     return $message
 }
 
+function Get-ScenarioReportMetadata {
+    param([string]$BatchName)
+
+    if ($BatchName -match "(?i)(^|[-_])v1($|[-_])") {
+        return [pscustomobject][ordered]@{
+            name = "CcrsMazeV1"
+            description = "Scenario CcrsMazeV1 contains no lock cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
+        }
+    }
+
+    if ($BatchName -match "(?i)(^|[-_])v2($|[-_])") {
+        return [pscustomobject][ordered]@{
+            name = "CcrsMazeV2"
+            description = "Scenario CcrsMazeV2 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        name = "unknown"
+        description = "Scenario metadata is not configured for this batch."
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if (-not $RunRoot) {
     if (-not $BatchId) {
@@ -360,6 +428,7 @@ $pathAnalysisInputs = @(if (Test-Path -LiteralPath $pathAnalysisCsv) { Import-Cs
 $cycleDurations = @(if (Test-Path -LiteralPath $cycleDurationsCsv) { Import-Csv -Path $cycleDurationsCsv })
 
 $batchName = if ($BatchId) { $BatchId } else { Split-Path -Leaf $RunRoot }
+$scenarioMetadata = Get-ScenarioReportMetadata -BatchName $batchName
 $summaryPath = Join-Path $OutputDir "summary.md"
 $cycleChartPath = Join-Path $OutputDir "cycle-duration-comparison.svg"
 $cycleChartCapMs = 300
@@ -378,6 +447,12 @@ $lines.Add("")
 $lines.Add("Generated: $generatedAt")
 $lines.Add("")
 $lines.Add("Run root: ``$RunRoot``")
+$lines.Add("")
+$lines.Add("Scenario: $($scenarioMetadata.name)")
+$lines.Add("")
+$lines.Add($scenarioMetadata.description)
+$lines.Add("")
+$lines.Add("Optimal path length is fixed at 118 moves for the current experiment definition.")
 $lines.Add("")
 
 if ($runs.Count -eq 0) {
@@ -421,11 +496,31 @@ if ($baselineRun -or $ccrsRun) {
     $lines.Add("")
     $lines.Add("## Cycle Duration Summary")
     $lines.Add("")
-    $lines.Add("| Baseline avg ms | CCRS avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3+ avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3+ avg ms |")
-    $lines.Add("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
-    $lines.Add("| $(Format-Ms $baselineRun.average_agent_cycle_duration_ms) | $(Format-Ms $ccrsRun.average_agent_cycle_duration_ms) | $(Format-Ms $ccrsRun.average_cycle_opp0_ms) | $(Format-Ms $ccrsRun.average_cycle_opp1_ms) | $(Format-Ms $ccrsRun.average_cycle_opp2_ms) | $(Format-Ms $ccrsRun.average_cycle_opp3plus_ms) | $(Format-Ms $ccrsRun.average_cycle_cont1_ms) | $(Format-Ms $ccrsRun.average_cycle_cont2_ms) | $(Format-Ms $ccrsRun.average_cycle_cont3plus_ms) |")
+    $contingencyInvocationAverages = @(Get-ContingencyInvocationCycleAverages -CycleRows $cycleDurations -RunId $ccrsRun.run_id)
+    $headers = @("Baseline avg ms", "CCRS avg ms", "CCRS opp 0 avg ms", "CCRS opp 1 avg ms", "CCRS opp 2 avg ms", "CCRS opp 3+ avg ms")
+    $alignments = @("---:", "---:", "---:", "---:", "---:", "---:")
+    $values = @(
+        (Format-Ms $baselineRun.average_agent_cycle_duration_ms),
+        (Format-Ms $ccrsRun.average_agent_cycle_duration_ms),
+        (Format-Ms $ccrsRun.average_cycle_opp0_ms),
+        (Format-Ms $ccrsRun.average_cycle_opp1_ms),
+        (Format-Ms $ccrsRun.average_cycle_opp2_ms),
+        (Format-Ms $ccrsRun.average_cycle_opp3plus_ms)
+    )
+    foreach ($row in $contingencyInvocationAverages) {
+        $headers += "CCRS cont invocation $($row.invocation) avg ms"
+        $alignments += "---:"
+        $values += (Format-Ms $row.average_ms)
+    }
+    $lines.Add("| $($headers -join ' | ') |")
+    $lines.Add("| $($alignments -join ' | ') |")
+    $lines.Add("| $($values -join ' | ') |")
     $lines.Add("")
-    $lines.Add("Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was active. Contingency columns are ordered invocation cycles, not counts per cycle.")
+    if ($contingencyInvocationAverages.Count -gt 0) {
+        $lines.Add("Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was active. Contingency columns are dynamically generated ordered invocation cycles, not counts per cycle.")
+    } else {
+        $lines.Add("Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was active.")
+    }
 }
 
 if ($cycleChartFile) {
@@ -469,7 +564,7 @@ if ($contingency.Count -gt 0) {
         $lines.Add("")
         $lines.Add("## Contingency CCRS Details")
         $lines.Add("")
-        foreach ($group in ($strategyRows | Group-Object run_id, invocation | Sort-Object Name)) {
+        foreach ($group in ($strategyRows | Group-Object run_id, invocation | Sort-Object @{ Expression = { @($_.Group)[0].run_id } }, @{ Expression = { [int]@($_.Group)[0].invocation } })) {
             $first = @($group.Group)[0]
             $lines.Add("### Invocation $($first.invocation): ``$($first.run_id)``")
             $lines.Add("")
