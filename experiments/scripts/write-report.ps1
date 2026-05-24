@@ -37,7 +37,21 @@ function Format-Value {
     if ($null -eq $Value -or "$Value" -eq "") {
         return "-"
     }
-    return "$Value"
+    return (Format-MarkdownCellText $Value)
+}
+
+function Format-MarkdownCellText {
+    param($Value)
+
+    if ($null -eq $Value -or "$Value" -eq "") {
+        return "-"
+    }
+
+    $text = "$Value"
+    $text = $text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
+    $text = $text -replace "\r?\n", "<br>"
+    $text = $text.Replace("|", "\|")
+    return $text.Trim()
 }
 
 function Format-Ms {
@@ -191,9 +205,9 @@ function New-CycleDurationChart {
     }
 
     $width = 1040
-    $height = 460
+    $height = 520
     $plotX = 72
-    $plotY = 72
+    $plotY = 128
     $plotWidth = 880
     $plotHeight = 300
     $colors = @("#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e")
@@ -212,7 +226,7 @@ function New-CycleDurationChart {
     $svg.Add("<desc id=""desc"">Line chart comparing cycle duration by movement step for experiment runs. The y-axis is capped at $YCapMs ms; clipped outliers are labeled with their actual duration.</desc>")
     $svg.Add("<rect width=""100%"" height=""100%"" fill=""#ffffff""/>")
     $svg.Add("<text x=""$plotX"" y=""28"" font-family=""Arial, sans-serif"" font-size=""14"" font-weight=""700"">Cycle duration comparison</text>")
-    $svg.Add("<text x=""$plotX"" y=""48"" font-family=""Arial, sans-serif"" font-size=""12"" fill=""#555"">Y-axis capped at $YCapMs ms; outliers are clipped and labeled with actual duration. Max observed: $maxObservedY ms.</text>")
+    $svg.Add("<text x=""$plotX"" y=""50"" font-family=""Arial, sans-serif"" font-size=""12"" fill=""#555"">Y-axis capped at $YCapMs ms; outliers are clipped and labeled with actual duration. Max observed: $maxObservedY ms.</text>")
     $svg.Add("<line x1=""$plotX"" y1=""$($plotY + $plotHeight)"" x2=""$($plotX + $plotWidth)"" y2=""$($plotY + $plotHeight)"" stroke=""#333"" stroke-width=""1""/>")
     $svg.Add("<line x1=""$plotX"" y1=""$plotY"" x2=""$plotX"" y2=""$($plotY + $plotHeight)"" stroke=""#333"" stroke-width=""1""/>")
     $svg.Add("<line x1=""$plotX"" y1=""$plotY"" x2=""$($plotX + $plotWidth)"" y2=""$plotY"" stroke=""#999"" stroke-width=""1"" stroke-dasharray=""4 4""/>")
@@ -407,9 +421,11 @@ if ($baselineRun -or $ccrsRun) {
     $lines.Add("")
     $lines.Add("## Cycle Duration Summary")
     $lines.Add("")
-    $lines.Add("| Baseline avg ms | CCRS avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3+ avg ms | CCRS cont 1 avg ms | CCRS cont 2 avg ms | CCRS cont 3+ avg ms |")
+    $lines.Add("| Baseline avg ms | CCRS avg ms | CCRS opp 0 avg ms | CCRS opp 1 avg ms | CCRS opp 2 avg ms | CCRS opp 3+ avg ms | CCRS cont invocation 1 avg ms | CCRS cont invocation 2 avg ms | CCRS cont invocation 3+ avg ms |")
     $lines.Add("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     $lines.Add("| $(Format-Ms $baselineRun.average_agent_cycle_duration_ms) | $(Format-Ms $ccrsRun.average_agent_cycle_duration_ms) | $(Format-Ms $ccrsRun.average_cycle_opp0_ms) | $(Format-Ms $ccrsRun.average_cycle_opp1_ms) | $(Format-Ms $ccrsRun.average_cycle_opp2_ms) | $(Format-Ms $ccrsRun.average_cycle_opp3plus_ms) | $(Format-Ms $ccrsRun.average_cycle_cont1_ms) | $(Format-Ms $ccrsRun.average_cycle_cont2_ms) | $(Format-Ms $ccrsRun.average_cycle_cont3plus_ms) |")
+    $lines.Add("")
+    $lines.Add("Opportunistic CCRS cycle averages exclude cycles where contingency CCRS was active. Contingency columns are ordered invocation cycles, not counts per cycle.")
 }
 
 if ($cycleChartFile) {

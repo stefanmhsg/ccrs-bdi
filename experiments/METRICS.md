@@ -162,9 +162,9 @@ comparison metrics yet.
 | `multi_option_overruled_rate` | run | `multi_option_overruled / multi_option_decisions`, where `multi_option_overruled` means opportunistic CCRS selected an option whose original index was greater than `0`. | accepted |
 | `zero_or_one_option_decisions` | run | Number of parsed prioritization decisions where `options_count <= 1`. These are reported separately because there is no meaningful next-step choice to overrule. | accepted |
 | `contingency.strategy.evaluated` details | contingency invocation | One table per invocation, showing every evaluated strategy ordered by confidence with result type, action, target, timing, opportunistic-guidance flag, no-help reason, and rationale. | accepted |
-| `average_cycle_duration_by_opp_count` | run, agent, cycle group | Mean cycle duration grouped by the number of `ccrs.opportunistic.detected` events observed inside the cycle window. Report columns are `0`, `1`, `2`, and `3+`. | accepted |
-| `average_cycle_duration_by_contingency_count` | run, agent, cycle group | Mean cycle duration grouped by the number of `ccrs.contingency.evaluate.request` invocations observed inside the cycle window. Report columns are `1`, `2`, and `3+`. | accepted |
-| `cycle_duration_line_chart` | batch | SVG comparison line chart with `x = step` and `y = duration_ms`, plotting available runs on the same axes. | accepted |
+| `average_cycle_duration_by_opp_count` | run, agent, cycle group | Mean cycle duration grouped by the number of `ccrs.opportunistic.detected` events observed inside the cycle window. Report columns are `0`, `1`, `2`, and `3+`. Cycles with active contingency CCRS are excluded from these opportunistic-only averages. | accepted |
+| `average_cycle_duration_by_contingency_invocation_order` | run, agent, invocation cycle | Mean cycle duration for the first, second, and third-or-later contingency CCRS invocation cycle, ordered by the `ccrs.contingency.evaluate.request` events observed in cycle windows. | accepted |
+| `cycle_duration_line_chart` | batch | SVG comparison line chart with `x = step` and `y = duration_ms`, plotting available runs on the same axes. The y-axis is capped at 300 ms; clipped outliers are drawn at the cap line and labeled with their actual duration. | accepted |
 | `opportunistic_type_overruled_decisions` | batch, CCRS run, type | Count of opportunistic CCRS decisions where the selected option had `selected_reordered=true`, grouped by `selected_type` such as `signifier` or `stigmergy`. | accepted |
 
 ## Opportunistic Contribution Measurement
@@ -221,6 +221,13 @@ This windowing answers how expensive the decision and recovery work was before
 the next observed movement. If a later analysis needs to attribute cost to the
 cell just arrived at instead, add a second derived view rather than changing
 this definition silently.
+
+The report's opportunistic CCRS cycle averages exclude cycle windows where
+`contingency_ccrs_invocation_count > 0`, because contingency calls dominate the
+duration and would hide normal opportunistic overhead. The report's contingency
+columns are not per-cycle count buckets. They are ordered invocation cycles:
+first contingency invocation, second contingency invocation, and third-or-later
+contingency invocations.
 
 ## Known Caveats
 

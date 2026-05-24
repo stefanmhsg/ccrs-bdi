@@ -490,6 +490,30 @@ function Get-CycleAverage {
     return Get-Average $values
 }
 
+function Get-CycleAverageByContingencyInvocationOrder {
+    param(
+        [object[]]$Rows,
+        [int]$InvocationOrder,
+        [switch]$AndLater
+    )
+
+    $contingencyCycles = @($Rows | Where-Object {
+        $_.duration_ms -ne $null -and
+        "$($_.duration_ms)" -ne "" -and
+        [int]$_.contingency_ccrs_invocation_count -gt 0
+    } | Sort-Object @{ Expression = { [int]$_.sequence } }, @{ Expression = { [int]$_.line } })
+
+    $values = @()
+    for ($i = 0; $i -lt $contingencyCycles.Count; $i++) {
+        $currentOrder = $i + 1
+        if (($AndLater -and $currentOrder -ge $InvocationOrder) -or (-not $AndLater -and $currentOrder -eq $InvocationOrder)) {
+            $values += $contingencyCycles[$i].duration_ms
+        }
+    }
+
+    return Get-Average $values
+}
+
 function New-CycleDurationRows {
     param(
         [System.Collections.ArrayList]$Markers,
@@ -1287,13 +1311,13 @@ foreach ($runDir in $runDirs) {
     $runCycleRowsArray = @($runCycleDurationRows)
     $averageCycleDurationMs = Get-CycleAverage -Rows $runCycleRowsArray
     $averageCycleDurationStatus = if ($runCycleRowsArray.Count -gt 1 -and $null -ne $averageCycleDurationMs) { "" } else { "missing_agent_cycle_location_markers" }
-    $averageCycleOpp0Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.opp_ccrs_detected_count -eq 0 }
-    $averageCycleOpp1Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.opp_ccrs_detected_count -eq 1 }
-    $averageCycleOpp2Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.opp_ccrs_detected_count -eq 2 }
-    $averageCycleOpp3PlusMs = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.opp_ccrs_detected_count -ge 3 }
-    $averageCycleCont1Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 1 }
-    $averageCycleCont2Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 2 }
-    $averageCycleCont3PlusMs = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -ge 3 }
+    $averageCycleOpp0Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 0 }
+    $averageCycleOpp1Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 1 }
+    $averageCycleOpp2Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 2 }
+    $averageCycleOpp3PlusMs = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -ge 3 }
+    $averageCycleCont1Ms = Get-CycleAverageByContingencyInvocationOrder -Rows $runCycleRowsArray -InvocationOrder 1
+    $averageCycleCont2Ms = Get-CycleAverageByContingencyInvocationOrder -Rows $runCycleRowsArray -InvocationOrder 2
+    $averageCycleCont3PlusMs = Get-CycleAverageByContingencyInvocationOrder -Rows $runCycleRowsArray -InvocationOrder 3 -AndLater
 
     $status = if ($reachedExit -or $metrics.successDetected) {
         "success"
