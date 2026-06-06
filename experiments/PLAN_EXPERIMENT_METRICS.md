@@ -27,7 +27,10 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 - [x] (2026-05-23) Added contingency strategy rationale to structured logs, `contingency.csv`, and invocation tables.
 - [ ] Improve opportunistic CCRS delta analysis so deviations from the optimal path can be attributed to green signifiers, orange signifiers, and stigmergy markers.
 - [ ] Add a metric for opportunistic CCRS overruling decisions that led onto a suboptimal path.
-- [ ] Add a capped cycle-duration chart that keeps normal cycles readable while labeling contingency CCRS outlier peaks with their actual duration.
+- [x] (2026-06-06) Replaced the previous cycle-duration clipping approach with a 200 ms linear/log-base-100 y-axis, 25-step x-axis markers, max-step labeling, and outlier callouts.
+- [x] (2026-06-06) Added final datapoint callouts to the cycle-duration chart showing each run's stopped cell coordinate and final step.
+- [x] (2026-06-06) Reserved 82% of cycle-chart plot height for the 0-200 ms range and repositioned final datapoint labels away from the series lines.
+- [x] (2026-06-06) Added a zone-level report section before `Generated Artifacts`, split by signifier, stigmergy, mixed, construction site, and social zones.
 
 ## Surprises & Discoveries
 
@@ -85,7 +88,9 @@ Milestone 5 consolidates experiment files. Experiment-specific files now live un
 
 Milestone 6 improves opportunistic CCRS delta attribution. At the end of this milestone, the report can show whether green signifiers, orange signifiers, and stigmergy markers contributed to reducing or increasing deviation from the optimal path, and which overruled decisions sent the agent onto a path that later proved suboptimal.
 
-Milestone 7 improves cycle-duration visualization. At the end of this milestone, `cycle-duration-comparison.svg` or its successor caps the plotted y-axis at a configured millisecond value and labels any clipped outlier cycles with their actual duration, so normal baseline and CCRS cycle timings remain readable even when contingency CCRS invocations create large peaks.
+Milestone 7 improves cycle-duration visualization. At the end of this milestone, `cycle-duration-comparison.svg` reserves most of the y-axis for 0-200 ms values and compresses higher durations into a log-base-100 tail, labels high-duration outlier cycles with their actual duration, labels each run's final datapoint with its stopped cell coordinate and final step, and shows x-axis step markers every 25 steps while preserving the observed maximum step label. This keeps normal baseline and CCRS cycle timings readable even when contingency CCRS invocations create large peaks.
+
+Milestone 8 adds zone-level reporting. At the end of this milestone, `summary.md` contains a new section before `## Generated Artifacts` that is divided into the MASE dataset zones: signifier, stigmergy, mixed, construction site, and social. Each zone reports the same families of metrics as the whole-run summary where applicable: completion, total duration, total moves, average cycle duration, cycle-duration chart, move optimality placeholders, cycle-duration comparison summary, decision breakdown, and opportunistic CCRS overruled decisions.
 
 ## Plan of Work
 
@@ -107,7 +112,30 @@ The first accepted version of this attribution should be deliberately traceable 
 
 For the suboptimal-overrule metric, count opportunistic CCRS overrules where the selected path is classified as moving off the optimal path or increasing distance from the next optimal transition. Report this by CCRS type and subtype, with example rows linking to the detailed decision table.
 
-For chart capping, update the SVG generation in [write-report.ps1](scripts/write-report.ps1) to use a configurable y-axis cap. Durations greater than the cap should be plotted at the cap line, drawn with a distinct marker, and labeled with the true millisecond value. The cap should default to a value that keeps non-contingency cycles legible for the current data, and the summary should mention the cap value near the chart.
+For cycle-duration chart scaling, update the SVG generation in [write-report.ps1](scripts/write-report.ps1) to use a split y-axis transform. Durations from 0 through 200 ms should get 82% of the plot height. Durations above 200 ms should be compressed into the remaining space with a log-base-100 scale, drawn with a distinct marker, and labeled with the true millisecond value. The x-axis should show 25-step interval markers and also include the observed maximum step even when it is not a multiple of 25. The summary should mention the split scale near the chart.
+
+For zone-level reporting, first add a fixed zone definition table in [write-report.ps1](scripts/write-report.ps1) or a small helper loaded by it:
+
+| Zone | Completion cell | Notes |
+| --- | --- | --- |
+| signifier | `cells/13/5` | Starts at run start; completion cell is the first cell of the stigmergy zone. |
+| stigmergy | `cells/28/14` | Starts after `cells/13/5`; completion cell is the first cell of the mixed zone. |
+| mixed | `cells/36/37` | Starts after `cells/28/14`; completion cell is the first cell of the construction site zone. |
+| construction site | `cells/39/43` | Starts after `cells/36/37`; completion cell is the first cell of the social zone. |
+| social | `cells/999` | Starts after `cells/39/43`; completion cell is the exit. |
+
+Then derive zone windows per run-agent pair from ordered movement or cycle rows. The signifier zone includes rows from the beginning of the run through the first row whose cell ends with `cells/13/5`. Each later zone uses the previous completion cell as its starting boundary, but its movement and duration counts begin after that boundary row and include rows through the first row whose cell ends with the zone completion cell. A zone is completed only when that completion cell is reached. If the start boundary for a later zone is never reached, report `completed = no` and leave duration and average-cycle fields blank.
+
+The zone section in `summary.md` must appear after the opportunistic CCRS overruled-decision section and before `## Generated Artifacts`. Use one subsection per zone. Each zone subsection should include:
+
+- A per-run zone core metrics table: run, JCM, completed, total duration ms, total moves, average cycle duration, and final cell in the zone.
+- A zone move optimality table with optimal moves, actual moves, and delta. Use `tbd` for optimal moves and delta until zone-specific optimal move counts are supplied.
+- A zone cycle-duration chart showing number of steps on the x-axis and cycle time on the y-axis. Prefer one SVG per zone, for example `zone-cycle-duration-signifier.svg`. Use local zone step numbers for x-axis comparability, and include run labels in the legend.
+- A zone cycle-duration summary table with the same structure as the whole-run cycle summary: baseline average, CCRS average, CCRS opportunistic bucket averages for `0`, `1`, `2`, and `3+`, and dynamic contingency invocation columns if the zone contains contingency cycles.
+- A zone decision breakdown table using the same definitions as the whole-run decision breakdown but filtered to decisions inside the zone window.
+- A zone opportunistic CCRS overruled-decision table grouped by `selected_type`, matching the whole-run overruled-decision definition but filtered to the zone.
+
+Zone filtering should use source-order fields from generated CSVs. Use `cycle-durations.csv` for cycle timing, average-cycle metrics, opportunistic and contingency cycle buckets, endpoint cell detection, and zone move counts when structured cycle rows are available. Use `mase-agent-moved.csv` to cross-check zone completion when needed. Use `decisions.csv` log line fields to assign decisions to the zone cycle window that contains the decision event. The generated `zone-summary.csv` should contain one row per run-zone pair so the Markdown section is traceable back to CSV data.
 
 ## Concrete Steps
 
@@ -136,7 +164,9 @@ The report directory should include a chart artifact named `cycle-duration-compa
 
 After opportunistic CCRS delta attribution is implemented, the report should include a table showing green signifier, orange signifier, and stigmergy marker contributions to the move delta. The table should separate moves that reduced deviation from moves that increased deviation, and include a count of overruled decisions that led to a suboptimal path.
 
-After chart capping is implemented, the chart should remain readable when contingency CCRS invocations take orders of magnitude longer than normal cycles. Outlier points above the cap should be visibly clipped and labeled with their actual duration, while the rest of the line should not collapse into a near-flat one-liner.
+After piecewise log scaling is implemented, the chart should remain readable when contingency CCRS invocations take orders of magnitude longer than normal cycles. Points above 200 ms should keep their actual relative ordering on the logarithmic part of the axis and be labeled with their actual duration, while the rest of the line should not collapse into a near-flat one-liner.
+
+After zone-level reporting is implemented, `summary.md` should include a zone section before `## Generated Artifacts`. The section should contain exactly five zone subsections in this order: signifier, stigmergy, mixed, construction site, and social. Each subsection should include the core zone table, move optimality placeholder table, zone cycle-duration chart reference, cycle-duration summary table, decision breakdown table, and opportunistic overruled-decision table. The report directory should include `zone-summary.csv` and one SVG chart per zone that has cycle rows. Zone completion should match the defined completion cells: `cells/13/5`, `cells/28/14`, `cells/36/37`, `cells/39/43`, and `cells/999`.
 
 After directory consolidation, documentation links should resolve. The quick-start commands in the experiment README should use `experiments\scripts\...`, and the root docs should either link to the moved experiment docs or clearly state that experiment documentation lives under `experiments/`.
 
@@ -180,6 +210,8 @@ The new `cycle-durations.csv` should include at least these fields: `batch_id`, 
 
 The generated chart should depend only on data in `cycle-durations.csv`. It should not read raw logs directly.
 
+The future zone report should depend on `cycle-durations.csv`, `mase-agent-moved.csv`, `decisions.csv`, and run metadata already generated in the report directory. It should not read raw logs directly after parsing has completed. Any zone-specific chart should be reproducible from generated CSVs.
+
 The future opportunistic attribution CSV should depend on parsed movement rows, parsed decision rows, and an explicit optimal-path definition. Avoid deriving path quality only from final move count because that cannot identify which decision caused the deviation.
 
 Revision note 2026-05-23 / Codex: Created the initial plan from the user's cycle-duration metric request and added the planned experiment-directory consolidation.
@@ -196,4 +228,10 @@ Revision note 2026-05-23 / Codex: Added move optimality reporting and removed th
 
 Revision note 2026-05-23 / Codex: Replaced the heuristic signifier/stigmergy contribution estimate with raw overruled-decision counts by type and added contingency rationale to invocation tables.
 
-Revision note 2026-05-23 / Codex: Added planned work for optimal-path deviation attribution by opportunistic CCRS subtype, suboptimal-overrule metrics, and capped cycle-duration chart labeling for contingency outliers.
+Revision note 2026-05-23 / Codex: Added planned work for optimal-path deviation attribution by opportunistic CCRS subtype, suboptimal-overrule metrics, and cycle-duration chart labeling for contingency outliers.
+
+Revision note 2026-06-06 / Codex: Replaced the planned capped chart with a split y-axis that gives 0-200 ms 82% of plot height, compresses higher durations into a log-base-100 tail, keeps 25-step x-axis markers, retains high-duration callouts, and repositions final datapoint stopped-cell labels.
+
+Revision note 2026-06-06 / Codex: Planned a zone-level report section before generated artifacts, with explicit MASE zone boundaries, per-zone metrics mirroring the whole-run report, `tbd` optimal-move placeholders, and CSV/SVG traceability requirements.
+
+Revision note 2026-06-06 / Codex: Implemented the zone-level report section, `zone-summary.csv`, and per-zone cycle-duration SVG charts using placeholder `tbd` optimal move counts.

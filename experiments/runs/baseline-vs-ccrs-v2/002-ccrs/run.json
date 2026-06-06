@@ -1,0 +1,74 @@
+﻿{
+    "batchId":  "baseline-vs-ccrs-v2",
+    "runId":  "002-ccrs",
+    "repetition":  null,
+    "jcm":  "dfs_ccrs.jcm",
+    "agentType":  "manual",
+    "ccrsMode":  "both",
+    "scenario":  "ccrs",
+    "command":  "manual",
+    "importedAt":  "2026-05-24T13:07:49.9695126+02:00",
+    "sourceDir":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\runs\\latest",
+    "durationMs":  null,
+    "timeout":  false,
+    "interrupted":  false,
+    "exitCode":  null,
+    "status":  "manual_import",
+    "runStopReason":  "manual_import",
+    "runTerminalPattern":  null,
+    "runTerminalLine":  null,
+    "runTerminalLineNumber":  null,
+    "logFiles":  [
+                     "mas-0.log"
+                 ],
+    "sourceExportFiles":  [
+                              "mase-viewer-run-2026-05-24T11-02-24-828Z-2026-05-24T11-07-01-324Z.ndjson"
+                          ],
+    "metadataFiles":  [
+
+                      ],
+    "agentNames":  [
+                       "dfs_ccrs_1"
+                   ],
+    "maseMode":  "manual",
+    "maseEventCapture":  "viewer_export",
+    "maseCaptureStatus":  "completed",
+    "maseCaptureFile":  "mase-events.jsonl",
+    "maseCaptureEventCount":  5192,
+    "maseCaptureParseErrors":  0,
+    "maseCaptureAgents":  [
+                              "ccrs-agent-1.1",
+                              "ccrs-agent-1.2",
+                              "ccrs-agent-1.3",
+                              "ccrs-agent-1.4",
+                              "ccrs-agent-1.5",
+                              "ccrs-agent-1.6",
+                              "ccrs-agent-1.7",
+                              "ccrs-agent-1.8",
+                              "ccrs-agent-1.9",
+                              "ccrs-agent-2.1",
+                              "ccrs-agent-2.2",
+                              "ccrs-agent-3",
+                              "dfs_ccrs_1",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.1",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.2",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.3",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.4",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.5",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.6",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.7",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.8",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-1.9",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-2.1",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-2.2",
+                              "http://127.0.1.1:8080/agents/ccrs-agent-3",
+                              "http://127.0.1.1:8080/agents/dfs_ccrs_1",
+                              "http://127.0.1.1:8080/agents/key-holder-agent-1",
+                              "key-holder-agent-1"
+                          ],
+    "maseEventTypeCounts":  {
+                                "TRANSACTION":  2597,
+                                "AGENT_MOVED":  2595
+                            },
+    "notes":  ""
+}

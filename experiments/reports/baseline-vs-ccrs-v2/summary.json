@@ -1,0 +1,16 @@
+﻿{
+    "batchId":  "baseline-vs-ccrs-v2",
+    "runRoot":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\runs\\baseline-vs-ccrs-v2",
+    "outputDir":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\reports\\baseline-vs-ccrs-v2",
+    "runCount":  2,
+    "decisionCount":  139,
+    "contingencyRecordCount":  0,
+    "actionRecordCount":  1657,
+    "maseEventCount":  1028,
+    "maseAgentMovedCount":  514,
+    "maseTransactionCount":  514,
+    "agentSummaryCount":  2,
+    "cycleDurationCount":  514,
+    "pathAnalysisInputCount":  2,
+    "generatedAt":  "2026-06-06T16:10:06.5493301+02:00"
+}

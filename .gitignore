@@ -40,7 +40,4 @@ bin/
 
 # Environment variables (contains API keys)
 .env
-/experiments/*
-!/experiments/*.md
-!/experiments/scripts/
-!/experiments/scripts/**
+

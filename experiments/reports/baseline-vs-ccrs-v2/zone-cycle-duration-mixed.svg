@@ -1,0 +1,46 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="520" viewBox="0 0 1040 520" role="img" aria-labelledby="title desc">
+<title id="title">Cycle duration comparison</title>
+<desc id="desc">Line chart comparing cycle duration by movement step for experiment runs. The y-axis reserves 82 percent of plot height for 0 through 200 ms, then compresses higher durations into a log-base-100 tail. High-duration outliers are labeled with their actual duration.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="72" y="28" font-family="Arial, sans-serif" font-size="14" font-weight="700">Cycle duration comparison</text>
+<text x="72" y="50" font-family="Arial, sans-serif" font-size="12" fill="#555">Y-axis compresses values above 200 ms. Max observed: 149 ms.</text>
+<line x1="72" y1="428" x2="952" y2="428" stroke="#333" stroke-width="1"/>
+<line x1="72" y1="128" x2="72" y2="428" stroke="#333" stroke-width="1"/>
+<text x="512" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Step number</text>
+<text x="18" y="278" text-anchor="middle" transform="rotate(-90 18 278)" font-family="Arial, sans-serif" font-size="13">Duration ms; log above 200</text>
+<line x1="72" y1="428" x2="72" y2="433" stroke="#333" stroke-width="1"/>
+<text x="72" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">0</text>
+<line x1="232.58" y1="428" x2="232.58" y2="433" stroke="#333" stroke-width="1"/>
+<text x="232.58" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">25</text>
+<line x1="393.17" y1="428" x2="393.17" y2="433" stroke="#333" stroke-width="1"/>
+<text x="393.17" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">50</text>
+<line x1="553.75" y1="428" x2="553.75" y2="433" stroke="#333" stroke-width="1"/>
+<text x="553.75" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">75</text>
+<line x1="714.34" y1="428" x2="714.34" y2="433" stroke="#333" stroke-width="1"/>
+<text x="714.34" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">100</text>
+<line x1="874.92" y1="428" x2="874.92" y2="433" stroke="#333" stroke-width="1"/>
+<text x="874.92" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">125</text>
+<line x1="952" y1="428" x2="952" y2="433" stroke="#333" stroke-width="1"/>
+<text x="952" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">137</text>
+<text x="64" y="428" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">0</text>
+<line x1="72" y1="366.5" x2="952" y2="366.5" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="366.5" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">50</text>
+<line x1="72" y1="305" x2="952" y2="305" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="305" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">100</text>
+<line x1="72" y1="243.5" x2="952" y2="243.5" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="243.5" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">150</text>
+<line x1="72" y1="182" x2="952" y2="182" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="182" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">200</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="78.42,280.40 84.85,289.01 91.27,285.32 97.69,285.32 104.12,270.56 110.54,266.87 116.96,292.70 123.39,266.87 129.81,279.17 136.23,276.71 142.66,280.40 149.08,286.55 155.50,285.32 161.93,270.56 168.35,259.49 174.77,273.02 181.20,273.02 187.62,275.48 194.04,273.02 200.47,271.79 206.89,280.40 213.31,261.95 219.74,276.71 226.16,281.63 232.58,265.64 239.01,295.16 245.43,277.94 251.85,287.78 258.28,250.88 264.70,276.71 271.12,275.48 277.55,274.25 283.97,259.49 290.39,268.10 296.82,280.40 303.24,259.49 309.66,285.32 316.09,289.01 322.51,271.79 328.93,276.71 335.36,268.10 341.78,280.40 348.20,253.34 354.63,257.03 361.05,286.55 367.47,280.40 373.90,282.86 380.32,254.57 386.74,259.49 393.17,265.64 399.59,264.41 406.01,258.26 412.44,260.72 418.86,258.26 425.28,266.87 431.71,261.95 438.13,266.87 444.55,279.17 450.98,289.01 457.40,285.32 463.82,265.64 470.25,260.72 476.67,253.34 483.09,277.94 489.52,271.79 495.94,265.64 502.36,265.64 508.79,279.17 515.21,260.72 521.64,261.95 528.06,280.40 534.48,269.33 540.91,274.25 547.33,257.03 553.75,263.18 560.18,274.25 566.60,282.86 573.02,269.33 579.45,268.10 585.87,264.41 592.29,264.41 598.72,276.71 605.14,266.87 611.56,259.49 617.99,249.65 624.41,285.32 630.83,252.11 637.26,268.10 643.68,274.25 650.10,264.41 656.53,269.33 662.95,271.79 669.37,263.18 675.80,277.94 682.22,264.41 688.64,270.56 695.07,263.18 701.49,245.96 707.91,259.49 714.34,260.72 720.76,254.57 727.18,258.26 733.61,264.41 740.03,286.55 746.45,259.49 752.88,259.49 759.30,265.64 765.72,264.41 772.15,268.10 778.57,269.33 784.99,284.09 791.42,260.72 797.84,258.26 804.26,266.87 810.69,257.03 817.11,266.87 823.53,265.64 829.96,257.03 836.38,254.57 842.80,257.03 849.23,259.49 855.65,271.79 862.07,282.86 868.50,254.57 874.92,259.49 881.34,263.18 887.77,249.65 894.19,282.86 900.61,249.65 907.04,244.73 913.46,250.88 919.88,273.02 926.31,252.11 932.73,274.25 939.15,257.03 945.58,263.18 952.00,274.25"/>
+<line x1="682" y1="34" x2="712" y2="34" stroke="#1f77b4" stroke-width="2"/>
+<text x="720" y="34" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12">001-baseline</text>
+<rect x="949" y="271.25" width="6" height="6" fill="#ffffff" stroke="#1f77b4" stroke-width="2"/>
+<line x1="952" y1="274.25" x2="938" y2="229.25" stroke="#1f77b4" stroke-width="1" opacity="0.65"/>
+<text x="938" y="229.25" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">cells/36/37 at step 137</text>
+<polyline fill="none" stroke="#d62728" stroke-width="2" points="78.42,266.87 84.85,281.63 91.27,280.40 97.69,264.41 104.12,277.94 110.54,269.33 116.96,264.41 123.39,269.33 129.81,282.86 136.23,276.71 142.66,264.41 149.08,281.63 155.50,268.10 161.93,281.63 168.35,266.87 174.77,274.25 181.20,281.63 187.62,276.71 194.04,287.78 200.47,269.33 206.89,259.49 213.31,282.86 219.74,279.17 226.16,274.25 232.58,263.18 239.01,275.48 245.43,259.49 251.85,270.56 258.28,265.64 264.70,280.40 271.12,265.64 277.55,268.10 283.97,252.11 290.39,284.09 296.82,275.48 303.24,281.63 309.66,286.55 316.09,280.40 322.51,261.95 328.93,271.79 335.36,253.34 341.78,259.49 348.20,277.94 354.63,265.64 361.05,275.48 367.47,277.94 373.90,274.25 380.32,290.24 386.74,261.95 393.17,270.56 399.59,263.18 406.01,266.87 412.44,261.95 418.86,260.72 425.28,263.18 431.71,261.95 438.13,271.79"/>
+<line x1="682" y1="54" x2="712" y2="54" stroke="#d62728" stroke-width="2"/>
+<text x="720" y="54" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12">002-ccrs</text>
+<rect x="435.13" y="268.79" width="6" height="6" fill="#ffffff" stroke="#d62728" stroke-width="2"/>
+<line x1="438.13" y1="271.79" x2="452.13" y2="319.79" stroke="#d62728" stroke-width="1" opacity="0.65"/>
+<text x="452.13" y="319.79" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">cells/36/37 at step 57</text>
+</svg>

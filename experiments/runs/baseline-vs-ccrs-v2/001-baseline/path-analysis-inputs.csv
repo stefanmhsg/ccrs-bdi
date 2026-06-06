@@ -1,0 +1,2 @@
+﻿"batch_id","run_id","jcm","ccrs_mode","agent","agent_label","steps","first_cell","last_cell","sequence_format","file"
+"baseline-vs-ccrs-v2","001-baseline","dfs_baseline.jcm","none","http://127.0.1.1:8080/agents/dfs_baseline_nesw_1","dfs_baseline_nesw_1","367","http://127.0.1.1:8080/cells/0","http://127.0.1.1:8080/cells/999","newline-separated cell paths","path-analysis-inputs/001-baseline-dfs_baseline_nesw_1.cells.txt"

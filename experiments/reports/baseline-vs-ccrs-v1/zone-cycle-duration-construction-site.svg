@@ -1,0 +1,30 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="520" viewBox="0 0 1040 520" role="img" aria-labelledby="title desc">
+<title id="title">Cycle duration comparison</title>
+<desc id="desc">Line chart comparing cycle duration by movement step for experiment runs. The y-axis reserves 82 percent of plot height for 0 through 200 ms, then compresses higher durations into a log-base-100 tail. High-duration outliers are labeled with their actual duration.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="72" y="28" font-family="Arial, sans-serif" font-size="14" font-weight="700">Cycle duration comparison</text>
+<text x="72" y="50" font-family="Arial, sans-serif" font-size="12" fill="#555">Y-axis compresses values above 200 ms. Max observed: 130 ms.</text>
+<line x1="72" y1="428" x2="952" y2="428" stroke="#333" stroke-width="1"/>
+<line x1="72" y1="128" x2="72" y2="428" stroke="#333" stroke-width="1"/>
+<text x="512" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="13">Step number</text>
+<text x="18" y="278" text-anchor="middle" transform="rotate(-90 18 278)" font-family="Arial, sans-serif" font-size="13">Duration ms; log above 200</text>
+<line x1="72" y1="428" x2="72" y2="433" stroke="#333" stroke-width="1"/>
+<text x="72" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">0</text>
+<line x1="952" y1="428" x2="952" y2="433" stroke="#333" stroke-width="1"/>
+<text x="952" y="446" text-anchor="middle" font-family="Arial, sans-serif" font-size="11">19</text>
+<text x="64" y="428" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">0</text>
+<line x1="72" y1="366.5" x2="952" y2="366.5" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="366.5" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">50</text>
+<line x1="72" y1="305" x2="952" y2="305" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="305" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">100</text>
+<line x1="72" y1="243.5" x2="952" y2="243.5" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="243.5" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">150</text>
+<line x1="72" y1="182" x2="952" y2="182" stroke="#e1e1e1" stroke-width="1"/>
+<text x="64" y="182" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11">200</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" points="118.32,289.01 164.63,290.24 210.95,279.17 257.26,291.47 303.58,274.25 349.89,289.01 396.21,275.48 442.53,268.10 488.84,286.55 535.16,271.79 581.47,284.09 627.79,277.94 674.11,284.09 720.42,270.56 766.74,275.48 813.05,292.70 859.37,282.86 905.68,276.71 952.00,284.09"/>
+<line x1="682" y1="34" x2="712" y2="34" stroke="#1f77b4" stroke-width="2"/>
+<text x="720" y="34" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12">002-ccrs</text>
+<rect x="949" y="281.09" width="6" height="6" fill="#ffffff" stroke="#1f77b4" stroke-width="2"/>
+<line x1="952" y1="284.09" x2="938" y2="239.09" stroke="#1f77b4" stroke-width="1" opacity="0.65"/>
+<text x="938" y="239.09" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#222">cells/39/43 at step 19</text>
+</svg>

@@ -1,0 +1,2 @@
+﻿"batch_id","run_id","jcm","ccrs_mode","scenario","agent","agent_label","agent_role","mase_moves","mase_unique_cells","first_cell","last_cell","first_timestamp","last_timestamp","transactions","post_transactions","committed_transactions","failed_or_rolled_back_transactions"
+"baseline-vs-ccrs-v2","002-ccrs","dfs_ccrs.jcm","both","ccrs","http://127.0.1.1:8080/agents/dfs_ccrs_1","dfs_ccrs_1","experiment_agent","147","142","http://127.0.1.1:8080/cells/0","http://127.0.1.1:8080/cells/999","1779620789259","1779620807685","147","147","147","0"

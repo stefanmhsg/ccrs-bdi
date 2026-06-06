@@ -1,0 +1,157 @@
+﻿{
+    "batchId":  "baseline-vs-ccrs-v1",
+    "createdOrUpdatedAt":  "2026-05-24T14:13:40.0657804+02:00",
+    "repoRoot":  "S:\\dev\\ma\\ccrs-bdi",
+    "sourceDir":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\runs\\latest",
+    "importedBy":  "experiments/scripts/import-manual-run.ps1",
+    "runs":  [
+                 {
+                     "batchId":  "baseline-vs-ccrs-v1",
+                     "runId":  "001-baseline",
+                     "repetition":  null,
+                     "jcm":  "dfs_baseline.jcm",
+                     "agentType":  "manual",
+                     "ccrsMode":  "none",
+                     "scenario":  "ccrs",
+                     "command":  "manual",
+                     "importedAt":  "2026-05-24T14:09:32.7760208+02:00",
+                     "sourceDir":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\runs\\latest",
+                     "durationMs":  null,
+                     "timeout":  false,
+                     "interrupted":  false,
+                     "exitCode":  null,
+                     "status":  "manual_import",
+                     "runStopReason":  "manual_import",
+                     "runTerminalPattern":  null,
+                     "runTerminalLine":  null,
+                     "runTerminalLineNumber":  null,
+                     "logFiles":  [
+                                      "mas-0.log"
+                                  ],
+                     "sourceExportFiles":  [
+                                               "mase-viewer-run-2026-05-24T11-07-04-892Z-2026-05-24T12-07-20-012Z.ndjson"
+                                           ],
+                     "metadataFiles":  [
+
+                                       ],
+                     "agentNames":  [
+                                        "dfs_baseline_nesw_1"
+                                    ],
+                     "maseMode":  "manual",
+                     "maseEventCapture":  "viewer_export",
+                     "maseCaptureStatus":  "completed",
+                     "maseCaptureFile":  "mase-events.jsonl",
+                     "maseCaptureEventCount":  5308,
+                     "maseCaptureParseErrors":  0,
+                     "maseCaptureAgents":  [
+                                               "ccrs-agent-1.1",
+                                               "ccrs-agent-1.2",
+                                               "ccrs-agent-1.3",
+                                               "ccrs-agent-1.4",
+                                               "ccrs-agent-1.5",
+                                               "ccrs-agent-1.6",
+                                               "ccrs-agent-1.7",
+                                               "ccrs-agent-1.8",
+                                               "ccrs-agent-1.9",
+                                               "ccrs-agent-2.1",
+                                               "ccrs-agent-2.2",
+                                               "ccrs-agent-3",
+                                               "dfs_baseline_nesw_1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.2",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.3",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.4",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.5",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.6",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.7",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.8",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.9",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-2.1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-2.2",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-3",
+                                               "http://127.0.1.1:8080/agents/dfs_baseline_nesw_1",
+                                               "http://127.0.1.1:8080/agents/key-holder-agent-1",
+                                               "key-holder-agent-1"
+                                           ],
+                     "maseEventTypeCounts":  {
+                                                 "TRANSACTION":  2675,
+                                                 "AGENT_MOVED":  2633
+                                             },
+                     "notes":  ""
+                 },
+                 {
+                     "batchId":  "baseline-vs-ccrs-v1",
+                     "runId":  "002-ccrs",
+                     "repetition":  null,
+                     "jcm":  "dfs_ccrs.jcm",
+                     "agentType":  "manual",
+                     "ccrsMode":  "both",
+                     "scenario":  "ccrs",
+                     "command":  "manual",
+                     "importedAt":  "2026-05-24T14:13:40.0393373+02:00",
+                     "sourceDir":  "S:\\dev\\ma\\ccrs-bdi\\experiments\\runs\\latest",
+                     "durationMs":  null,
+                     "timeout":  false,
+                     "interrupted":  false,
+                     "exitCode":  null,
+                     "status":  "manual_import",
+                     "runStopReason":  "manual_import",
+                     "runTerminalPattern":  null,
+                     "runTerminalLine":  null,
+                     "runTerminalLineNumber":  null,
+                     "logFiles":  [
+                                      "mas-0.log"
+                                  ],
+                     "sourceExportFiles":  [
+                                               "mase-viewer-run-2026-05-24T12-07-23-157Z-2026-05-24T12-12-41-970Z.ndjson"
+                                           ],
+                     "metadataFiles":  [
+
+                                       ],
+                     "agentNames":  [
+                                        "dfs_ccrs_1"
+                                    ],
+                     "maseMode":  "manual",
+                     "maseEventCapture":  "viewer_export",
+                     "maseCaptureStatus":  "completed",
+                     "maseCaptureFile":  "mase-events.jsonl",
+                     "maseCaptureEventCount":  5235,
+                     "maseCaptureParseErrors":  0,
+                     "maseCaptureAgents":  [
+                                               "ccrs-agent-1.1",
+                                               "ccrs-agent-1.2",
+                                               "ccrs-agent-1.3",
+                                               "ccrs-agent-1.4",
+                                               "ccrs-agent-1.5",
+                                               "ccrs-agent-1.6",
+                                               "ccrs-agent-1.7",
+                                               "ccrs-agent-1.8",
+                                               "ccrs-agent-1.9",
+                                               "ccrs-agent-2.1",
+                                               "ccrs-agent-2.2",
+                                               "ccrs-agent-3",
+                                               "dfs_ccrs_1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.2",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.3",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.4",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.5",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.6",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.7",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.8",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-1.9",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-2.1",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-2.2",
+                                               "http://127.0.1.1:8080/agents/ccrs-agent-3",
+                                               "http://127.0.1.1:8080/agents/dfs_ccrs_1",
+                                               "http://127.0.1.1:8080/agents/key-holder-agent-1",
+                                               "key-holder-agent-1"
+                                           ],
+                     "maseEventTypeCounts":  {
+                                                 "TRANSACTION":  2638,
+                                                 "AGENT_MOVED":  2597
+                                             },
+                     "notes":  ""
+                 }
+             ]
+}
