@@ -1,6 +1,6 @@
 ﻿# Experiment Summary: baseline-vs-ccrs-v1
 
-Generated: 2026-06-06 16:09:18 +02:00
+Generated: 2026-06-06 16:52:17 +02:00
 
 Run root: `S:\dev\ma\ccrs-bdi\experiments\runs\baseline-vs-ccrs-v1`
 
@@ -8,7 +8,7 @@ Scenario: CcrsMazeV1
 
 Scenario CcrsMazeV1 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations.
 
-Optimal path length is fixed at 118 moves for the current experiment definition.
+Optimal path length for CcrsMazeV1: 138 moves.
 
 ## Core Metrics
 
@@ -21,8 +21,8 @@ Optimal path length is fixed at 118 moves for the current experiment definition.
 
 | Run | JCM | Optimal moves | Actual moves | Delta from optimal |
 | --- | --- | ---: | ---: | ---: |
-| `001-baseline` | `dfs_baseline.jcm` | 118 | 241 | 123 |
-| `002-ccrs` | `dfs_ccrs.jcm` | 118 | 149 | 31 |
+| `001-baseline` | `dfs_baseline.jcm` | 138 | 241 | 103 |
+| `002-ccrs` | `dfs_ccrs.jcm` | 138 | 149 | 11 |
 
 ## Cycle Duration Summary
 
@@ -98,8 +98,8 @@ Completed when the agent enters `cells/13/5`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | ---: | ---: | ---: |
-| `001-baseline` | tbd | 241 | tbd |
-| `002-ccrs` | tbd | 21 | tbd |
+| `001-baseline` | 19 | 241 | 222 |
+| `002-ccrs` | 19 | 21 | 2 |
 
 #### Cycle Duration Chart
 
@@ -136,8 +136,8 @@ Completed when the agent enters `cells/28/14`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | ---: | ---: | ---: |
-| `001-baseline` | tbd | 0 | tbd |
-| `002-ccrs` | tbd | 24 | tbd |
+| `001-baseline` | 24 | 0 | -24 |
+| `002-ccrs` | 24 | 24 | 0 |
 
 #### Cycle Duration Chart
 
@@ -174,8 +174,8 @@ Completed when the agent enters `cells/36/37`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | ---: | ---: | ---: |
-| `001-baseline` | tbd | 0 | tbd |
-| `002-ccrs` | tbd | 58 | tbd |
+| `001-baseline` | 57 | 0 | -57 |
+| `002-ccrs` | 57 | 58 | 1 |
 
 #### Cycle Duration Chart
 
@@ -212,8 +212,8 @@ Completed when the agent enters `cells/39/43`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | ---: | ---: | ---: |
-| `001-baseline` | tbd | 0 | tbd |
-| `002-ccrs` | tbd | 19 | tbd |
+| `001-baseline` | 19 | 0 | -19 |
+| `002-ccrs` | 19 | 19 | 0 |
 
 #### Cycle Duration Chart
 
@@ -248,8 +248,8 @@ Completed when the agent enters `cells/999`.
 
 | Run | Optimal moves | Actual moves | Delta from optimal |
 | --- | ---: | ---: | ---: |
-| `001-baseline` | tbd | 0 | tbd |
-| `002-ccrs` | tbd | 30 | tbd |
+| `001-baseline` | 19 | 0 | -19 |
+| `002-ccrs` | 19 | 30 | 11 |
 
 #### Cycle Duration Chart
 

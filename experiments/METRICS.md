@@ -156,7 +156,7 @@ comparison metrics yet.
 | `reached_exit` | run | `true` when the final filtered MASE movement cell ends with `/cells/999`. This is the primary success criterion. | accepted |
 | `agent_elapsed_total_ms` | run | Agent-reported elapsed time parsed from `It took ... seconds and ... milliseconds` in JaCaMo logs, converted to milliseconds. | accepted |
 | `mase_agent_moved` | run | Count of filtered MASE `AGENT_MOVED` records for the experiment agent. This is the current total movement count. | accepted |
-| `optimal_moves` | run | Fixed optimal path length for `CcrsMazeV1`: `118` moves. | accepted |
+| `optimal_moves` | run | Scenario-specific optimal path length: `138` moves for `CcrsMazeV1`, `116` moves for `CcrsMazeV2`. | accepted |
 | `move_delta_from_optimal` | run | `actual_moves - optimal_moves`, where `actual_moves` is the filtered MASE movement count. | accepted |
 | `average_agent_cycle_duration_ms` | run | Mean of `duration_ms` from `cycle-durations.csv`, derived from adjacent `agent.cycle.location` markers. Existing runs without markers report an empty value. | accepted |
 | `multi_option_decisions` | run | Number of parsed `ccrs.opportunistic.prioritize` decisions where `options_count >= 2`. | accepted |
@@ -166,7 +166,7 @@ comparison metrics yet.
 | `contingency.strategy.evaluated` details | contingency invocation | One table per invocation, showing every evaluated strategy ordered by confidence with result type, action, target, timing, opportunistic-guidance flag, no-help reason, and rationale. | accepted |
 | `average_cycle_duration_by_opp_count` | run, agent, cycle group | Mean cycle duration grouped by the number of `ccrs.opportunistic.detected` events observed inside the cycle window. Report columns are `0`, `1`, `2`, and `3+`. Cycles with active contingency CCRS are excluded from these opportunistic-only averages. | accepted |
 | `average_cycle_duration_by_contingency_invocation_order` | run, agent, invocation cycle | Mean cycle duration for each contingency CCRS invocation cycle, ordered by the `ccrs.contingency.evaluate.request` events observed in cycle windows. The report dynamically adds one column per observed invocation. | accepted |
-| `cycle_duration_line_chart` | batch | SVG comparison line chart with `x = step` and `y = duration_ms`, plotting available runs on the same axes. The x-axis shows step markers every 25 steps and keeps the observed maximum step marker. The y-axis reserves 82% of plot height for the linear 0-200 ms range, then compresses higher durations into a log-base-100 tail so outliers do not flatten median values. High-duration outliers keep actual duration labels. The final datapoint for each run is labeled with the stopped cell coordinate and final step, such as `cells/999 at step 118`. | accepted |
+| `cycle_duration_line_chart` | batch | SVG comparison line chart with `x = step` and `y = duration_ms`, plotting available runs on the same axes. The x-axis shows step markers every 25 steps and keeps the observed maximum step marker. The y-axis reserves 82% of plot height for the linear 0-200 ms range, then compresses higher durations into a log-base-100 tail so outliers do not flatten median values. High-duration outliers keep actual duration labels. The final datapoint for each run is labeled with the stopped cell coordinate and final step, such as `cells/999 at step 147`. | accepted |
 | `opportunistic_type_overruled_decisions` | batch, CCRS run, type | Count of opportunistic CCRS decisions where the selected option had `selected_reordered=true`, grouped by `selected_type` such as `signifier` or `stigmergy`. | accepted |
 
 ## Zone Metrics
@@ -177,7 +177,7 @@ whole-run report metrics so readers can compare whether baseline and CCRS
 behavior changed in specific MASE dataset regions rather than only over the
 complete run.
 
-The current zone boundaries for `CcrsMazeV1` are:
+The current zone boundaries for the CCRS maze scenario family are:
 
 | Zone | Starts after | Completed when agent enters | Boundary meaning |
 | --- | --- | --- | --- |
@@ -208,7 +208,7 @@ explicitly stated otherwise:
 | `zone_total_moves` | run-zone | Count of included cycle rows for the experiment agent. The completion-cell move is included in the ending zone. | accepted |
 | `zone_average_cycle_duration_ms` | run-zone | Mean of non-empty `duration_ms` from included zone cycle rows. | accepted |
 | `zone_cycle_duration_chart` | zone | SVG chart with one line per run showing cycle duration by local step within the zone. | accepted |
-| `zone_move_optimality` | run-zone | Table columns for optimal moves, actual moves, and delta. Optimal move counts are placeholders `tbd` until the scenario-specific optimal counts are supplied. | accepted |
+| `zone_move_optimality` | run-zone | Table columns for optimal moves, actual moves, and delta. `CcrsMazeV1` optimal moves are signifier `19`, stigmergy `24`, mixed `57`, construction site `19`, social `19`. `CcrsMazeV2` optimal moves are signifier `17`, stigmergy `24`, mixed `37`, construction site `19`, social `19`. | accepted |
 | `zone_cycle_duration_summary` | zone | Same shape as the whole-run cycle-duration summary: baseline average, CCRS average, CCRS opportunistic-count buckets `0`, `1`, `2`, `3+`, and dynamically generated CCRS contingency invocation columns if present in the zone. | accepted |
 | `zone_decision_breakdown` | zone | Same definitions as whole-run decision breakdown, filtered to decisions whose log line falls inside the zone's cycle window. | accepted |
 | `zone_opportunistic_type_overruled_decisions` | zone | Same definition as whole-run `opportunistic_type_overruled_decisions`, filtered to overruled decisions inside the zone and grouped by `selected_type`. | accepted |

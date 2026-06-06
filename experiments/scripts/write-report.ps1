@@ -761,6 +761,14 @@ function Get-ScenarioReportMetadata {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV1"
             description = "Scenario CcrsMazeV1 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
+            optimal_moves = 138
+            zone_optimal_moves = @{
+                signifier = 19
+                stigmergy = 24
+                mixed = 57
+                "construction-site" = 19
+                social = 19
+            }
         }
     }
 
@@ -768,12 +776,22 @@ function Get-ScenarioReportMetadata {
         return [pscustomobject][ordered]@{
             name = "CcrsMazeV2"
             description = "Scenario CcrsMazeV2 contains no locked cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
+            optimal_moves = 116
+            zone_optimal_moves = @{
+                signifier = 17
+                stigmergy = 24
+                mixed = 37
+                "construction-site" = 19
+                social = 19
+            }
         }
     }
 
     return [pscustomobject][ordered]@{
         name = "unknown"
         description = "Scenario metadata is not configured for this batch."
+        optimal_moves = $null
+        zone_optimal_moves = @{}
     }
 }
 
@@ -918,6 +936,17 @@ foreach ($run in ($runs | Sort-Object run_id)) {
         $finalRow = if ($endIndex -ge $startIndex -and $endIndex -ge 0) { $runCycleRows[$endIndex] } elseif ($zoneCycleRows.Count -gt 0) { $zoneCycleRows[-1] } else { $null }
         $startRow = if ($startIndex -ge 0) { $runCycleRows[$startIndex] } else { $null }
 
+        $zoneOptimalMoves = if ($scenarioMetadata.zone_optimal_moves.ContainsKey($zone.name)) {
+            $scenarioMetadata.zone_optimal_moves[$zone.name]
+        } else {
+            "tbd"
+        }
+        $zoneMoveDelta = if ($zoneOptimalMoves -ne "tbd") {
+            $zoneCycleRows.Count - [int]$zoneOptimalMoves
+        } else {
+            "tbd"
+        }
+
         $zoneSummaryRows += [pscustomobject][ordered]@{
             batch_id = $batchName
             zone = $zone.name
@@ -935,9 +964,9 @@ foreach ($run in ($runs | Sort-Object run_id)) {
             total_duration_ms = $totalDuration
             total_moves = $zoneCycleRows.Count
             average_cycle_duration_ms = $avgDuration
-            optimal_moves = "tbd"
+            optimal_moves = $zoneOptimalMoves
             actual_moves = $zoneCycleRows.Count
-            move_delta_from_optimal = "tbd"
+            move_delta_from_optimal = $zoneMoveDelta
             multi_option_decisions = $decisionMetrics.multi_option_decisions
             multi_option_with_ccrs = $decisionMetrics.multi_option_with_ccrs
             multi_option_overruled = $decisionMetrics.multi_option_overruled
@@ -985,7 +1014,12 @@ $lines.Add("Scenario: $($scenarioMetadata.name)")
 $lines.Add("")
 $lines.Add($scenarioMetadata.description)
 $lines.Add("")
-$lines.Add("Optimal path length is fixed at 118 moves for the current experiment definition.")
+$scenarioOptimalMovesText = if ($null -ne $scenarioMetadata.optimal_moves -and "$($scenarioMetadata.optimal_moves)" -ne "") {
+    "$($scenarioMetadata.optimal_moves)"
+} else {
+    "unknown"
+}
+$lines.Add("Optimal path length for $($scenarioMetadata.name): $scenarioOptimalMovesText moves.")
 $lines.Add("")
 
 if ($runs.Count -eq 0) {
@@ -1011,11 +1045,11 @@ $lines.Add("")
 $lines.Add("| Run | JCM | Optimal moves | Actual moves | Delta from optimal |")
 $lines.Add("| --- | --- | ---: | ---: | ---: |")
 foreach ($row in $runs | Sort-Object run_id) {
-    $optimalMoves = if ($row.optimal_moves) { $row.optimal_moves } else { "118" }
+    $optimalMoves = if ($row.optimal_moves) { $row.optimal_moves } else { $scenarioMetadata.optimal_moves }
     $actualMoves = if ($row.actual_moves) { $row.actual_moves } else { $row.mase_agent_moved }
     $deltaMoves = if ($row.move_delta_from_optimal -ne $null -and "$($row.move_delta_from_optimal)" -ne "") {
         $row.move_delta_from_optimal
-    } elseif ($actualMoves -ne $null -and "$actualMoves" -ne "") {
+    } elseif ($actualMoves -ne $null -and "$actualMoves" -ne "" -and $optimalMoves -ne $null -and "$optimalMoves" -ne "") {
         (Convert-ToDouble $actualMoves) - (Convert-ToDouble $optimalMoves)
     } else {
         $null

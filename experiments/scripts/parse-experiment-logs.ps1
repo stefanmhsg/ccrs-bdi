@@ -6,7 +6,17 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$optimalPathLengthMoves = 118
+function Get-ScenarioOptimalMoveCount {
+    param([string]$ScenarioName)
+
+    if ($ScenarioName -match "(?i)(^|[-_])v1($|[-_])") {
+        return 138
+    }
+    if ($ScenarioName -match "(?i)(^|[-_])v2($|[-_])") {
+        return 116
+    }
+    return $null
+}
 
 function ConvertTo-TypedValue {
     param([string]$Text)
@@ -1296,8 +1306,13 @@ foreach ($runDir in $runDirs) {
     $multiOptionCcrsRate = if ($multiOptionDecisionCount -gt 0) { [math]::Round($metrics.multiOptionWithCcrs / $multiOptionDecisionCount, 4) } else { 0 }
     $multiOptionOverruledRate = if ($multiOptionDecisionCount -gt 0) { [math]::Round($metrics.multiOptionOverruled / $multiOptionDecisionCount, 4) } else { 0 }
     $maseMoveDelta = $metrics.moveAttempts - $metrics.maseAgentMoved
+    $scenarioOptimalMoves = Get-ScenarioOptimalMoveCount -ScenarioName $runMeta.batchId
     $optimalMoveDelta = if ($null -ne $metrics.maseAgentMoved -and "$($metrics.maseAgentMoved)" -ne "") {
-        [int]$metrics.maseAgentMoved - $optimalPathLengthMoves
+        if ($null -ne $scenarioOptimalMoves) {
+            [int]$metrics.maseAgentMoved - $scenarioOptimalMoves
+        } else {
+            $null
+        }
     } else {
         $null
     }
@@ -1364,7 +1379,7 @@ foreach ($runDir in $runDirs) {
         agent_elapsed_seconds = $metrics.elapsedSeconds
         agent_elapsed_ms_remainder = $metrics.elapsedMsRemainder
         move_attempts = $metrics.moveAttempts
-        optimal_moves = $optimalPathLengthMoves
+        optimal_moves = $scenarioOptimalMoves
         actual_moves = $metrics.maseAgentMoved
         move_delta_from_optimal = $optimalMoveDelta
         access_approved = $metrics.accessApproved
