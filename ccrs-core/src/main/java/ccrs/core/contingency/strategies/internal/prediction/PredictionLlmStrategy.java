@@ -15,6 +15,7 @@ import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.LlmActionResponse;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.options.PredictionLlmStrategyOptions;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 import ccrs.core.rdf.RdfTriple;
@@ -42,7 +43,6 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private static final Logger logger = Logger.getLogger(PredictionLlmStrategy.class.getName());
     
     public static final String ID = "prediction_llm";
-    private static final String UI_NAMESPACE = "https://example.org/ui";
     
     // Configuration
     private LlmClient llmClient;
@@ -54,16 +54,29 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     private int maxCcrsTraces = 10;
     private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
     private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
-    private List<String> filteredTripleNamespaces = List.of(UI_NAMESPACE);
+    private List<String> filteredTripleNamespaces = List.of(PredictionLlmStrategyOptions.DEFAULT_FILTERED_TRIPLE_NAMESPACE);
 
     public PredictionLlmStrategy(LlmClient llmClient) {
-        this(llmClient, DefaultPredictionPromptBuilder.create(), JsonActionParser.create());
+        this(llmClient, PredictionLlmStrategyOptions.defaults());
+    }
+
+    public PredictionLlmStrategy(LlmClient llmClient, PredictionLlmStrategyOptions options) {
+        this(llmClient, DefaultPredictionPromptBuilder.create(), JsonActionParser.create(), options);
     }
 
     public PredictionLlmStrategy(LlmClient llmClient, PromptBuilder promptBuilder, LlmResponseParser responseParser) {
+        this(llmClient, promptBuilder, responseParser, PredictionLlmStrategyOptions.defaults());
+    }
+
+    public PredictionLlmStrategy(
+            LlmClient llmClient,
+            PromptBuilder promptBuilder,
+            LlmResponseParser responseParser,
+            PredictionLlmStrategyOptions options) {
         this.llmClient = llmClient;
         this.promptBuilder = promptBuilder;
         this.responseParser = responseParser;
+        applyOptions(options == null ? PredictionLlmStrategyOptions.defaults() : options);
     }
     
     @Override
@@ -507,6 +520,19 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     }
     
     // Configuration methods
+
+    private void applyOptions(PredictionLlmStrategyOptions options) {
+        this.baseConfidence = options.getBaseConfidence();
+        this.maxHistoryActions = options.getMaxHistoryActions();
+        this.maxInteractionStateTriples = options.getMaxInteractionStateTriples();
+        this.maxCcrsTraces = options.getMaxCcrsTraces();
+        this.maxNeighborhoodOutgoing = options.getMaxNeighborhoodOutgoing();
+        this.maxNeighborhoodIncoming = options.getMaxNeighborhoodIncoming();
+        this.filteredTripleNamespaces = options.getFilteredTripleNamespaces();
+        if (this.responseParser instanceof JsonActionParser jsonActionParser) {
+            jsonActionParser.enablePlainTextFallback(options.isPlainTextFallbackEnabled());
+        }
+    }
     
     public PredictionLlmStrategy withClient(LlmClient client) {
         this.llmClient = client;

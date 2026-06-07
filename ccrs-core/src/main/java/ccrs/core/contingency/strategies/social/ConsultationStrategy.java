@@ -14,6 +14,7 @@ import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.options.ConsultationStrategyOptions;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.RdfTriple;
 import org.apache.jena.rdf.model.Literal;
@@ -38,9 +39,6 @@ public class ConsultationStrategy implements CcrsStrategy {
     private static final String A2A_AGENT_CARD = "https://example.org/a2a#agentCard";
     private static final String A2A_PROVIDES_TYPE = "https://example.org/a2a#providesType";
     private static final String A2A_PROVIDES_PROPERTY = "https://example.org/a2a#providesProperty";
-    private static final int MAX_AGENT_CANDIDATES = 5;
-    private static final int DEFAULT_MAX_RECENT_INTERACTIONS = 10;
-    private static final double DEFAULT_CONFIDENCE = 0.5;
 
     public static final String ID = "consultation";
     
@@ -103,18 +101,33 @@ public class ConsultationStrategy implements CcrsStrategy {
     
     // Configuration
     private ConsultationChannel channel;
-    private int maxRecentInteractions = DEFAULT_MAX_RECENT_INTERACTIONS;
+    private int maxRecentInteractions;
+    private int maxAgentCandidates;
+    private double defaultConfidence;
+    private int maxCcrsTraces;
     
     public ConsultationStrategy() {
+        this(null, ConsultationStrategyOptions.defaults());
     }
     
     public ConsultationStrategy(ConsultationChannel channel) {
-        this(channel, DEFAULT_MAX_RECENT_INTERACTIONS);
+        this(channel, ConsultationStrategyOptions.defaults());
     }
 
     public ConsultationStrategy(ConsultationChannel channel, int maxRecentInteractions) {
+        this(channel, ConsultationStrategyOptions.defaults()
+            .toBuilder()
+            .maxRecentInteractions(maxRecentInteractions)
+            .build());
+    }
+
+    public ConsultationStrategy(ConsultationStrategyOptions options) {
+        this(null, options);
+    }
+
+    public ConsultationStrategy(ConsultationChannel channel, ConsultationStrategyOptions options) {
         this.channel = channel;
-        this.maxRecentInteractions = clampPositive(maxRecentInteractions, DEFAULT_MAX_RECENT_INTERACTIONS);
+        applyOptions(options == null ? ConsultationStrategyOptions.defaults() : options);
     }
     
     @Override
@@ -248,14 +261,14 @@ public class ConsultationStrategy implements CcrsStrategy {
             double confidence = response.confidence;
             if (confidence <= 0.0) {
                 logger.info(String.format(
-                    "[Consultation] Channel confidence unavailable or non-positive (%.3f); using hardcoded fallback confidence=%.2f",
-                    response.confidence, DEFAULT_CONFIDENCE));
-                confidence = DEFAULT_CONFIDENCE;
+                    "[Consultation] Channel confidence unavailable or non-positive (%.3f); using configured fallback confidence=%.2f",
+                    response.confidence, defaultConfidence));
+                confidence = defaultConfidence;
             } else if (confidence > 1.0) {
                 logger.warning(String.format(
-                    "[Consultation] Channel confidence out of range (%.3f); clamping to hardcoded fallback=%.2f",
-                    confidence, DEFAULT_CONFIDENCE));
-                confidence = DEFAULT_CONFIDENCE;
+                    "[Consultation] Channel confidence out of range (%.3f); clamping to configured fallback=%.2f",
+                    confidence, defaultConfidence));
+                confidence = defaultConfidence;
             }
             
             StrategyResult result = StrategyResult.suggest(ID, actionType)
@@ -334,7 +347,7 @@ public class ConsultationStrategy implements CcrsStrategy {
                 .collect(Collectors.toList()));
             
             // Add previous CCRS invocations
-            List<CcrsTrace> ccrsHistory = context.getCcrsHistory(3);
+            List<CcrsTrace> ccrsHistory = context.getCcrsHistory(maxCcrsTraces);
             ctx.put("previousCcrsInvocations", ccrsHistory.stream()
                 .map(t -> Map.of(
                     "situation", t.getSituation().getType().name(),
@@ -402,8 +415,8 @@ public class ConsultationStrategy implements CcrsStrategy {
             targets.add(target);
             logger.info("[Consultation] Added consultation target: " + target);
 
-            if (targets.size() >= MAX_AGENT_CANDIDATES) {
-                logger.info("[Consultation] Reached consultation candidate limit of " + MAX_AGENT_CANDIDATES);
+            if (targets.size() >= maxAgentCandidates) {
+                logger.info("[Consultation] Reached consultation candidate limit of " + maxAgentCandidates);
                 break;
             }
         }
@@ -596,12 +609,15 @@ public class ConsultationStrategy implements CcrsStrategy {
     }
 
     public ConsultationStrategy withMaxRecentInteractions(int maxRecentInteractions) {
-        this.maxRecentInteractions = clampPositive(maxRecentInteractions, DEFAULT_MAX_RECENT_INTERACTIONS);
+        this.maxRecentInteractions = Math.max(1, maxRecentInteractions);
         return this;
     }
 
-    private int clampPositive(int candidate, int fallback) {
-        return candidate > 0 ? candidate : fallback;
+    private void applyOptions(ConsultationStrategyOptions options) {
+        this.maxRecentInteractions = options.getMaxRecentInteractions();
+        this.maxAgentCandidates = options.getMaxAgentCandidates();
+        this.defaultConfidence = options.getDefaultConfidence();
+        this.maxCcrsTraces = options.getMaxCcrsTraces();
     }
 
     private String escapeTurtleLiteral(String value) {

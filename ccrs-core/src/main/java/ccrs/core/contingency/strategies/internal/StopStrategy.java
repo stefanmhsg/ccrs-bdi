@@ -5,6 +5,7 @@ import java.util.logging.Logger;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.options.StopStrategyOptions;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 
@@ -25,6 +26,14 @@ public class StopStrategy implements CcrsStrategy {
     private boolean requireExhaustion = true;
     private int exhaustionThreshold = 2;  // Min strategies attempted before suggesting stop
     private int stopLookbackLimit = 30;
+
+    public StopStrategy() {
+        this(StopStrategyOptions.defaults());
+    }
+
+    public StopStrategy(StopStrategyOptions options) {
+        applyOptions(options == null ? StopStrategyOptions.defaults() : options);
+    }
     
     @Override
     public String getId() {
@@ -183,6 +192,12 @@ public class StopStrategy implements CcrsStrategy {
     }
     
     // Configuration
+
+    private void applyOptions(StopStrategyOptions options) {
+        this.requireExhaustion = options.isRequireExhaustion();
+        this.exhaustionThreshold = options.getExhaustionThreshold();
+        this.stopLookbackLimit = options.getStopLookbackLimit();
+    }
     
     public StopStrategy requireExhaustion(boolean require) {
         this.requireExhaustion = require;
@@ -198,6 +213,9 @@ public class StopStrategy implements CcrsStrategy {
      * Create a stop strategy that applies immediately (no exhaustion required).
      */
     public static StopStrategy immediate() {
-        return new StopStrategy().requireExhaustion(false);
+        return new StopStrategy(StopStrategyOptions.defaults()
+            .toBuilder()
+            .requireExhaustion(false)
+            .build());
     }
 }

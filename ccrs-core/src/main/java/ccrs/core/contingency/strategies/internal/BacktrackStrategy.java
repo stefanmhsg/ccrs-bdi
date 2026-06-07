@@ -8,6 +8,7 @@ import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.Interaction;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.options.BacktrackStrategyOptions;
 import ccrs.core.opportunistic.OpportunisticResult;
 import ccrs.core.rdf.CcrsContext;
 
@@ -85,6 +86,17 @@ public class BacktrackStrategy implements CcrsStrategy {
     private static final Logger logger = Logger.getLogger(BacktrackStrategy.class.getName());
 
     public static final String ID = "backtrack";
+
+    private int maxRecentInteractions = 1000;
+
+    public BacktrackStrategy() {
+        this(BacktrackStrategyOptions.defaults());
+    }
+
+    public BacktrackStrategy(BacktrackStrategyOptions options) {
+        BacktrackStrategyOptions resolved = options == null ? BacktrackStrategyOptions.defaults() : options;
+        this.maxRecentInteractions = resolved.getMaxRecentInteractions();
+    }
     
     @Override
     public String getId() {
@@ -346,7 +358,7 @@ public class BacktrackStrategy implements CcrsStrategy {
     }
     
     private InteractionGraph buildInteractionGraph(CcrsContext context) {
-        List<Interaction> recentFirst = context.getRecentInteractions(1000);
+        List<Interaction> recentFirst = context.getRecentInteractions(maxRecentInteractions);
         List<Interaction> chronological = new ArrayList<>(recentFirst);
         Collections.reverse(chronological);
 

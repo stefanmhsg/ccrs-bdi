@@ -7,6 +7,7 @@ import java.util.logging.Logger;
 import ccrs.core.contingency.CcrsStrategy;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
+import ccrs.core.contingency.options.RetryStrategyOptions;
 import ccrs.core.rdf.CcrsContext;
 import ccrs.core.rdf.CcrsTraceHistoryAnalyzer;
 
@@ -30,14 +31,11 @@ public class RetryStrategy implements CcrsStrategy {
     private int retryLookbackLimit = 25;
     
     public RetryStrategy() {
-        // Default retriable error codes
-        retriableCodes.add("500");
-        retriableCodes.add("502");
-        retriableCodes.add("503");
-        retriableCodes.add("504");
-        retriableCodes.add("timeout");
-        retriableCodes.add("connection_reset");
-        retriableCodes.add("connection_refused");
+        this(RetryStrategyOptions.defaults());
+    }
+
+    public RetryStrategy(RetryStrategyOptions options) {
+        applyOptions(options == null ? RetryStrategyOptions.defaults() : options);
     }
     
     @Override
@@ -212,6 +210,14 @@ public class RetryStrategy implements CcrsStrategy {
     }
     
     // Configuration setters
+
+    private void applyOptions(RetryStrategyOptions options) {
+        this.maxAttempts = options.getMaxAttempts();
+        this.initialDelayMs = options.getInitialDelayMs();
+        this.backoffMultiplier = options.getBackoffMultiplier();
+        this.retriableCodes = new HashSet<>(options.getRetriableCodes());
+        this.retryLookbackLimit = options.getRetryLookbackLimit();
+    }
     
     public RetryStrategy maxAttempts(int max) {
         this.maxAttempts = max;

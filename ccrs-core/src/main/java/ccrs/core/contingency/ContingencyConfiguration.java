@@ -2,7 +2,18 @@ package ccrs.core.contingency;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+
+import ccrs.core.contingency.options.BacktrackStrategyOptions;
+import ccrs.core.contingency.options.ConsultationStrategyOptions;
+import ccrs.core.contingency.options.PredictionLlmStrategyOptions;
+import ccrs.core.contingency.options.RetryStrategyOptions;
+import ccrs.core.contingency.options.StopStrategyOptions;
 
 /**
  * Configuration for contingency CCRS evaluation.
@@ -39,6 +50,12 @@ public class ContingencyConfiguration {
     private final double minimumExpectedConfidenceGain;
     private final double highConfidenceEvaluationFloor;
     private final long cheapEvaluationTimeMs;
+    private final PredictionLlmStrategyOptions predictionLlmStrategyOptions;
+    private final RetryStrategyOptions retryStrategyOptions;
+    private final BacktrackStrategyOptions backtrackStrategyOptions;
+    private final ConsultationStrategyOptions consultationStrategyOptions;
+    private final StopStrategyOptions stopStrategyOptions;
+    private final Map<String, Object> strategyOptions;
     
     private ContingencyConfiguration(Builder builder) {
         this.enabledStrategies = Collections.unmodifiableSet(new HashSet<>(builder.enabledStrategies));
@@ -59,6 +76,12 @@ public class ContingencyConfiguration {
         this.minimumExpectedConfidenceGain = builder.minimumExpectedConfidenceGain;
         this.highConfidenceEvaluationFloor = builder.highConfidenceEvaluationFloor;
         this.cheapEvaluationTimeMs = builder.cheapEvaluationTimeMs;
+        this.predictionLlmStrategyOptions = builder.predictionLlmStrategyOptions;
+        this.retryStrategyOptions = builder.retryStrategyOptions;
+        this.backtrackStrategyOptions = builder.backtrackStrategyOptions;
+        this.consultationStrategyOptions = builder.consultationStrategyOptions;
+        this.stopStrategyOptions = builder.stopStrategyOptions;
+        this.strategyOptions = Collections.unmodifiableMap(new LinkedHashMap<>(builder.strategyOptions));
     }
     
     /**
@@ -153,6 +176,41 @@ public class ContingencyConfiguration {
     public long getCheapEvaluationTimeMs() {
         return cheapEvaluationTimeMs;
     }
+
+    public PredictionLlmStrategyOptions getPredictionLlmStrategyOptions() {
+        return predictionLlmStrategyOptions;
+    }
+
+    public RetryStrategyOptions getRetryStrategyOptions() {
+        return retryStrategyOptions;
+    }
+
+    public BacktrackStrategyOptions getBacktrackStrategyOptions() {
+        return backtrackStrategyOptions;
+    }
+
+    public ConsultationStrategyOptions getConsultationStrategyOptions() {
+        return consultationStrategyOptions;
+    }
+
+    public StopStrategyOptions getStopStrategyOptions() {
+        return stopStrategyOptions;
+    }
+
+    public <T> Optional<T> getStrategyOptions(String strategyId, Class<T> type) {
+        if (strategyId == null || type == null) {
+            return Optional.empty();
+        }
+        Object options = strategyOptions.get(strategyId);
+        if (!type.isInstance(options)) {
+            return Optional.empty();
+        }
+        return Optional.of(type.cast(options));
+    }
+
+    public Map<String, Object> getStrategyOptions() {
+        return strategyOptions;
+    }
     
     /**
      * Default configuration with all strategies enabled.
@@ -188,6 +246,12 @@ public class ContingencyConfiguration {
         private double minimumExpectedConfidenceGain = 0.10;
         private double highConfidenceEvaluationFloor = 0.80;
         private long cheapEvaluationTimeMs = 250L;
+        private PredictionLlmStrategyOptions predictionLlmStrategyOptions = PredictionLlmStrategyOptions.defaults();
+        private RetryStrategyOptions retryStrategyOptions = RetryStrategyOptions.defaults();
+        private BacktrackStrategyOptions backtrackStrategyOptions = BacktrackStrategyOptions.defaults();
+        private ConsultationStrategyOptions consultationStrategyOptions = ConsultationStrategyOptions.defaults();
+        private StopStrategyOptions stopStrategyOptions = StopStrategyOptions.defaults();
+        private Map<String, Object> strategyOptions = new LinkedHashMap<>();
         
         /**
          * Only enable specific strategies (whitelist).
@@ -317,6 +381,73 @@ public class ContingencyConfiguration {
          */
         public Builder cheapEvaluationTimeMs(long ms) {
             this.cheapEvaluationTimeMs = Math.max(0L, ms);
+            return this;
+        }
+
+        public Builder predictionLlm(PredictionLlmStrategyOptions options) {
+            this.predictionLlmStrategyOptions = Objects.requireNonNull(options, "options");
+            return this;
+        }
+
+        public Builder predictionLlm(Consumer<PredictionLlmStrategyOptions.Builder> customizer) {
+            PredictionLlmStrategyOptions.Builder options = predictionLlmStrategyOptions.toBuilder();
+            Objects.requireNonNull(customizer, "customizer").accept(options);
+            return predictionLlm(options.build());
+        }
+
+        public Builder retry(RetryStrategyOptions options) {
+            this.retryStrategyOptions = Objects.requireNonNull(options, "options");
+            return this;
+        }
+
+        public Builder retry(Consumer<RetryStrategyOptions.Builder> customizer) {
+            RetryStrategyOptions.Builder options = retryStrategyOptions.toBuilder();
+            Objects.requireNonNull(customizer, "customizer").accept(options);
+            return retry(options.build());
+        }
+
+        public Builder backtrack(BacktrackStrategyOptions options) {
+            this.backtrackStrategyOptions = Objects.requireNonNull(options, "options");
+            return this;
+        }
+
+        public Builder backtrack(Consumer<BacktrackStrategyOptions.Builder> customizer) {
+            BacktrackStrategyOptions.Builder options = backtrackStrategyOptions.toBuilder();
+            Objects.requireNonNull(customizer, "customizer").accept(options);
+            return backtrack(options.build());
+        }
+
+        public Builder consultation(ConsultationStrategyOptions options) {
+            this.consultationStrategyOptions = Objects.requireNonNull(options, "options");
+            return this;
+        }
+
+        public Builder consultation(Consumer<ConsultationStrategyOptions.Builder> customizer) {
+            ConsultationStrategyOptions.Builder options = consultationStrategyOptions.toBuilder();
+            Objects.requireNonNull(customizer, "customizer").accept(options);
+            return consultation(options.build());
+        }
+
+        public Builder stop(StopStrategyOptions options) {
+            this.stopStrategyOptions = Objects.requireNonNull(options, "options");
+            return this;
+        }
+
+        public Builder stop(Consumer<StopStrategyOptions.Builder> customizer) {
+            StopStrategyOptions.Builder options = stopStrategyOptions.toBuilder();
+            Objects.requireNonNull(customizer, "customizer").accept(options);
+            return stop(options.build());
+        }
+
+        public Builder strategyOptions(String strategyId, Object options) {
+            if (strategyId == null || strategyId.isBlank()) {
+                throw new IllegalArgumentException("strategyId must not be blank");
+            }
+            if (options == null) {
+                this.strategyOptions.remove(strategyId);
+            } else {
+                this.strategyOptions.put(strategyId, options);
+            }
             return this;
         }
 
