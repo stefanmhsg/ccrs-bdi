@@ -46,10 +46,11 @@ Use this matrix as the visual overview of work package priority and timing. Work
 | Current sprint/month | Next 1-3 months | No time commitment |
 | Fully defined | Roughly specified | Fuzzy / visionary |
 | Already running or starting now | Waiting for capacity | May be discarded |
-| WP1: Inventory current knobs and define target semantics (complete) | WP5: React and JaCaMo adapter compatibility smoke tests | WP6: Add optional system-property overlay |
+| WP1: Inventory current knobs and define target semantics (complete) |  | WP6: Add optional system-property overlay |
 | WP2: Add typed options to `ccrs-core` (complete) |  |  |
 | WP3: Propagate configuration through factories and ServiceLoader providers (complete) |  |  |
 | WP4: Clean up legacy strategy mutators and docs (complete) |  |  |
+| WP5: React and JaCaMo adapter compatibility smoke tests (complete) |  |  |
 
 ## Progress
 
@@ -62,7 +63,7 @@ Use this matrix as the visual overview of work package priority and timing. Work
 - [x] (2026-06-07) Implemented WP3 factory overloads, provider context propagation, first-party ServiceLoader option wiring, and the JaCaMo runtime configuration bridge.
 - [x] (2026-06-07) Completed WP4 by removing legacy mutable strategy setters from first-party strategy classes, converting strategy settings to constructor-time option snapshots, updating core/provider/adapter docs, and updating the standalone Maven consumer example to use central typed configuration.
 - [x] (2026-06-07) Published updated `0.1.0-SNAPSHOT` artifacts to Maven local and verified the standalone Maven consumer compiles against the new configuration API.
-- [ ] Full WP5 React and JaCaMo runtime compatibility smoke checks have not yet been run against the migrated implementation.
+- [x] (2026-06-07) Completed WP5 by adding React Python-side contingency configuration mapping, documenting React and JaCaMo configuration usage, publishing updated Maven-local artifacts, and running Java, JaCaMo, and React adapter smokes.
 
 ## Surprises & Discoveries
 
@@ -83,6 +84,12 @@ Use this matrix as the visual overview of work package priority and timing. Work
 
 - Observation: The standalone Maven consumer can fail against stale local SNAPSHOT artifacts even when the in-repo modules compile.
   Evidence: [../examples/ccrs-library-consumer/src/main/java/example/CcrsLibraryConsumer.java](../examples/ccrs-library-consumer/src/main/java/example/CcrsLibraryConsumer.java) initially failed to compile because Maven local still exposed the old `ContingencyConfiguration.Builder` and `ContingencyCcrsFactory` APIs. Running `.\gradlew.bat publishToMavenLocal` refreshed the artifacts and the consumer then compiled after correcting the example to use `RetryStrategyOptions.Builder.initialDelayMs(...)`.
+
+- Observation: The React adapter had no way to pass non-default Java strategy options before WP5.
+  Evidence: [../../ccrs-react/react_agent/ccrs/contingency/contingency_ccrs.py](../../ccrs-react/react_agent/ccrs/contingency/contingency_ccrs.py) only called `ContingencyCcrs.withDefaults()` or `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(classLoader)`. WP5 added a Python mapping bridge that builds Java `ContingencyConfiguration` through JPype and passes it into the same Java factory overloads.
+
+- Observation: JaCaMo runtime configuration can be smoke-tested without launching `.jcm` agents.
+  Evidence: A Java 21 JShell smoke imported [../ccrs-jacamo/src/main/java/ccrs/jacamo/CcrsJacamoRuntime.java](../ccrs-jacamo/src/main/java/ccrs/jacamo/CcrsJacamoRuntime.java), installed a central `ContingencyConfiguration`, called `createContingencyCcrs()`, and printed configured retry/stop option values plus `true` for retry strategy registration.
 
 ## Decision Log
 
@@ -116,6 +123,10 @@ Use this matrix as the visual overview of work package priority and timing. Work
 
 - Decision: Remove first-party legacy strategy mutators instead of deprecating them for this snapshot migration.
   Rationale: The user explicitly requested full migration and legacy cleanup. Constructors remain for collaborators and typed option objects now cover first-party strategy settings, so retaining mutable setters would keep two public configuration models alive.
+  Date/Author: 2026-06-07 / Codex.
+
+- Decision: Add React Python mapping support in WP5 instead of creating a new configuration plan.
+  Rationale: Adapter compatibility now includes demonstrating how React users provide the same central Java strategy options. The existing React adapter plan already covers this boundary, while broader string-based deployment overlays remain WP6.
   Date/Author: 2026-06-07 / Codex.
 
 ## Context and Orientation
@@ -398,7 +409,7 @@ Results: all commands passed. `publishToMavenLocal` emitted existing Javadoc war
 
 ### WP5: Preserve React and JaCaMo adapter compatibility
 
-Status: Next
+Status: Done
 
 Purpose: Prove that the migration did not break the two active adapter consumers named by the user: the Python React adapter and the JaCaMo adapter.
 
@@ -408,12 +419,12 @@ Discussion: Smoke tests should avoid live LLM calls, A2A network calls, or runni
 
 Todos:
 
-- [ ] Add or update a focused Java smoke test for `CcrsJacamoRuntime` configuration propagation without launching a `.jcm` file.
-- [ ] Publish updated Maven-local CCRS jars before React validation.
-- [ ] Run React compile and graph-builder smokes.
-- [ ] Run React Java-backed contingency retry smoke.
-- [ ] If React exposes non-default strategy configuration, add one React smoke that passes a non-default option and observes it through Java behavior or registered strategy diagnostics.
-- [ ] Record the exact smoke outputs in this plan after running them.
+- [x] Add or update a focused Java smoke test for `CcrsJacamoRuntime` configuration propagation without launching a `.jcm` file.
+- [x] Publish updated Maven-local CCRS jars before React validation.
+- [x] Run React compile and graph-builder smokes.
+- [x] Run React Java-backed contingency retry smoke.
+- [x] If React exposes non-default strategy configuration, add one React smoke that passes a non-default option and observes it through Java behavior or registered strategy diagnostics.
+- [x] Record the exact smoke outputs in this plan after running them.
 
 Concrete steps for Java and JaCaMo from `S:\dev\ma\ccrs-bdi`:
 
@@ -435,7 +446,63 @@ Concrete steps for React from `S:\dev\ma\ccrs-react` after Maven-local publish:
 
 Validation and acceptance: Java compile and `classes` pass. Maven-local publish succeeds. React `compileall` succeeds. Both graph builders print `CompiledStateGraph`. The React contingency smoke prints `retry`, `retry`, non-zero evaluation counts, and a trace-history length of `1`. The JaCaMo adapter has a focused smoke proving `CcrsJacamoRuntime` still creates a configured `ContingencyCcrs` without importing optional capability classes directly.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented on 2026-06-07. React now accepts `contingency_configuration` in [../../ccrs-react/react_agent/ccrs/contingency/contingency_ccrs.py](../../ccrs-react/react_agent/ccrs/contingency/contingency_ccrs.py) and [../../ccrs-react/react_agent/graph/graph_ccrs.py](../../ccrs-react/react_agent/graph/graph_ccrs.py). The mapping uses Python `snake_case` keys and is converted to Java `ContingencyConfiguration` through JPype. Existing defaults remain unchanged when no configuration is provided. Java objects are also accepted directly for advanced callers.
+
+Adapter documentation now includes a React configuration example in [../../ccrs-react/react_agent/ccrs/README.md](../../ccrs-react/react_agent/ccrs/README.md) and a JaCaMo setup example in [../ccrs-jacamo/README.md](../ccrs-jacamo/README.md). No new plan file was created: the React-specific bridge fits the existing [../../ccrs-react/PLAN_CCRS_README.md](../../ccrs-react/PLAN_CCRS_README.md), and broader string/system-property overlays remain in WP6.
+
+Validation run on 2026-06-07 from `S:\dev\ma\ccrs-bdi`:
+
+    .\gradlew.bat :ccrs-core:compileJava :ccrs-jacamo:compileJava :ccrs-langchain4j:compileJava :ccrs-a2a:compileJava
+    .\gradlew.bat publishToMavenLocal
+    .\gradlew.bat classes
+
+Results: all commands passed. `publishToMavenLocal` emitted existing Javadoc warnings.
+
+Focused JaCaMo runtime smoke from `S:\dev\ma\ccrs-bdi` used Java 21 JShell with compiled `ccrs-core` and `ccrs-jacamo` classes. It set retry max attempts to `5`, retry initial delay to `500`, stop exhaustion threshold to `1`, created `CcrsJacamoRuntime.createContingencyCcrs()`, and printed:
+
+    5
+    500
+    1
+    true
+
+The first JShell attempt used a Java 11 executable and failed with `class file has wrong version 65.0, should be 55.0`; rerunning with `C:\Program Files\Java\jdk-21\bin\jshell.exe` passed.
+
+Validation run on 2026-06-07 from `S:\dev\ma\ccrs-react`:
+
+    S:\anaconda\agent\python.exe -m compileall react_agent
+    S:\anaconda\agent\python.exe -m compileall react_agent\ccrs\contingency\contingency_ccrs.py react_agent\graph\graph_ccrs.py
+    S:\anaconda\agent\python.exe -c "from react_agent.graph.graph import build_graph as b1; from react_agent.graph.graph_ccrs import build_graph as b2; print(type(b1()).__name__); print(type(b2()).__name__)"
+
+Graph builder output:
+
+    CompiledStateGraph
+    CompiledStateGraph
+
+The graph-builder smoke emitted a LangGraph `LangChainPendingDeprecationWarning` about future `allowed_objects` defaults; it did not block validation.
+
+Default React Java-backed contingency retry smoke output:
+
+    retry
+    retry
+    2 1 0
+    1
+
+Configured React Java-backed contingency retry smoke used `contingency_configuration={'retry': {'max_attempts': 5, 'initial_delay_ms': 500}}` and printed:
+
+    retry
+    retry
+    5
+    500
+    1
+
+Optional provider-discovery smoke used `ccrs-core`, `ccrs-langchain4j`, and `ccrs-a2a` modules with provider discovery enabled and configuration sections for `prediction_llm` and `consultation`. It printed:
+
+    retry
+    retry
+    PARALLEL
+    4 1 0
+
+The optional-provider smoke registered `prediction_llm` and `consultation` through `ServiceLoader` and avoided live LLM/A2A calls because both optional strategies were not applicable to the synthetic retry-only situation.
 
 ### WP6: Add optional deployment configuration overlay
 
@@ -593,3 +660,5 @@ Revision note 2026-06-07 / Codex: Recorded the user decision to defer all WP1 `U
 Revision note 2026-06-07 / Codex: Implemented WP3 propagation through core factory overloads, ServiceLoader provider context, LangChain4j/A2A provider option use, and the JaCaMo runtime configuration bridge; recorded compile validation results.
 
 Revision note 2026-06-07 / Codex: Completed WP4 by removing legacy mutable strategy mutators, making first-party strategies consume constructor-time typed option snapshots, updating core/provider/JaCaMo/React/Maven-consumer documentation, publishing updated SNAPSHOT artifacts to Maven local, and recording compile validation for the Java modules plus standalone consumer.
+
+Revision note 2026-06-07 / Codex: Completed WP5 by adding the React Python-to-Java configuration mapping bridge, updating React and JaCaMo configuration documentation, validating Maven-local publication, running React compile/graph/contingency/provider-discovery smokes, and running a Java 21 JShell JaCaMo runtime configuration smoke without launching `.jcm` agents.

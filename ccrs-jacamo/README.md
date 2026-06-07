@@ -85,7 +85,9 @@ lists only `A2aConsultationStrategyProvider`.
 This keeps `evaluate` independent from concrete LLM, A2A, or other capability
 implementations.
 
-Applications can configure the default factory path without replacing it:
+Applications can configure the default factory path without replacing it. Call
+this from Java setup code before the AgentSpeak contingency internal action is
+used:
 
 ```java
 import ccrs.core.contingency.ContingencyConfiguration;
@@ -94,7 +96,10 @@ import ccrs.jacamo.CcrsJacamoRuntime;
 CcrsJacamoRuntime.setContingencyConfiguration(
     ContingencyConfiguration.builder()
         .predictionLlm(options -> options.maxHistoryActions(20))
-        .retry(options -> options.maxAttempts(5))
+        .retry(options -> options
+            .maxAttempts(5)
+            .initialDelayMs(500))
+        .stop(options -> options.exhaustionThreshold(1))
         .build()
 );
 ```
