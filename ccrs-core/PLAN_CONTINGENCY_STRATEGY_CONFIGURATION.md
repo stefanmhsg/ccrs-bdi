@@ -46,9 +46,10 @@ Use this matrix as the visual overview of work package priority and timing. Work
 | Current sprint/month | Next 1-3 months | No time commitment |
 | Fully defined | Roughly specified | Fuzzy / visionary |
 | Already running or starting now | Waiting for capacity | May be discarded |
-| WP1: Inventory current knobs and define target semantics | WP4: Clean up legacy strategy mutators and docs | WP6: Add optional system-property overlay |
-| WP2: Add typed options to `ccrs-core` (complete) | WP5: React and JaCaMo adapter compatibility smoke tests |  |
-| WP3: Propagate configuration through factories and ServiceLoader providers |  |  |
+| WP1: Inventory current knobs and define target semantics (complete) | WP5: React and JaCaMo adapter compatibility smoke tests | WP6: Add optional system-property overlay |
+| WP2: Add typed options to `ccrs-core` (complete) |  |  |
+| WP3: Propagate configuration through factories and ServiceLoader providers (complete) |  |  |
+| WP4: Clean up legacy strategy mutators and docs (complete) |  |  |
 
 ## Progress
 
@@ -58,14 +59,15 @@ Use this matrix as the visual overview of work package priority and timing. Work
 - [x] (2026-06-07) Added relative source links to every WP1 candidate knob row.
 - [x] (2026-06-07) Explicitly deferred all WP1 `Unsure` rows and proceeded with only `Certain` strategy options.
 - [x] (2026-06-07) Implemented WP2 typed option classes, central `ContingencyConfiguration` option accessors/builders, third-party option storage, and option-based built-in strategy constructors.
-- [ ] WP3 factory and ServiceLoader provider context propagation is not yet implemented.
-- [ ] WP4 legacy mutator cleanup and documentation updates are not yet implemented.
-- [ ] WP5 React and JaCaMo compatibility smoke checks have not yet been run against the migrated implementation.
+- [x] (2026-06-07) Implemented WP3 factory overloads, provider context propagation, first-party ServiceLoader option wiring, and the JaCaMo runtime configuration bridge.
+- [x] (2026-06-07) Completed WP4 by removing legacy mutable strategy setters from first-party strategy classes, converting strategy settings to constructor-time option snapshots, updating core/provider/adapter docs, and updating the standalone Maven consumer example to use central typed configuration.
+- [x] (2026-06-07) Published updated `0.1.0-SNAPSHOT` artifacts to Maven local and verified the standalone Maven consumer compiles against the new configuration API.
+- [ ] Full WP5 React and JaCaMo runtime compatibility smoke checks have not yet been run against the migrated implementation.
 
 ## Surprises & Discoveries
 
-- Observation: The current `PredictionLlmStrategy` already has fluent setters such as `maxHistoryActions(...)`, but those setters only help callers that manually create the strategy.
-  Evidence: [src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java) stores `maxHistoryActions = 50` and exposes mutators, while [../ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java](../ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java) registers `new PredictionLlmStrategy(llmClient)` through ServiceLoader with no configuration input.
+- Observation: Before WP4, `PredictionLlmStrategy` had fluent setters such as `maxHistoryActions(...)`, but those setters only helped callers that manually created the strategy.
+  Evidence: Initial WP1 inspection found the setter pattern in [src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java), while [../ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java](../ccrs-langchain4j/src/main/java/ccrs/capabilities/llm/langchain4j/Langchain4jPredictionStrategyProvider.java) registered `new PredictionLlmStrategy(llmClient)` through ServiceLoader with no configuration input. WP4 removed those legacy mutators after provider context propagation was in place.
 
 - Observation: `ContingencyCcrsFactory` currently discovers providers with only a `StrategyRegistry` and `ClassLoader` boundary.
   Evidence: [src/main/java/ccrs/core/contingency/ContingencyCcrsFactory.java](src/main/java/ccrs/core/contingency/ContingencyCcrsFactory.java) calls `provider.registerStrategies(registry)`, and [src/main/java/ccrs/core/contingency/CcrsStrategyProvider.java](src/main/java/ccrs/core/contingency/CcrsStrategyProvider.java) has one abstract method that accepts only `StrategyRegistry`.
@@ -78,6 +80,9 @@ Use this matrix as the visual overview of work package priority and timing. Work
 
 - Observation: `BacktrackStrategy` has no public configuration setter, but it reads up to `1000` recent interactions when building its interaction graph.
   Evidence: [src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java) calls `context.getRecentInteractions(1000)` inside `buildInteractionGraph(...)`.
+
+- Observation: The standalone Maven consumer can fail against stale local SNAPSHOT artifacts even when the in-repo modules compile.
+  Evidence: [../examples/ccrs-library-consumer/src/main/java/example/CcrsLibraryConsumer.java](../examples/ccrs-library-consumer/src/main/java/example/CcrsLibraryConsumer.java) initially failed to compile because Maven local still exposed the old `ContingencyConfiguration.Builder` and `ContingencyCcrsFactory` APIs. Running `.\gradlew.bat publishToMavenLocal` refreshed the artifacts and the consumer then compiled after correcting the example to use `RetryStrategyOptions.Builder.initialDelayMs(...)`.
 
 ## Decision Log
 
@@ -109,6 +114,10 @@ Use this matrix as the visual overview of work package priority and timing. Work
   Rationale: The user chose to proceed with the certain first-pass option set now. Confidence formulas, parser calibration, prompt templates, and consultation discovery/projection policies remain outside WP2 until a later design pass promotes or declines them.
   Date/Author: 2026-06-07 / user, recorded by Codex.
 
+- Decision: Remove first-party legacy strategy mutators instead of deprecating them for this snapshot migration.
+  Rationale: The user explicitly requested full migration and legacy cleanup. Constructors remain for collaborators and typed option objects now cover first-party strategy settings, so retaining mutable setters would keep two public configuration models alive.
+  Date/Author: 2026-06-07 / Codex.
+
 ## Context and Orientation
 
 The repository root for the Java libraries is `S:\dev\ma\ccrs-bdi`. The reusable core module is [ccrs-core](.), and its contingency package is [src/main/java/ccrs/core/contingency](src/main/java/ccrs/core/contingency). Contingency CCRS means the failure-recovery part of CCRS. It evaluates a `Situation`, consults registered strategies such as retry, backtrack, consultation, LLM prediction, and stop, records a `CcrsTrace`, and returns selected `StrategyResult` suggestions.
@@ -129,7 +138,7 @@ The React adapter lives in [../../ccrs-react](../../ccrs-react). It uses JPype t
 
 ### WP1: Inventory current knobs and define target semantics
 
-Status: Now
+Status: Done
 
 Purpose: Produce a complete list of strategy values that are truly user-facing configuration and decide which option object owns each value. A future implementer should be able to edit from this inventory without guessing whether a constant is policy, resource control, or internal scoring detail.
 
@@ -149,12 +158,12 @@ Candidate knob status meanings:
 | Certain | Escalation policy, max level, max suggestions, tracing, learned selection toggle | [ContingencyConfiguration.java](src/main/java/ccrs/core/contingency/ContingencyConfiguration.java): `PARALLEL`, `maxEscalationLevel = 4`, `maxSuggestions = 7`, `traceEnabled = true`, `learnedSelectionEnabled = true` | Keep in `ContingencyConfiguration` orchestration settings | Already central and not a strategy-specific option. |
 | Certain | Learned selection history and gate thresholds | [ContingencyConfiguration.java](src/main/java/ccrs/core/contingency/ContingencyConfiguration.java): `learningHistoryLimit = 25`, `minimumLearningSamples = 2`, `minimumExpectedConfidenceGain = 0.10`, `highConfidenceEvaluationFloor = 0.80`, `cheapEvaluationTimeMs = 250` | Keep in `ContingencyConfiguration` strategy-selection settings | These configure the selector, not individual strategies. |
 | Declined | Deprecated cost reference times | [ContingencyConfiguration.java](src/main/java/ccrs/core/contingency/ContingencyConfiguration.java): L0 `50`, L1 `100`, L2 `1000`, L3 `2000`, L4 `3000`, deprecated | Do not move into new strategy options | Preserve only as deprecated compatibility until WP4 cleanup. |
-| Certain | LLM prediction max action history | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxHistoryActions = 50` | `PredictionLlmStrategyOptions.maxHistoryActions` | Prompt-size and context-window control; already has a public mutator. |
-| Certain | LLM prediction max perceived triples per interaction | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxInteractionStateTriples = 100` | `PredictionLlmStrategyOptions.maxInteractionStateTriples` | Prompt-size and evidence-volume control; already has a public mutator. |
-| Certain | LLM prediction max previous CCRS traces | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxCcrsTraces = 10` | `PredictionLlmStrategyOptions.maxCcrsTraces` | Prompt-size and trace-history control; already has a public mutator. |
-| Certain | LLM prediction local neighborhood bounds | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING`, `maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING`; defaults in [CcrsContext.java](src/main/java/ccrs/core/rdf/CcrsContext.java) | `PredictionLlmStrategyOptions.maxNeighborhoodOutgoing`, `maxNeighborhoodIncoming` | Prompt-size and RDF-neighborhood control; already has a public mutator. |
+| Certain | LLM prediction max action history | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxHistoryActions = 50` | `PredictionLlmStrategyOptions.maxHistoryActions` | Prompt-size and context-window control; migrated from a legacy per-strategy mutator. |
+| Certain | LLM prediction max perceived triples per interaction | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxInteractionStateTriples = 100` | `PredictionLlmStrategyOptions.maxInteractionStateTriples` | Prompt-size and evidence-volume control; migrated from a legacy per-strategy mutator. |
+| Certain | LLM prediction max previous CCRS traces | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxCcrsTraces = 10` | `PredictionLlmStrategyOptions.maxCcrsTraces` | Prompt-size and trace-history control; migrated from a legacy per-strategy mutator. |
+| Certain | LLM prediction local neighborhood bounds | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING`, `maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING`; defaults in [CcrsContext.java](src/main/java/ccrs/core/rdf/CcrsContext.java) | `PredictionLlmStrategyOptions.maxNeighborhoodOutgoing`, `maxNeighborhoodIncoming` | Prompt-size and RDF-neighborhood control; migrated from a legacy per-strategy mutator. |
 | Certain | LLM prompt triple namespace filter | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `filteredTripleNamespaces = ["https://example.org/ui"]` | `PredictionLlmStrategyOptions.filteredTripleNamespaces` | Domain presentation filtering should be available through ServiceLoader-created strategies. |
-| Certain | LLM fallback confidence when the model omits confidence | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `baseConfidence = 0.6` | `PredictionLlmStrategyOptions.baseConfidence` | Directly affects suggestion ranking; already has a public mutator. |
+| Certain | LLM fallback confidence when the model omits confidence | [PredictionLlmStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java): `baseConfidence = 0.6` | `PredictionLlmStrategyOptions.baseConfidence` | Directly affects suggestion ranking; migrated from a legacy per-strategy mutator. |
 | Certain | Default parser plain-text fallback enablement | [JsonActionParser.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/JsonActionParser.java): `enablePlainTextFallback = true` | `PredictionLlmStrategyOptions.plainTextFallbackEnabled` when using the default parser | ServiceLoader-created prediction strategies need a way to request strict JSON without custom strategy construction. |
 | Unsure | Default parser fallback confidence | [JsonActionParser.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/JsonActionParser.java): assigns `0.3` to plain-text extracted actions | Possibly `PredictionLlmStrategyOptions.plainTextFallbackConfidence` or parser-specific options | This affects ranking but belongs to parser calibration; decide before WP2 whether to expose it now. |
 | Unsure | Prediction prompt template text | [DefaultPredictionPromptBuilder.java](src/main/java/ccrs/core/contingency/strategies/internal/prediction/DefaultPredictionPromptBuilder.java): `withPredictionTemplate(...)`; default template embedded in builder | Possibly constructor dependency only, or `PredictionLlmStrategyOptions.predictionTemplate` for default builder | Prompt customization may be too large for a value option; provider-created strategies make it tempting, but a custom `PromptBuilder` is cleaner for advanced users. |
@@ -165,7 +174,7 @@ Candidate knob status meanings:
 | Certain | Retry initial delay | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `initialDelayMs = 1000` | `RetryStrategyOptions.initialDelayMs` | Retry policy control; already has a public mutator. |
 | Certain | Retry backoff multiplier | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `backoffMultiplier = 2.0` | `RetryStrategyOptions.backoffMultiplier` | Retry policy control; already has a public mutator. |
 | Certain | Retriable error codes | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `retriableCodes = 500, 502, 503, 504, timeout, connection_reset, connection_refused` | `RetryStrategyOptions.retriableCodes` | Domain and protocol policy; already has append-only public mutator, but options should support full replacement. |
-| Certain | Retry lookback limit | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `retryLookbackLimit = 25` | `RetryStrategyOptions.retryLookbackLimit` | Trace-history bound; already has a public mutator. |
+| Certain | Retry lookback limit | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `retryLookbackLimit = 25` | `RetryStrategyOptions.retryLookbackLimit` | Trace-history bound; migrated from a legacy per-strategy mutator. |
 | Unsure | Retry confidence policy | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `calculateConfidence` default `0.7`, `503 -> 0.8`, `500 -> 0.5`, decay `0.8` per attempt | Possibly `RetryStrategyOptions.confidencePolicy` or scalar confidence fields | Directly affects ranking, but exposing every coefficient may be premature. Resolve before WP2 if confidence calibration is in scope. |
 | Declined | Retry prior-situation matching predicate | [RetryStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/RetryStrategy.java): `situationMatchesForRetry(...)` matches type, failed action, and target resource | Keep internal for now | This is semantic identity logic rather than a normal setting. |
 | Certain | Backtrack max recent interactions | [BacktrackStrategy.java](src/main/java/ccrs/core/contingency/strategies/internal/BacktrackStrategy.java): `buildInteractionGraph(...)` reads `context.getRecentInteractions(1000)` | `BacktrackStrategyOptions.maxRecentInteractions` | Resource-use and graph-size control; this makes `BacktrackStrategyOptions` part of the first-pass option set. |
@@ -299,13 +308,13 @@ Discussion: Keep `CcrsStrategyProvider` source-compatible by retaining the exist
 
 Todos:
 
-- [ ] Add `CcrsStrategyProviderContext` in `ccrs.core.contingency`.
-- [ ] Add a default provider method `registerStrategies(StrategyRegistry registry, CcrsStrategyProviderContext context)` that delegates to the old method.
-- [ ] Add factory overloads that accept `ContingencyConfiguration`.
-- [ ] Add `ContingencyCcrs.withDefaults(ContingencyConfiguration config)` and `registerDefaultStrategies(StrategyRegistry registry, ContingencyConfiguration config)`.
-- [ ] Update core default strategy registration to pass typed options into retry, backtrack if applicable, and stop.
-- [ ] Update LangChain4j and A2A providers to read `PredictionLlmStrategyOptions` and `ConsultationStrategyOptions` from the context.
-- [ ] Update `CcrsJacamoRuntime` so callers can set a central configuration without replacing the whole supplier.
+- [x] Add `CcrsStrategyProviderContext` in `ccrs.core.contingency`.
+- [x] Add a default provider method `registerStrategies(StrategyRegistry registry, CcrsStrategyProviderContext context)` that delegates to the old method.
+- [x] Add factory overloads that accept `ContingencyConfiguration`.
+- [x] Add `ContingencyCcrs.withDefaults(ContingencyConfiguration config)` and `registerDefaultStrategies(StrategyRegistry registry, ContingencyConfiguration config)`.
+- [x] Update core default strategy registration to pass typed options into retry, backtrack if applicable, and stop.
+- [x] Update LangChain4j and A2A providers to read `PredictionLlmStrategyOptions` and `ConsultationStrategyOptions` from the context.
+- [x] Update `CcrsJacamoRuntime` so callers can set a central configuration without replacing the whole supplier.
 
 Concrete steps: Add APIs in this order to keep compilation failures local:
 
@@ -338,11 +347,18 @@ Validation and acceptance: Compile the core and optional modules:
 
 Expected behavior: existing providers that only implement `registerStrategies(StrategyRegistry)` still compile. First-party providers can read configured options and instantiate strategies with those options. Existing no-argument factory calls keep current defaults.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented on 2026-06-07. Added `CcrsStrategyProviderContext` and a context-aware `CcrsStrategyProvider.registerStrategies(...)` default overload while keeping the old single-argument method as the functional interface method. Added configuration-aware `ContingencyCcrs` and `ContingencyCcrsFactory` overloads. Core default registration now constructs retry, backtrack, and stop from central typed options. LangChain4j and A2A providers now read prediction and consultation options from the provider context. `CcrsJacamoRuntime` now stores a central `ContingencyConfiguration` and its default supplier passes it into `ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(...)`; custom suppliers remain available for full override.
+
+Validation run on 2026-06-07 from `S:\dev\ma\ccrs-bdi`:
+
+    .\gradlew.bat :ccrs-core:compileJava :ccrs-jacamo:compileJava :ccrs-langchain4j:compileJava :ccrs-a2a:compileJava
+    .\gradlew.bat :ccrs-core:compileJava :ccrs-jacamo:compileJava :ccrs-hypermedea:compileJava :ccrs-langchain4j:compileJava :ccrs-a2a:compileJava
+
+Results: both compile commands passed. No Java smoke tests were added in WP3; React and JaCaMo adapter smoke execution remains WP5.
 
 ### WP4: Migrate call sites, remove legacy mutators, and update docs
 
-Status: Next
+Status: Done
 
 Purpose: Finish the migration so active code uses the central configuration path and stale legacy setters do not invite users into the old model.
 
@@ -352,13 +368,13 @@ Discussion: Legacy cleanup should be deliberate. For `0.1.0-SNAPSHOT`, removal m
 
 Todos:
 
-- [ ] Replace first-party manual strategy construction examples with central configuration examples.
-- [ ] Remove or deprecate option mutators on built-in strategies after all call sites are migrated.
-- [ ] Replace mutable strategy fields with final option-derived fields where practical.
-- [ ] Update contingency README configuration examples to show typed strategy options and provider discovery.
-- [ ] Update `ccrs-jacamo` docs to show `CcrsJacamoRuntime.setContingencyConfiguration(...)` or the chosen equivalent.
-- [ ] Update React docs if the adapter exposes a Python-side way to pass the Java configuration.
-- [ ] Update Maven consumer example to demonstrate a non-default strategy option.
+- [x] Replace first-party manual strategy construction examples with central configuration examples.
+- [x] Remove or deprecate option mutators on built-in strategies after all call sites are migrated.
+- [x] Replace mutable strategy fields with final option-derived fields where practical.
+- [x] Update contingency README configuration examples to show typed strategy options and provider discovery.
+- [x] Update `ccrs-jacamo` docs to show `CcrsJacamoRuntime.setContingencyConfiguration(...)` or the chosen equivalent.
+- [x] Update React docs to state that the current Python wrapper uses default Java strategy options and that a Python-side configuration bridge is separate future work.
+- [x] Update Maven consumer example to demonstrate a non-default strategy option.
 
 Concrete steps: Search for legacy setter usage from `S:\dev\ma`:
 
@@ -368,7 +384,17 @@ After migration, this search should find only removed/deprecated definitions, re
 
 Validation and acceptance: Documentation examples compile or are demonstrably aligned with the final APIs. No first-party production code uses legacy strategy mutators. If deprecated methods remain, they are marked with `@Deprecated`, have JavaDoc pointing to the central configuration path, and are not used by examples.
 
-Outcome and notes: Not started.
+Outcome and notes: Implemented on 2026-06-07. `PredictionLlmStrategy`, `RetryStrategy`, `BacktrackStrategy`, `StopStrategy`, and `ConsultationStrategy` now snapshot typed options at construction time. Removed the legacy fluent mutators from those strategy classes, including prediction collaborator setters, retry setters, consultation channel setters, stop exhaustion setters, and the `StopStrategy.immediate()` convenience. Constructor injection remains available for collaborators such as `LlmClient`, `PromptBuilder`, `LlmResponseParser`, and `ConsultationChannel`.
+
+Documentation now teaches central typed configuration in [src/main/java/ccrs/core/contingency/README.md](src/main/java/ccrs/core/contingency/README.md), provider usage in [../ccrs-langchain4j/README.md](../ccrs-langchain4j/README.md) and [../ccrs-a2a/README.md](../ccrs-a2a/README.md), JaCaMo runtime configuration in [../ccrs-jacamo/README.md](../ccrs-jacamo/README.md), React wrapper boundaries in [../../ccrs-react/react_agent/ccrs/README.md](../../ccrs-react/react_agent/ccrs/README.md), and Maven consumer usage in [../examples/ccrs-library-consumer/README.md](../examples/ccrs-library-consumer/README.md). The durable architecture note [../CCRS_LIBRARY.md](../CCRS_LIBRARY.md) now describes provider-created prediction strategies receiving central options through configuration rather than relying on manual strategy construction.
+
+Validation run on 2026-06-07 from `S:\dev\ma\ccrs-bdi`:
+
+    .\gradlew.bat :ccrs-core:compileJava :ccrs-jacamo:compileJava :ccrs-hypermedea:compileJava :ccrs-langchain4j:compileJava :ccrs-a2a:compileJava
+    .\gradlew.bat publishToMavenLocal
+    .\gradlew.bat -p examples\ccrs-library-consumer compileJava
+
+Results: all commands passed. `publishToMavenLocal` emitted existing Javadoc warnings but completed successfully. The first standalone consumer compile attempt failed against stale Maven-local artifacts and then exposed one bad example method name, `initialDelay(...)`; after publishing the updated snapshot and correcting the example to `initialDelayMs(...)`, the consumer compile passed.
 
 ### WP5: Preserve React and JaCaMo adapter compatibility
 
@@ -563,3 +589,7 @@ Revision note 2026-06-07 / Codex: Completed the first WP1 inventory pass by addi
 Revision note 2026-06-07 / Codex: Added relative source links to every WP1 candidate knob row so each default or planned owner can be traced directly from the table.
 
 Revision note 2026-06-07 / Codex: Recorded the user decision to defer all WP1 `Unsure` rows, implemented WP2 typed option objects and central configuration wiring for `Certain` rows, and captured compile/test validation results.
+
+Revision note 2026-06-07 / Codex: Implemented WP3 propagation through core factory overloads, ServiceLoader provider context, LangChain4j/A2A provider option use, and the JaCaMo runtime configuration bridge; recorded compile validation results.
+
+Revision note 2026-06-07 / Codex: Completed WP4 by removing legacy mutable strategy mutators, making first-party strategies consume constructor-time typed option snapshots, updating core/provider/JaCaMo/React/Maven-consumer documentation, publishing updated SNAPSHOT artifacts to Maven local, and recording compile validation for the Java modules plus standalone consumer.

@@ -22,17 +22,20 @@ public class StopStrategy implements CcrsStrategy {
     
     public static final String ID = "stop";
     
-    // Configuration
-    private boolean requireExhaustion = true;
-    private int exhaustionThreshold = 2;  // Min strategies attempted before suggesting stop
-    private int stopLookbackLimit = 30;
+    // Configuration snapshot
+    private final boolean requireExhaustion;
+    private final int exhaustionThreshold;  // Min strategies attempted before suggesting stop
+    private final int stopLookbackLimit;
 
     public StopStrategy() {
         this(StopStrategyOptions.defaults());
     }
 
     public StopStrategy(StopStrategyOptions options) {
-        applyOptions(options == null ? StopStrategyOptions.defaults() : options);
+        StopStrategyOptions resolved = options == null ? StopStrategyOptions.defaults() : options;
+        this.requireExhaustion = resolved.isRequireExhaustion();
+        this.exhaustionThreshold = resolved.getExhaustionThreshold();
+        this.stopLookbackLimit = resolved.getStopLookbackLimit();
     }
     
     @Override
@@ -191,31 +194,4 @@ public class StopStrategy implements CcrsStrategy {
         return "Last resort - graceful goal abandonment when recovery is impossible";
     }
     
-    // Configuration
-
-    private void applyOptions(StopStrategyOptions options) {
-        this.requireExhaustion = options.isRequireExhaustion();
-        this.exhaustionThreshold = options.getExhaustionThreshold();
-        this.stopLookbackLimit = options.getStopLookbackLimit();
-    }
-    
-    public StopStrategy requireExhaustion(boolean require) {
-        this.requireExhaustion = require;
-        return this;
-    }
-    
-    public StopStrategy exhaustionThreshold(int threshold) {
-        this.exhaustionThreshold = threshold;
-        return this;
-    }
-    
-    /**
-     * Create a stop strategy that applies immediately (no exhaustion required).
-     */
-    public static StopStrategy immediate() {
-        return new StopStrategy(StopStrategyOptions.defaults()
-            .toBuilder()
-            .requireExhaustion(false)
-            .build());
-    }
 }

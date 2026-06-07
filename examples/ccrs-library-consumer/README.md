@@ -8,7 +8,8 @@ repository.
 ## What It Shows
 
 - Depends on `io.github.stefanmhsg.ccrs:ccrs-core:0.1.0-SNAPSHOT`.
-- Uses `ContingencyCcrsFactory.withCoreDefaults()`.
+- Uses `ContingencyConfiguration` with non-default strategy options.
+- Creates CCRS through `ContingencyCcrsFactory.withCoreDefaults(config)`.
 - Provides a minimal in-memory `CcrsContext`.
 - Builds a retryable `Situation` and prints the selected `StrategyResult`.
 
@@ -55,4 +56,17 @@ dependencies {
     runtimeOnly 'io.github.stefanmhsg.ccrs:ccrs-a2a:0.1.0-SNAPSHOT'
     runtimeOnly 'io.github.stefanmhsg.ccrs:ccrs-hypermedea:0.1.0-SNAPSHOT'
 }
+```
+
+Use the same central configuration object to tune built-in strategy behavior:
+
+```java
+ContingencyConfiguration config = ContingencyConfiguration.builder()
+    .retry(options -> options
+        .maxAttempts(5)
+        .initialDelayMs(500))
+    .predictionLlm(options -> options.maxHistoryActions(20))
+    .build();
+
+ContingencyCcrs ccrs = ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(config);
 ```

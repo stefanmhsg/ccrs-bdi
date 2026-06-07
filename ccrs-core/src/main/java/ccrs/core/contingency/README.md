@@ -287,7 +287,7 @@ This does not remove data from `CcrsContext`, the belief base, interaction histo
 
 The rationale is similar to preparing web content for an LLM: a browser page contains HTML, CSS, ARIA, layout metadata, and visual decoration, but question-answering prompts often convert it to markdown or another content-focused representation first. For CCRS prediction, `https://example.org/ui` triples describe presentation details such as UI elements, layers, fills, and drawing properties. Those triples can dominate the token budget while usually adding little to recovery-action selection. Filtering them keeps the prompt focused on actionable hypermedia state, links, previous interactions, and CCRS traces.
 
-The filter is configurable on `PredictionLlmStrategy` through `filteredTripleNamespaces(...)` and `filterTripleNamespace(...)` when a domain needs to retain or suppress different presentation namespaces.
+The filter is configurable through [`PredictionLlmStrategyOptions.java`](options/PredictionLlmStrategyOptions.java) and the central [`ContingencyConfiguration.java`](ContingencyConfiguration.java), so the same setting applies to strategies created by factories and `ServiceLoader` providers.
 
 ---
 
@@ -455,18 +455,33 @@ if (result instanceof StrategyResult.Suggestion suggestion) {
 
 ## 🔧 Configuration
 
+Use [`ContingencyConfiguration.java`](ContingencyConfiguration.java) for both orchestration settings and built-in strategy options:
+
 ```java
 ContingencyConfiguration config = ContingencyConfiguration.builder()
-    .maxEscalationLevel(4)           // Cap escalation at L4
+    .maxEscalationLevel(4)
     .minimumExpectedConfidenceGain(0.10)
     .highConfidenceEvaluationFloor(0.80)
     .cheapEvaluationTimeMs(250)
-    .enableTracing(true)             // Capture evaluation traces
-    .llmClient(myLlmClient)          // Inject LLM provider
-    .consultationChannel(myChannel)  // Inject consultation mechanism
+    .predictionLlm(options -> options
+        .maxHistoryActions(20)
+        .maxInteractionStateTriples(50)
+        .maxCcrsTraces(5))
+    .retry(options -> options
+        .maxAttempts(5)
+        .initialDelayMs(500))
+    .consultation(options -> options
+        .maxRecentInteractions(8)
+        .maxAgentCandidates(3))
+    .stop(options -> options
+        .requireExhaustion(true)
+        .exhaustionThreshold(2))
     .build();
 
-ContingencyCcrs ccrs = new ContingencyCcrs(config);
+ContingencyCcrs ccrs =
+    ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(config);
 ```
+
+Provider-specific collaborators, such as LangChain4j LLM clients or A2A consultation channels, stay in optional modules. Those modules receive the same central configuration through [`CcrsStrategyProviderContext.java`](CcrsStrategyProviderContext.java) when they are discovered by [`ContingencyCcrsFactory.java`](ContingencyCcrsFactory.java).
 
 

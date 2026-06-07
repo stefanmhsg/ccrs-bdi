@@ -99,12 +99,12 @@ public class ConsultationStrategy implements CcrsStrategy {
         }
     }
     
-    // Configuration
-    private ConsultationChannel channel;
-    private int maxRecentInteractions;
-    private int maxAgentCandidates;
-    private double defaultConfidence;
-    private int maxCcrsTraces;
+    // Configuration snapshot
+    private final ConsultationChannel channel;
+    private final int maxRecentInteractions;
+    private final int maxAgentCandidates;
+    private final double defaultConfidence;
+    private final int maxCcrsTraces;
     
     public ConsultationStrategy() {
         this(null, ConsultationStrategyOptions.defaults());
@@ -126,8 +126,12 @@ public class ConsultationStrategy implements CcrsStrategy {
     }
 
     public ConsultationStrategy(ConsultationChannel channel, ConsultationStrategyOptions options) {
+        ConsultationStrategyOptions resolved = options == null ? ConsultationStrategyOptions.defaults() : options;
         this.channel = channel;
-        applyOptions(options == null ? ConsultationStrategyOptions.defaults() : options);
+        this.maxRecentInteractions = resolved.getMaxRecentInteractions();
+        this.maxAgentCandidates = resolved.getMaxAgentCandidates();
+        this.defaultConfidence = resolved.getDefaultConfidence();
+        this.maxCcrsTraces = resolved.getMaxCcrsTraces();
     }
     
     @Override
@@ -601,25 +605,6 @@ public class ConsultationStrategy implements CcrsStrategy {
         return sb.toString();
     }
     
-    // Configuration
-    
-    public ConsultationStrategy withChannel(ConsultationChannel channel) {
-        this.channel = channel;
-        return this;
-    }
-
-    public ConsultationStrategy withMaxRecentInteractions(int maxRecentInteractions) {
-        this.maxRecentInteractions = Math.max(1, maxRecentInteractions);
-        return this;
-    }
-
-    private void applyOptions(ConsultationStrategyOptions options) {
-        this.maxRecentInteractions = options.getMaxRecentInteractions();
-        this.maxAgentCandidates = options.getMaxAgentCandidates();
-        this.defaultConfidence = options.getDefaultConfidence();
-        this.maxCcrsTraces = options.getMaxCcrsTraces();
-    }
-
     private String escapeTurtleLiteral(String value) {
         return value
             .replace("\\", "\\\\")

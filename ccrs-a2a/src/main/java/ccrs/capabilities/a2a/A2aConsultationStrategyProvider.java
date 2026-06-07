@@ -4,6 +4,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import ccrs.core.contingency.CcrsStrategyProvider;
+import ccrs.core.contingency.CcrsStrategyProviderContext;
 import ccrs.core.contingency.StrategyRegistry;
 import ccrs.core.contingency.strategies.social.ConsultationStrategy;
 
@@ -17,6 +18,13 @@ public class A2aConsultationStrategyProvider implements CcrsStrategyProvider {
 
     @Override
     public void registerStrategies(StrategyRegistry registry) {
+        registerStrategies(registry, null);
+    }
+
+    @Override
+    public void registerStrategies(
+            StrategyRegistry registry,
+            CcrsStrategyProviderContext context) {
         if (registry.getStrategy(ConsultationStrategy.ID).isPresent()) {
             logger.info("[A2AProvider] Consultation strategy already registered");
             return;
@@ -32,7 +40,11 @@ public class A2aConsultationStrategyProvider implements CcrsStrategyProvider {
                 return;
             }
 
-            registry.register(new ConsultationStrategy(channel));
+            registry.register(new ConsultationStrategy(
+                channel,
+                context != null
+                    ? context.configuration().getConsultationStrategyOptions()
+                    : null));
             logger.info("[A2AProvider] Registered A2A ConsultationStrategy");
         } catch (Exception e) {
             logger.log(Level.WARNING,

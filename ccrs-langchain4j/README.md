@@ -85,18 +85,26 @@ ccrs-core does not depend on LangChain4j.
 ## Usage
 
 ```java
-import ccrs.capabilities.llm.langchain4j.Langchain4jLlmClient;
-import ccrs.core.contingency.LlmClient;
-import ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy;
+import ccrs.core.contingency.ContingencyCcrs;
+import ccrs.core.contingency.ContingencyCcrsFactory;
+import ccrs.core.contingency.ContingencyConfiguration;
 
-LlmClient llmClient = Langchain4jLlmClient.fromEnvironment();
+ContingencyConfiguration config = ContingencyConfiguration.builder()
+    .predictionLlm(options -> options
+        .maxHistoryActions(20)
+        .maxInteractionStateTriples(50))
+    .build();
 
-PredictionLlmStrategy strategy = new PredictionLlmStrategy(llmClient);
+ContingencyCcrs ccrs =
+    ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(config);
 ```
 
 Applications that use `ContingencyCcrsFactory` can rely on the service file in
 [`META-INF/services/ccrs.core.contingency.CcrsStrategyProvider`](src/main/resources/META-INF/services/ccrs.core.contingency.CcrsStrategyProvider)
-instead of wiring the strategy manually.
+instead of wiring the strategy manually. The provider creates the LangChain4j
+client, registers [`PredictionLlmStrategy.java`](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java),
+and receives prediction options through the core
+[`CcrsStrategyProviderContext.java`](../ccrs-core/src/main/java/ccrs/core/contingency/CcrsStrategyProviderContext.java).
 
 ## Boundary Rule
 

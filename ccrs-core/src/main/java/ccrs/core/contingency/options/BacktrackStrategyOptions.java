@@ -30,6 +30,9 @@ public final class BacktrackStrategyOptions {
     public static final class Builder {
         private int maxRecentInteractions = 1000;
 
+        /**
+         * Limit recent interactions used to build the checkpoint graph.
+         */
         public Builder maxRecentInteractions(int max) {
             this.maxRecentInteractions = max;
             return this;

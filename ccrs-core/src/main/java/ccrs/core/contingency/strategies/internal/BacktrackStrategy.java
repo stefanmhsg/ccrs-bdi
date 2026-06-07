@@ -87,7 +87,7 @@ public class BacktrackStrategy implements CcrsStrategy {
 
     public static final String ID = "backtrack";
 
-    private int maxRecentInteractions = 1000;
+    private final int maxRecentInteractions;
 
     public BacktrackStrategy() {
         this(BacktrackStrategyOptions.defaults());

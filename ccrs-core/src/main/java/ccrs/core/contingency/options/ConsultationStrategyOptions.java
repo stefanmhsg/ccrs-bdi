@@ -59,21 +59,33 @@ public final class ConsultationStrategyOptions {
         private double defaultConfidence = 0.5;
         private int maxCcrsTraces = 3;
 
+        /**
+         * Limit recent interactions sent as consultation context and scanned for peer candidates.
+         */
         public Builder maxRecentInteractions(int max) {
             this.maxRecentInteractions = max;
             return this;
         }
 
+        /**
+         * Limit discovered consultation targets considered for one evaluation.
+         */
         public Builder maxAgentCandidates(int max) {
             this.maxAgentCandidates = max;
             return this;
         }
 
+        /**
+         * Fallback confidence when the consultation channel omits confidence.
+         */
         public Builder defaultConfidence(double confidence) {
             this.defaultConfidence = confidence;
             return this;
         }
 
+        /**
+         * Limit previous CCRS invocation traces sent as consultation context.
+         */
         public Builder maxCcrsTraces(int max) {
             this.maxCcrsTraces = max;
             return this;

@@ -1,6 +1,5 @@
 package ccrs.core.contingency.strategies.internal.prediction;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,17 +43,17 @@ public class PredictionLlmStrategy implements CcrsStrategy {
     
     public static final String ID = "prediction_llm";
     
-    // Configuration
-    private LlmClient llmClient;
-    private PromptBuilder promptBuilder;
-    private LlmResponseParser responseParser;
-    private double baseConfidence = 0.6;
-    private int maxHistoryActions = 50;
-    private int maxInteractionStateTriples = 100;
-    private int maxCcrsTraces = 10;
-    private int maxNeighborhoodOutgoing = CcrsContext.DEFAULT_MAX_OUTGOING;
-    private int maxNeighborhoodIncoming = CcrsContext.DEFAULT_MAX_INCOMING;
-    private List<String> filteredTripleNamespaces = List.of(PredictionLlmStrategyOptions.DEFAULT_FILTERED_TRIPLE_NAMESPACE);
+    // Configuration snapshot
+    private final LlmClient llmClient;
+    private final PromptBuilder promptBuilder;
+    private final LlmResponseParser responseParser;
+    private final double baseConfidence;
+    private final int maxHistoryActions;
+    private final int maxInteractionStateTriples;
+    private final int maxCcrsTraces;
+    private final int maxNeighborhoodOutgoing;
+    private final int maxNeighborhoodIncoming;
+    private final List<String> filteredTripleNamespaces;
 
     public PredictionLlmStrategy(LlmClient llmClient) {
         this(llmClient, PredictionLlmStrategyOptions.defaults());
@@ -73,10 +72,22 @@ public class PredictionLlmStrategy implements CcrsStrategy {
             PromptBuilder promptBuilder,
             LlmResponseParser responseParser,
             PredictionLlmStrategyOptions options) {
+        PredictionLlmStrategyOptions resolved = options == null
+            ? PredictionLlmStrategyOptions.defaults()
+            : options;
         this.llmClient = llmClient;
         this.promptBuilder = promptBuilder;
         this.responseParser = responseParser;
-        applyOptions(options == null ? PredictionLlmStrategyOptions.defaults() : options);
+        this.baseConfidence = resolved.getBaseConfidence();
+        this.maxHistoryActions = resolved.getMaxHistoryActions();
+        this.maxInteractionStateTriples = resolved.getMaxInteractionStateTriples();
+        this.maxCcrsTraces = resolved.getMaxCcrsTraces();
+        this.maxNeighborhoodOutgoing = resolved.getMaxNeighborhoodOutgoing();
+        this.maxNeighborhoodIncoming = resolved.getMaxNeighborhoodIncoming();
+        this.filteredTripleNamespaces = resolved.getFilteredTripleNamespaces();
+        if (this.responseParser instanceof JsonActionParser jsonActionParser) {
+            jsonActionParser.enablePlainTextFallback(resolved.isPlainTextFallbackEnabled());
+        }
     }
     
     @Override
@@ -519,104 +530,4 @@ public class PredictionLlmStrategy implements CcrsStrategy {
         return params;
     }
     
-    // Configuration methods
-
-    private void applyOptions(PredictionLlmStrategyOptions options) {
-        this.baseConfidence = options.getBaseConfidence();
-        this.maxHistoryActions = options.getMaxHistoryActions();
-        this.maxInteractionStateTriples = options.getMaxInteractionStateTriples();
-        this.maxCcrsTraces = options.getMaxCcrsTraces();
-        this.maxNeighborhoodOutgoing = options.getMaxNeighborhoodOutgoing();
-        this.maxNeighborhoodIncoming = options.getMaxNeighborhoodIncoming();
-        this.filteredTripleNamespaces = options.getFilteredTripleNamespaces();
-        if (this.responseParser instanceof JsonActionParser jsonActionParser) {
-            jsonActionParser.enablePlainTextFallback(options.isPlainTextFallbackEnabled());
-        }
-    }
-    
-    public PredictionLlmStrategy withClient(LlmClient client) {
-        this.llmClient = client;
-        return this;
-    }
-    
-    public PredictionLlmStrategy withPromptBuilder(PromptBuilder builder) {
-        this.promptBuilder = builder;
-        return this;
-    }
-    
-    public PredictionLlmStrategy withResponseParser(LlmResponseParser parser) {
-        this.responseParser = parser;
-        return this;
-    }
-    
-    public PredictionLlmStrategy maxHistoryActions(int max) {
-        this.maxHistoryActions = Math.max(0, max);
-        return this;
-    }
-
-    /**
-     * Limit perceived RDF triples shown for each formatted interaction.
-     *
-     * <p>This does not change {@link Interaction#toString()}, which remains
-     * compact for logging. It only controls LLM prompt context detail.</p>
-     */
-    public PredictionLlmStrategy maxInteractionStateTriples(int max) {
-        this.maxInteractionStateTriples = Math.max(0, max);
-        return this;
-    }
-    
-    /**
-     * Limit previous CCRS invocation traces included in the LLM prompt.
-     */
-    public PredictionLlmStrategy maxCcrsTraces(int max) {
-        this.maxCcrsTraces = Math.max(0, max);
-        return this;
-    }
-
-    public PredictionLlmStrategy maxNeighborhood(int maxOutgoing, int maxIncoming) {
-        this.maxNeighborhoodOutgoing = Math.max(0, maxOutgoing);
-        this.maxNeighborhoodIncoming = Math.max(0, maxIncoming);
-        return this;
-    }
-
-    /**
-     * Configure RDF namespaces removed from LLM prompt triple sections.
-     *
-     * <p>The default removes {@code https://example.org/ui} because those
-     * triples describe presentation details rather than actionable hypermedia
-     * state.</p>
-     */
-    public PredictionLlmStrategy filteredTripleNamespaces(List<String> namespaces) {
-        if (namespaces == null) {
-            this.filteredTripleNamespaces = List.of();
-            return this;
-        }
-
-        this.filteredTripleNamespaces = namespaces.stream()
-            .filter(ns -> ns != null && !ns.isBlank())
-            .distinct()
-            .toList();
-        return this;
-    }
-
-    /**
-     * Add one RDF namespace to remove from LLM prompt triple sections.
-     */
-    public PredictionLlmStrategy filterTripleNamespace(String namespace) {
-        if (namespace == null || namespace.isBlank()) {
-            return this;
-        }
-
-        List<String> namespaces = new ArrayList<>(this.filteredTripleNamespaces);
-        if (!namespaces.contains(namespace)) {
-            namespaces.add(namespace);
-        }
-        this.filteredTripleNamespaces = List.copyOf(namespaces);
-        return this;
-    }
-        
-    public PredictionLlmStrategy withConfidence(double confidence) {
-        this.baseConfidence = confidence;
-        return this;
-    }
 }

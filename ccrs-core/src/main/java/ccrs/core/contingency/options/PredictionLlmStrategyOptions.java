@@ -106,42 +106,73 @@ public final class PredictionLlmStrategyOptions {
         private double baseConfidence = 0.6;
         private boolean plainTextFallbackEnabled = true;
 
+        /**
+         * Limit recent agent interactions included in the prediction prompt.
+         */
         public Builder maxHistoryActions(int max) {
             this.maxHistoryActions = max;
             return this;
         }
 
+        /**
+         * Limit perceived RDF triples shown for each formatted interaction.
+         *
+         * <p>This does not change {@code Interaction.toString()}, which remains
+         * compact for logging. It only controls LLM prompt context detail.</p>
+         */
         public Builder maxInteractionStateTriples(int max) {
             this.maxInteractionStateTriples = max;
             return this;
         }
 
+        /**
+         * Limit previous CCRS invocation traces included in the prediction prompt.
+         */
         public Builder maxCcrsTraces(int max) {
             this.maxCcrsTraces = max;
             return this;
         }
 
+        /**
+         * Limit outgoing and incoming local RDF-neighborhood triples around the current resource.
+         */
         public Builder maxNeighborhood(int maxOutgoing, int maxIncoming) {
             this.maxNeighborhoodOutgoing = maxOutgoing;
             this.maxNeighborhoodIncoming = maxIncoming;
             return this;
         }
 
+        /**
+         * Limit outgoing local RDF-neighborhood triples around the current resource.
+         */
         public Builder maxNeighborhoodOutgoing(int max) {
             this.maxNeighborhoodOutgoing = max;
             return this;
         }
 
+        /**
+         * Limit incoming local RDF-neighborhood triples around the current resource.
+         */
         public Builder maxNeighborhoodIncoming(int max) {
             this.maxNeighborhoodIncoming = max;
             return this;
         }
 
+        /**
+         * Configure RDF namespaces removed from LLM prompt triple sections.
+         *
+         * <p>The default removes {@code https://example.org/ui} because those
+         * triples describe presentation details rather than actionable hypermedia
+         * state. Passing {@code null} or an empty list disables namespace filtering.</p>
+         */
         public Builder filteredTripleNamespaces(List<String> namespaces) {
             this.filteredTripleNamespaces = namespaces;
             return this;
         }
 
+        /**
+         * Add one RDF namespace to remove from LLM prompt triple sections.
+         */
         public Builder filterTripleNamespace(String namespace) {
             if (namespace == null || namespace.isBlank()) {
                 return this;
@@ -156,11 +187,17 @@ public final class PredictionLlmStrategyOptions {
             return this;
         }
 
+        /**
+         * Fallback suggestion confidence when the model response omits confidence.
+         */
         public Builder baseConfidence(double confidence) {
             this.baseConfidence = confidence;
             return this;
         }
 
+        /**
+         * Allow the default parser to extract a low-confidence action from non-JSON text.
+         */
         public Builder plainTextFallbackEnabled(boolean enabled) {
             this.plainTextFallbackEnabled = enabled;
             return this;

@@ -47,16 +47,25 @@ public final class StopStrategyOptions {
         private int exhaustionThreshold = 2;
         private int stopLookbackLimit = 30;
 
+        /**
+         * Require other non-stop strategy attempts before suggesting graceful stop.
+         */
         public Builder requireExhaustion(boolean require) {
             this.requireExhaustion = require;
             return this;
         }
 
+        /**
+         * Minimum recent non-stop strategy attempts before stop becomes applicable.
+         */
         public Builder exhaustionThreshold(int threshold) {
             this.exhaustionThreshold = threshold;
             return this;
         }
 
+        /**
+         * Limit recent CCRS traces inspected when checking exhaustion.
+         */
         public Builder stopLookbackLimit(int maxRecentTraces) {
             this.stopLookbackLimit = maxRecentTraces;
             return this;

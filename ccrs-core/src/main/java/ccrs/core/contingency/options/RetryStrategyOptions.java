@@ -67,26 +67,41 @@ public final class RetryStrategyOptions {
         private Set<String> retriableCodes = defaultRetriableCodes();
         private int retryLookbackLimit = 25;
 
+        /**
+         * Maximum retry suggestions for the same failed action and target.
+         */
         public Builder maxAttempts(int max) {
             this.maxAttempts = max;
             return this;
         }
 
+        /**
+         * Base delay for the first retry suggestion, before exponential backoff.
+         */
         public Builder initialDelayMs(long delayMs) {
             this.initialDelayMs = delayMs;
             return this;
         }
 
+        /**
+         * Exponential multiplier applied to the retry delay after each prior attempt.
+         */
         public Builder backoffMultiplier(double multiplier) {
             this.backoffMultiplier = multiplier;
             return this;
         }
 
+        /**
+         * Replace the HTTP status or error-type codes considered retryable.
+         */
         public Builder retriableCodes(Set<String> codes) {
             this.retriableCodes = normalizeCodes(codes);
             return this;
         }
 
+        /**
+         * Add one HTTP status or error-type code considered retryable.
+         */
         public Builder addRetriableCode(String code) {
             if (code != null && !code.isBlank()) {
                 this.retriableCodes.add(code);
@@ -94,6 +109,9 @@ public final class RetryStrategyOptions {
             return this;
         }
 
+        /**
+         * Limit recent CCRS traces inspected when counting previous retry attempts.
+         */
         public Builder retryLookbackLimit(int maxRecentTraces) {
             this.retryLookbackLimit = maxRecentTraces;
             return this;

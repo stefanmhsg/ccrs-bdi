@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import ccrs.core.contingency.ContingencyCcrs;
+import ccrs.core.contingency.ContingencyConfiguration;
 import ccrs.core.contingency.ContingencyCcrsFactory;
 import ccrs.jacamo.jason.contingency.InteractionHistoryProvider;
 
@@ -19,8 +20,11 @@ public final class CcrsJacamoRuntime {
     private static volatile InteractionHistoryProvider interactionHistoryProvider =
         InteractionHistoryProvider.empty();
 
+    private static volatile ContingencyConfiguration contingencyConfiguration =
+        ContingencyConfiguration.defaults();
+
     private static volatile Supplier<ContingencyCcrs> contingencyCcrsSupplier =
-        ContingencyCcrsFactory::withDefaultsAndDiscoveredProviders;
+        CcrsJacamoRuntime::createDefaultContingencyCcrs;
 
     private CcrsJacamoRuntime() {
     }
@@ -35,6 +39,16 @@ public final class CcrsJacamoRuntime {
             : InteractionHistoryProvider.empty();
     }
 
+    public static ContingencyConfiguration getContingencyConfiguration() {
+        return contingencyConfiguration;
+    }
+
+    public static void setContingencyConfiguration(ContingencyConfiguration configuration) {
+        contingencyConfiguration = configuration != null
+            ? configuration
+            : ContingencyConfiguration.defaults();
+    }
+
     public static ContingencyCcrs createContingencyCcrs() {
         return contingencyCcrsSupplier.get();
     }
@@ -45,6 +59,12 @@ public final class CcrsJacamoRuntime {
 
     public static void reset() {
         interactionHistoryProvider = InteractionHistoryProvider.empty();
-        contingencyCcrsSupplier = ContingencyCcrsFactory::withDefaultsAndDiscoveredProviders;
+        contingencyConfiguration = ContingencyConfiguration.defaults();
+        contingencyCcrsSupplier = CcrsJacamoRuntime::createDefaultContingencyCcrs;
+    }
+
+    private static ContingencyCcrs createDefaultContingencyCcrs() {
+        return ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(
+            contingencyConfiguration);
     }
 }

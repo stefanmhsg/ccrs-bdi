@@ -32,16 +32,31 @@ public class ContingencyCcrs {
     private StrategySelectionPolicy strategySelectionPolicy;
     
     public ContingencyCcrs() {
-        this(new StrategyRegistry());
+        this(ContingencyConfiguration.defaults());
+    }
+
+    public ContingencyCcrs(ContingencyConfiguration config) {
+        this(new StrategyRegistry(), config);
     }
     
     public ContingencyCcrs(StrategyRegistry registry) {
-        this(registry, new TraceBasedStrategySelectionPolicy());
+        this(registry, ContingencyConfiguration.defaults());
+    }
+
+    public ContingencyCcrs(StrategyRegistry registry, ContingencyConfiguration config) {
+        this(registry, config, new TraceBasedStrategySelectionPolicy());
     }
     
     public ContingencyCcrs(StrategyRegistry registry, StrategySelectionPolicy strategySelectionPolicy) {
+        this(registry, ContingencyConfiguration.defaults(), strategySelectionPolicy);
+    }
+
+    public ContingencyCcrs(
+            StrategyRegistry registry,
+            ContingencyConfiguration config,
+            StrategySelectionPolicy strategySelectionPolicy) {
         this.registry = Objects.requireNonNull(registry, "registry");
-        this.config = ContingencyConfiguration.defaults();
+        this.config = config != null ? config : ContingencyConfiguration.defaults();
         this.strategySelectionPolicy = Objects.requireNonNull(
             strategySelectionPolicy,
             "strategySelectionPolicy");
@@ -65,7 +80,7 @@ public class ContingencyCcrs {
      * Set configuration.
      */
     public void setConfig(ContingencyConfiguration config) {
-        this.config = config;
+        this.config = config != null ? config : ContingencyConfiguration.defaults();
     }
     
     /**
@@ -430,9 +445,17 @@ public class ContingencyCcrs {
      * Create a ContingencyCcrs instance with default strategies registered.
      */
     public static ContingencyCcrs withDefaults() {
+        return withDefaults(ContingencyConfiguration.defaults());
+    }
+
+    /**
+     * Create a ContingencyCcrs instance with configured default strategies registered.
+     */
+    public static ContingencyCcrs withDefaults(ContingencyConfiguration config) {
         logger.info("Creating ContingencyCcrs with default strategies");
-        ContingencyCcrs ccrs = new ContingencyCcrs();
-        registerDefaultStrategies(ccrs.getRegistry());
+        ContingencyConfiguration resolved = config != null ? config : ContingencyConfiguration.defaults();
+        ContingencyCcrs ccrs = new ContingencyCcrs(resolved);
+        registerDefaultStrategies(ccrs.getRegistry(), resolved);
         return ccrs;
     }
     
@@ -440,10 +463,23 @@ public class ContingencyCcrs {
      * Register the default built-in strategies.
      */
     public static void registerDefaultStrategies(StrategyRegistry registry) {
+        registerDefaultStrategies(registry, ContingencyConfiguration.defaults());
+    }
+
+    /**
+     * Register the configured default built-in strategies.
+     */
+    public static void registerDefaultStrategies(
+            StrategyRegistry registry,
+            ContingencyConfiguration config) {
+        ContingencyConfiguration resolved = config != null ? config : ContingencyConfiguration.defaults();
         // Import strategies from strategies package
-        registry.register(new ccrs.core.contingency.strategies.internal.RetryStrategy());
-        registry.register(new ccrs.core.contingency.strategies.internal.BacktrackStrategy());
-        registry.register(new ccrs.core.contingency.strategies.internal.StopStrategy());
+        registry.register(new ccrs.core.contingency.strategies.internal.RetryStrategy(
+            resolved.getRetryStrategyOptions()));
+        registry.register(new ccrs.core.contingency.strategies.internal.BacktrackStrategy(
+            resolved.getBacktrackStrategyOptions()));
+        registry.register(new ccrs.core.contingency.strategies.internal.StopStrategy(
+            resolved.getStopStrategyOptions()));
         // LLM & Consultation strategies registered separately as they need configuration
     }
 }

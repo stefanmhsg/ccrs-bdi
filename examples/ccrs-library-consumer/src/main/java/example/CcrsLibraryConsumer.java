@@ -2,6 +2,7 @@ package example;
 
 import ccrs.core.contingency.ContingencyCcrs;
 import ccrs.core.contingency.ContingencyCcrsFactory;
+import ccrs.core.contingency.ContingencyConfiguration;
 import ccrs.core.contingency.dto.CcrsTrace;
 import ccrs.core.contingency.dto.Situation;
 import ccrs.core.contingency.dto.StrategyResult;
@@ -35,7 +36,14 @@ public final class CcrsLibraryConsumer {
             .httpError(503, "Service unavailable")
             .build();
 
-        ContingencyCcrs ccrs = ContingencyCcrsFactory.withCoreDefaults();
+        ContingencyConfiguration config = ContingencyConfiguration.builder()
+            .retry(options -> options
+                .maxAttempts(5)
+                .initialDelayMs(500))
+            .stop(options -> options.exhaustionThreshold(1))
+            .build();
+
+        ContingencyCcrs ccrs = ContingencyCcrsFactory.withCoreDefaults(config);
         List<StrategyResult> results = ccrs.evaluate(situation, context);
 
         System.out.println("CCRS suggestions");

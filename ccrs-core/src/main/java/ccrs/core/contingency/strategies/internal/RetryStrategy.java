@@ -1,6 +1,5 @@
 package ccrs.core.contingency.strategies.internal;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -23,19 +22,24 @@ public class RetryStrategy implements CcrsStrategy {
     
     public static final String ID = "retry";
     
-    // Configuration
-    private int maxAttempts = 3;
-    private long initialDelayMs = 1000;
-    private double backoffMultiplier = 2.0;
-    private Set<String> retriableCodes = new HashSet<>();
-    private int retryLookbackLimit = 25;
+    // Configuration snapshot
+    private final int maxAttempts;
+    private final long initialDelayMs;
+    private final double backoffMultiplier;
+    private final Set<String> retriableCodes;
+    private final int retryLookbackLimit;
     
     public RetryStrategy() {
         this(RetryStrategyOptions.defaults());
     }
 
     public RetryStrategy(RetryStrategyOptions options) {
-        applyOptions(options == null ? RetryStrategyOptions.defaults() : options);
+        RetryStrategyOptions resolved = options == null ? RetryStrategyOptions.defaults() : options;
+        this.maxAttempts = resolved.getMaxAttempts();
+        this.initialDelayMs = resolved.getInitialDelayMs();
+        this.backoffMultiplier = resolved.getBackoffMultiplier();
+        this.retriableCodes = Set.copyOf(resolved.getRetriableCodes());
+        this.retryLookbackLimit = resolved.getRetryLookbackLimit();
     }
     
     @Override
@@ -173,11 +177,6 @@ public class RetryStrategy implements CcrsStrategy {
             : prior.getTargetResource().equals(current.getTargetResource());
     }
 
-    public RetryStrategy retryLookbackLimit(int maxRecentTraces) {
-        this.retryLookbackLimit = Math.max(1, maxRecentTraces);
-        return this;
-    }
-    
     private double calculateConfidence(int attemptCount, String httpStatus) {
         // Base confidence depends on error type
         double base = 0.7;
@@ -209,33 +208,4 @@ public class RetryStrategy implements CcrsStrategy {
         return sb.toString();
     }
     
-    // Configuration setters
-
-    private void applyOptions(RetryStrategyOptions options) {
-        this.maxAttempts = options.getMaxAttempts();
-        this.initialDelayMs = options.getInitialDelayMs();
-        this.backoffMultiplier = options.getBackoffMultiplier();
-        this.retriableCodes = new HashSet<>(options.getRetriableCodes());
-        this.retryLookbackLimit = options.getRetryLookbackLimit();
-    }
-    
-    public RetryStrategy maxAttempts(int max) {
-        this.maxAttempts = max;
-        return this;
-    }
-    
-    public RetryStrategy initialDelay(long delayMs) {
-        this.initialDelayMs = delayMs;
-        return this;
-    }
-    
-    public RetryStrategy backoffMultiplier(double multiplier) {
-        this.backoffMultiplier = multiplier;
-        return this;
-    }
-    
-    public RetryStrategy addRetriableCode(String code) {
-        this.retriableCodes.add(code);
-        return this;
-    }
 }

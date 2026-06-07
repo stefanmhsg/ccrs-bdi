@@ -85,6 +85,24 @@ lists only `A2aConsultationStrategyProvider`.
 This keeps `evaluate` independent from concrete LLM, A2A, or other capability
 implementations.
 
+Applications can configure the default factory path without replacing it:
+
+```java
+import ccrs.core.contingency.ContingencyConfiguration;
+import ccrs.jacamo.CcrsJacamoRuntime;
+
+CcrsJacamoRuntime.setContingencyConfiguration(
+    ContingencyConfiguration.builder()
+        .predictionLlm(options -> options.maxHistoryActions(20))
+        .retry(options -> options.maxAttempts(5))
+        .build()
+);
+```
+
+This keeps `ServiceLoader` discovery active while passing the same central
+configuration into built-in strategies and optional providers through
+[`CcrsStrategyProviderContext.java`](../ccrs-core/src/main/java/ccrs/core/contingency/CcrsStrategyProviderContext.java).
+
 Applications that do not want classpath-based discovery can override the
 factory completely:
 

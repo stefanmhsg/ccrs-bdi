@@ -12,6 +12,12 @@ consultation request into an A2A SDK interaction.
 For the strategy-side reasoning and selection behavior, see the consultation
 strategy documentation in
 [Consultation strategy README.md](../ccrs-core/src/main/java/ccrs/core/contingency/strategies/social/README.md).
+Strategy limits such as recent interaction count, candidate count, fallback
+confidence, and CCRS trace history are configured through
+[`ConsultationStrategyOptions.java`](../ccrs-core/src/main/java/ccrs/core/contingency/options/ConsultationStrategyOptions.java)
+on the central
+[`ContingencyConfiguration.java`](../ccrs-core/src/main/java/ccrs/core/contingency/ContingencyConfiguration.java).
+The A2A module owns only the provider-specific channel and transport settings.
 
 ## Architecture Overview
 
@@ -249,6 +255,20 @@ This split keeps responsibilities clear:
 
 - the channel handles communication,
 - the strategy handles contingency interpretation.
+
+Applications that use `ServiceLoader` should pass strategy behavior through the
+core configuration object:
+
+```java
+ContingencyConfiguration config = ContingencyConfiguration.builder()
+    .consultation(options -> options
+        .maxRecentInteractions(8)
+        .maxAgentCandidates(3))
+    .build();
+
+ContingencyCcrs ccrs =
+    ContingencyCcrsFactory.withDefaultsAndDiscoveredProviders(config);
+```
 
 ## Files of Interest
 

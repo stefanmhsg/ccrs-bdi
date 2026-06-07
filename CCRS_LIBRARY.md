@@ -199,19 +199,22 @@ prompts or parsing policy.
 
 Provider-agnostic LLM strategy support belongs in `ccrs-core`:
 
-- `ccrs.core.contingency.PromptBuilder`
-- `ccrs.core.contingency.LlmResponseParser`
-- `ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy`
-- `ccrs.core.contingency.strategies.internal.prediction.DefaultPredictionPromptBuilder`
-- `ccrs.core.contingency.strategies.internal.prediction.JsonActionParser`
+- [`PromptBuilder.java`](ccrs-core/src/main/java/ccrs/core/contingency/PromptBuilder.java)
+- [`LlmResponseParser.java`](ccrs-core/src/main/java/ccrs/core/contingency/LlmResponseParser.java)
+- [`PredictionLlmStrategy.java`](ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/PredictionLlmStrategy.java)
+- [`DefaultPredictionPromptBuilder.java`](ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/DefaultPredictionPromptBuilder.java)
+- [`JsonActionParser.java`](ccrs-core/src/main/java/ccrs/core/contingency/strategies/internal/prediction/JsonActionParser.java)
 
 This keeps the prompt with the consultation/prediction strategy behavior rather
 than with one concrete LLM provider. Applications can then plug in a different
 `LlmClient` capability without changing the core prompt contract.
 
 The default provider path should instantiate the core strategy with the
-provider client only, for example `new PredictionLlmStrategy(llmClient)`, so
-the core strategy selects its own standard prompt builder and response parser.
+provider client and the central prediction options from
+[`ContingencyConfiguration.java`](ccrs-core/src/main/java/ccrs/core/contingency/ContingencyConfiguration.java).
+That keeps prompt limits, parser fallback policy, and prompt triple filtering
+available to Maven consumers even when the strategy is created through
+`ServiceLoader`.
 
 ### ccrs-a2a
 
@@ -335,7 +338,8 @@ Concerns:
 - It lives under `core/contingency/strategies/internal`, but functionally it is
   an LLM capability.
 - Prompt-context formatting is embedded in the strategy.
-- UI namespace filtering is hardcoded by default.
+- UI namespace filtering has a default, but can be changed through
+  [`PredictionLlmStrategyOptions.java`](ccrs-core/src/main/java/ccrs/core/contingency/options/PredictionLlmStrategyOptions.java).
 
 Todos:
 

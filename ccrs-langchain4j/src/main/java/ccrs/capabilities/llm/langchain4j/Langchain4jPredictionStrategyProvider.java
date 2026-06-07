@@ -5,6 +5,7 @@ import java.util.logging.Logger;
 
 import ccrs.capabilities.DotenvConfigFallback;
 import ccrs.core.contingency.CcrsStrategyProvider;
+import ccrs.core.contingency.CcrsStrategyProviderContext;
 import ccrs.core.contingency.LlmClient;
 import ccrs.core.contingency.StrategyRegistry;
 import ccrs.core.contingency.strategies.internal.prediction.PredictionLlmStrategy;
@@ -19,6 +20,13 @@ public class Langchain4jPredictionStrategyProvider implements CcrsStrategyProvid
 
     @Override
     public void registerStrategies(StrategyRegistry registry) {
+        registerStrategies(registry, null);
+    }
+
+    @Override
+    public void registerStrategies(
+            StrategyRegistry registry,
+            CcrsStrategyProviderContext context) {
         if (registry.getStrategy(PredictionLlmStrategy.ID).isPresent()) {
             logger.info("[Langchain4jProvider] Prediction strategy already registered");
             return;
@@ -32,7 +40,11 @@ public class Langchain4jPredictionStrategyProvider implements CcrsStrategyProvid
                 return;
             }
 
-            registry.register(new PredictionLlmStrategy(llmClient));
+            registry.register(new PredictionLlmStrategy(
+                llmClient,
+                context != null
+                    ? context.configuration().getPredictionLlmStrategyOptions()
+                    : null));
             logger.info("[Langchain4jProvider] Registered PredictionLlmStrategy");
         } catch (Exception e) {
             logger.log(Level.WARNING,
