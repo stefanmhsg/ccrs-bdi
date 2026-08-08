@@ -22,7 +22,7 @@ dependencyResolutionManagement {
                         url = uri(ccrsRepositoryUrl.get())
                     } else {
                         name = 'GitHubPackages'
-                        url = uri('https://maven.pkg.github.com/stefanmhsg/ccrs-bdi')
+                        url = uri('https://maven.pkg.github.com/stefanmhsg/ccrs')
                         credentials {
                             username = githubPackagesUser.orNull
                             password = githubPackagesToken.orNull
@@ -43,7 +43,6 @@ dependencyResolutionManagement {
         maven { url = uri('https://repo.gradle.org/gradle/libs-releases') }
         maven { url = uri('https://hypermedea.github.io/maven') }
         maven { url = uri('https://jitpack.io') }
-        flatDir { dirs rootDir.toPath().resolve('lib').toFile() }
     }
 }
 

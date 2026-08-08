@@ -30,12 +30,60 @@ tasks.withType(JavaCompile).configureEach {
 def ccrsVersion = providers.gradleProperty('ccrsVersion')
     .getOrElse('0.1.0-SNAPSHOT')
 
+def knownCcrsCapabilities = ['hypermedea', 'langchain4j', 'a2a'] as Set
+def requestedCcrsCapabilities = providers.gradleProperty('ccrsCapabilities')
+    .getOrElse('all')
+    .split(',')
+    .collect { it.trim().toLowerCase() }
+    .findAll { !it.isEmpty() } as Set
+
+if (requestedCcrsCapabilities.contains('all') && requestedCcrsCapabilities.size() != 1) {
+    throw new GradleException("Use 'all' by itself in -PccrsCapabilities.")
+}
+if (requestedCcrsCapabilities.contains('none') && requestedCcrsCapabilities.size() != 1) {
+    throw new GradleException("Use 'none' by itself in -PccrsCapabilities.")
+}
+
+def unknownCcrsCapabilities = requestedCcrsCapabilities.findAll {
+    it != 'all' && it != 'none' && !knownCcrsCapabilities.contains(it)
+}
+if (!unknownCcrsCapabilities.isEmpty()) {
+    throw new GradleException(
+        "Unknown CCRS capabilities: ${unknownCcrsCapabilities.sort().join(', ')}. " +
+        "Choose none, all, or a comma-separated subset of ${knownCcrsCapabilities.sort().join(', ')}."
+    )
+}
+
+def enabledCcrsCapabilities = requestedCcrsCapabilities.contains('all')
+    ? knownCcrsCapabilities
+    : requestedCcrsCapabilities.contains('none')
+        ? [] as Set
+        : requestedCcrsCapabilities
+
 dependencies {
     implementation "io.github.stefanmhsg.ccrs:ccrs-core:${ccrsVersion}"
     implementation "io.github.stefanmhsg.ccrs:ccrs-jacamo:${ccrsVersion}"
-    implementation "io.github.stefanmhsg.ccrs:ccrs-hypermedea:${ccrsVersion}"
-    implementation "io.github.stefanmhsg.ccrs:ccrs-langchain4j:${ccrsVersion}"
-    implementation "io.github.stefanmhsg.ccrs:ccrs-a2a:${ccrsVersion}"
+
+    if (enabledCcrsCapabilities.contains('hypermedea')) {
+        runtimeOnly "io.github.stefanmhsg.ccrs:ccrs-hypermedea:${ccrsVersion}"
+    }
+    if (enabledCcrsCapabilities.contains('langchain4j')) {
+        runtimeOnly "io.github.stefanmhsg.ccrs:ccrs-langchain4j:${ccrsVersion}"
+    }
+    if (enabledCcrsCapabilities.contains('a2a')) {
+        runtimeOnly "io.github.stefanmhsg.ccrs:ccrs-a2a:${ccrsVersion}"
+    }
+}
+
+tasks.register('printCcrsCapabilities') {
+    group = 'help'
+    description = 'Prints the optional CCRS capability modules selected for this build.'
+    doLast {
+        def selected = enabledCcrsCapabilities.isEmpty()
+            ? 'none (core and JaCaMo only)'
+            : enabledCcrsCapabilities.sort().join(', ')
+        println "CCRS capabilities: ${selected}"
+    }
 }
 
 sourceSets {
@@ -131,7 +179,7 @@ shadowJar {
 
 
 task testJaCaMo(type: JavaExec) {
-    description = 'runs JaCaMo unit tests'
+    description = 'Runs the opt-in JaCaMo agent test suite.'
     outputs.upToDateWhen { false } // disable cache
 
     doFirst {
@@ -147,7 +195,38 @@ task testJaCaMo(type: JavaExec) {
     mainClass = 'jacamo.infra.JaCaMoLauncher'
     classpath sourceSets.main.runtimeClasspath
 }
-tasks.test.finalizedBy testJaCaMo
+
+def agentSpeakTestFixtures = [
+    file('src/test/tests.jcm'),
+    file('src/test/agt/test-sample.asl'),
+    file('src/test/agt/sample_agent.asl')
+]
+
+tasks.register('verifyAgentSpeakTestFixtures') {
+    group = 'verification'
+    description = 'Verifies that the application-owned JaCaMo test fixtures are complete.'
+    inputs.files(agentSpeakTestFixtures)
+
+    doLast {
+        def missingFixtures = agentSpeakTestFixtures.findAll { !it.isFile() }
+        if (!missingFixtures.isEmpty()) {
+            throw new GradleException(
+                "Missing JaCaMo test fixtures: ${missingFixtures*.path.join(', ')}"
+            )
+        }
+
+        def testAgent = file('src/test/agt/test-sample.asl').getText('UTF-8')
+        if (!testAgent.contains('include("sample_agent.asl")')) {
+            throw new GradleException(
+                'test-sample.asl must include the application-owned sample_agent.asl fixture.'
+            )
+        }
+    }
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('verifyAgentSpeakTestFixtures')
+}
 
 clean {
     delete 'bin'
