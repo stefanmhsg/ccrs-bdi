@@ -1,5 +1,7 @@
 name: Verify BDI package consumer
 
+# This repository verifies CCRS strictly through the published package boundary.
+
 on:
   workflow_dispatch:
   push:
