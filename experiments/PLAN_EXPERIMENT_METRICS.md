@@ -10,7 +10,22 @@ Manual MASE experiments should produce a compact analysis package that compares 
 
 The work also consolidates experiment-related scripts, reports, run archives, and documentation under `experiments/` so the experiment workflow has one obvious home.
 
+## Rules
+
+- Compare one BDI baseline agent with one BDI CCRS agent per experiment; do not aggregate repeated runs in the comparison summary.
+- Use the current MASE scenario definitions: `CcrsMazeV1` has no locks and 116 optimal moves; `CcrsMazeV2` has three locks and 138 optimal moves. Explicit scenario metadata takes precedence over batch naming.
+- Exclude initial placement into `cells/0` from evaluated movements and cycle rows; retain its timestamp as the reference for the first move leaving `cells/0` and count subsequent returns normally.
+- The deferred audit items below require investigation against the actual supplied logs and experiment context before implementation. Archive provenance and other audit suggestions are outside the current work.
+
 ## Progress
+
+- [x] (2026-10-17) Aligned scenario descriptions, total and zone optima with MASE and added explicit scenario resolution shared by parser and report.
+- [x] (2026-10-17) Excluded initial placement from movement/cycle totals, preserved first-move timing and path origin, and included zero-option decisions.
+- [x] (2026-10-17) Added end timestamps and elapsed-time output to both DFS give-up paths, report display, and failure-preserving outcome parsing.
+- [x] (2026-10-17) Added the single-sentence setup-agent readiness prerequisite to [README.md](README.md).
+- [ ] Audit item 3: Examine the baseline `dyn:needsAction` versus CCRS `hydra:operation` perception and the baseline's undefined `handle_suggestions` failure path; determine the intended shared baseline behaviour before changing either agent.
+- [ ] Audit item 6: Reassess zone completion, movement counts and incomplete-run optimality using the actual logs and exports supplied for experiments; establish whether missing-cycle-marker cases are relevant before changing zone fallback or delta semantics.
+- [ ] Audit item 7: Investigate supported real inputs for rotated-log chronology, agent filtering in JaCaMo logs, MASE event ordering, and mixed structured/legacy contingency records before changing parser behaviour.
 
 - [x] (2026-05-23) Defined the structured AgentSpeak cycle timestamp marker in [METRICS.md](METRICS.md).
 - [x] (2026-05-23) Created this plan under `experiments/` and recorded the cycle-duration and directory-consolidation work.
@@ -45,6 +60,13 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 
 ## Decision Log
 
+- Decision: Adopt the current MASE scenario mapping and count only movements after placement at `cells/0`; preserve one baseline-versus-CCRS pair as the comparison unit.
+  Rationale: These are the experiment conventions confirmed by the user; initial placement is setup, while later returns to the start cell are real traversal.
+  Date/Author: 2026-10-17 / User, implemented by Codex.
+- Decision: Implement give-up timestamp reporting, but defer audit items 3, 6 and 7 for contextual investigation without changing their behaviour.
+  Rationale: The user limited implementation to the approved corrections and requested explicit investigation TODOs for the remaining disputed or unclear findings.
+  Date/Author: 2026-10-17 / User, recorded by Codex.
+
 - Decision: Use `[METRIC] event=agent.cycle.location ...` as the AgentSpeak log marker for cycle timing.
   Rationale: The parser already understands `[METRIC]` key-value lines, the prefix separates machine-readable metrics from human messages, and a single-line marker is more robust than parsing `I'm now at: ...` plus a separate timestamp line.
   Date/Author: 2026-05-23 / Codex.
@@ -62,7 +84,7 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 
 Cycle-duration parsing, run-level cycle aggregates, the summary table, and SVG chart generation are implemented. Existing archived runs without `[METRIC] event=agent.cycle.location` markers report empty cycle values; new runs with the marker produce `cycle-durations.csv`, populated run-level averages, and `cycle-duration-comparison.svg`. A dependency-free black-box suite now verifies manual import, structured log and MASE parsing, report artifacts, agent filtering, cycle metrics, and repeatable generation without starting the experiment services.
 
-Move optimality reporting is implemented with scenario-specific `optimal_moves`, `actual_moves`, and `move_delta_from_optimal`. `CcrsMazeV1` uses total optimal moves `138`; `CcrsMazeV2` uses total optimal moves `116`. The summary also includes direct overruled decision counts grouped by `selected_type`; move-saving contribution remains reserved for future ablation runs.
+Move optimality reporting is implemented with scenario-specific `optimal_moves`, `actual_moves`, and `move_delta_from_optimal`. `CcrsMazeV1` uses total optimal moves `116`; `CcrsMazeV2` uses total optimal moves `138`, both measured from `cells/0`. The initial placement is excluded from evaluated movements and cycle rows. Both DFS agents emit end timestamps and elapsed duration on exit and give-up; reporting an elapsed duration does not imply success. The summary also includes direct overruled decision counts grouped by `selected_type`; move-saving contribution remains reserved for future ablation runs.
 
 Future work should move beyond raw overruled counts toward path-quality attribution. The goal is to explain how each opportunistic CCRS type affected deviation from the optimal path: green signifiers, orange signifiers, and stigmergy markers should each be measurable as contributing moves that either reduced or increased the final delta from the scenario-specific optimal path.
 
@@ -82,7 +104,7 @@ The current metric definitions are in [METRICS.md](METRICS.md). The manual exper
 
 Milestone 1 adds structured cycle timestamp markers to both agents. At the end of this milestone, a new run log contains `[METRIC] event=agent.cycle.location` lines with `step`, date fields, `t_ms`, `previous`, and `cell`.
 
-Milestone 2 parses cycle durations. `cycle-durations.csv` now exists in each report package and contains one row per movement cycle, with empty duration for the first marker and `duration_ms` for subsequent markers.
+Milestone 2 parses cycle durations. `cycle-durations.csv` contains one row per evaluated movement after placement at `cells/0`; the first evaluated move uses the placement timestamp as its reference. If that reference is absent, the first available movement retains an empty duration.
 
 Milestone 3 adds report tables. `summary.md` now includes a cycle-duration comparison table with the requested columns: baseline average, CCRS average, CCRS averages grouped by zero, one, two, and three-or-more opportunistic detections, and CCRS averages grouped by one, two, and three-or-more contingency invocations.
 
@@ -122,13 +144,13 @@ For zone-level reporting, first add a fixed zone definition table in [write-repo
 
 | Zone | Completion cell | Notes |
 | --- | --- | --- |
-| signifier | `cells/13/5` | Starts at run start; completion cell is the first cell of the stigmergy zone. |
+| signifier | `cells/13/5` | Starts after placement at `cells/0`; completion cell is the first cell of the stigmergy zone. |
 | stigmergy | `cells/28/14` | Starts after `cells/13/5`; completion cell is the first cell of the mixed zone. |
 | mixed | `cells/36/37` | Starts after `cells/28/14`; completion cell is the first cell of the construction site zone. |
 | construction site | `cells/39/43` | Starts after `cells/36/37`; completion cell is the first cell of the social zone. |
 | social | `cells/999` | Starts after `cells/39/43`; completion cell is the exit. |
 
-Then derive zone windows per run-agent pair from ordered movement or cycle rows. The signifier zone includes rows from the beginning of the run through the first row whose cell ends with `cells/13/5`. Each later zone uses the previous completion cell as its starting boundary, but its movement and duration counts begin after that boundary row and include rows through the first row whose cell ends with the zone completion cell. A zone is completed only when that completion cell is reached. If the start boundary for a later zone is never reached, report `completed = no` and leave duration and average-cycle fields blank.
+Then derive zone windows per run-agent pair from ordered movement or cycle rows. The signifier zone includes evaluated movements after placement at `cells/0` through the first row whose cell ends with `cells/13/5`; its first decision window starts at the placement marker. Each later zone uses the previous completion cell as its starting boundary, but its movement and duration counts begin after that boundary row and include rows through the first row whose cell ends with the zone completion cell. A zone is completed only when that completion cell is reached. If the start boundary for a later zone is never reached, report `completed = no` and leave duration and average-cycle fields blank.
 
 The zone section in `summary.md` must appear after the opportunistic CCRS overruled-decision section and before `## Generated Artifacts`. Use one subsection per zone. Each zone subsection should include:
 
@@ -158,9 +180,11 @@ Run or import a manual batch using the workflow in [README.md](README.md). Then 
 
 ## Validation and Acceptance
 
-Validation starts with a syntax and compilation check. Running `.\gradlew.bat classes` from `S:\dev\ma\ccrs-bdi` should complete successfully after the AgentSpeak edits.
+Validation starts with a syntax and compilation check. The modified give-up and timing plans in both ASL files passed the Jason 3.3.0 plan parser on 2026-10-17 without starting agents. `.\gradlew.bat test classes` also passed; Gradle reports `test NO-SOURCE`, so this is a build/fixture check rather than an agent-behaviour test.
 
-A manually imported batch with fresh logs should produce `experiments/reports/<batch-id>/cycle-durations.csv`. The first row per run-agent pair should have an empty `duration_ms`, and subsequent rows should have non-negative duration values.
+A manually imported batch with fresh logs should produce `experiments/reports/<batch-id>/cycle-durations.csv`. Initial placement is excluded; step 1 is the first move leaving `cells/0` and its duration uses the placement timestamp. A later return to `cells/0` must remain counted. If no initial placement marker was supplied, the first available movement duration stays empty.
+
+Run `powershell -ExecutionPolicy Bypass -File experiments/tests/test-report-generation.ps1` to verify import, repeatable reports, MASE-aligned scenario and zone optima, explicit scenario precedence, zero-option decisions, placement exclusion, and give-up timestamps/durations without false success. The four test groups passed on 2026-10-17. Tests use temporary fixtures and do not start agents or services.
 
 The regenerated `summary.md` should include a cycle-duration table with these columns: baseline average, CCRS average, CCRS average with zero opportunistic detections, one opportunistic detection, two opportunistic detections, three-or-more opportunistic detections, one contingency invocation, two contingency invocations, and three-or-more contingency invocations.
 
@@ -241,3 +265,5 @@ Revision note 2026-06-06 / Codex: Planned a zone-level report section before gen
 Revision note 2026-06-06 / Codex: Implemented the zone-level report section, `zone-summary.csv`, and per-zone cycle-duration SVG charts.
 
 Revision note 2026-06-06 / Codex: Replaced the placeholder zone optimal move counts with scenario-specific totals and zone counts for `CcrsMazeV1` and `CcrsMazeV2`.
+
+Revision note 2026-10-17 / Codex: Applied the approved BDI audit corrections to scenario metadata, movement counting, zero-option decisions and give-up timing; documented the setup prerequisite and retained audit items 3, 6 and 7 as investigation TODOs. Pairwise comparison and the remaining deferred behaviours are unchanged.

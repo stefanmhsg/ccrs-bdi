@@ -154,9 +154,10 @@ comparison metrics yet.
 | Metric | Scope | Current definition | Status |
 | --- | --- | --- | --- |
 | `reached_exit` | run | `true` when the final filtered MASE movement cell ends with `/cells/999`. This is the primary success criterion. | accepted |
-| `agent_elapsed_total_ms` | run | Agent-reported elapsed time parsed from `It took ... seconds and ... milliseconds` in JaCaMo logs, converted to milliseconds. | accepted |
-| `mase_agent_moved` | run | Count of filtered MASE `AGENT_MOVED` records for the experiment agent. This is the current total movement count. | accepted |
-| `optimal_moves` | run | Scenario-specific optimal path length: `138` moves for `CcrsMazeV1`, `116` moves for `CcrsMazeV2`. | accepted |
+| `agent_elapsed_total_ms` | run | Agent-reported elapsed time parsed from `It took ... seconds and ... milliseconds` in JaCaMo logs, converted to milliseconds; emitted on exit and on `I give up`. Duration alone does not indicate success. | accepted |
+| `agent_finished_at` | run | Agent-local end timestamp from `agent.run.finished`, shown in the core report table for exit and give-up outcomes. | accepted |
+| `mase_agent_moved` | run | Count of filtered MASE `AGENT_MOVED` records after initial placement at `cells/0`. The first evaluated move leaves `cells/0`; later returns to `cells/0` count normally. | accepted |
+| `optimal_moves` | run | Scenario-specific optimal path length from `cells/0`: `116` moves for the unlocked `CcrsMazeV1`, `138` moves for `CcrsMazeV2` with three locks and the required key detours. Explicit run `scenario` takes precedence over the version suffix in the batch name. | accepted |
 | `move_delta_from_optimal` | run | `actual_moves - optimal_moves`, where `actual_moves` is the filtered MASE movement count. | accepted |
 | `average_agent_cycle_duration_ms` | run | Mean of `duration_ms` from `cycle-durations.csv`, derived from adjacent `agent.cycle.location` markers. Existing runs without markers report an empty value. | accepted |
 | `multi_option_decisions` | run | Number of parsed `ccrs.opportunistic.prioritize` decisions where `options_count >= 2`. | accepted |
@@ -181,7 +182,7 @@ The current zone boundaries for the CCRS maze scenario family are:
 
 | Zone | Starts after | Completed when agent enters | Boundary meaning |
 | --- | --- | --- | --- |
-| signifier zone | run start | `cells/13/5` | `cells/13/5` is the first cell of the stigmergy zone. |
+| signifier zone | placement at `cells/0` | `cells/13/5` | `cells/13/5` is the first cell of the stigmergy zone. |
 | stigmergy zone | `cells/13/5` | `cells/28/14` | `cells/28/14` is the first cell of the mixed zone. |
 | mixed zone | `cells/28/14` | `cells/36/37` | `cells/36/37` is the first cell of the construction site zone. |
 | construction site zone | `cells/36/37` | `cells/39/43` | `cells/39/43` is the first cell of the social zone. |
@@ -194,7 +195,7 @@ starting cell for the next zone. For example, `cells/13/5` completes the
 signifier zone and is the first cell of the stigmergy zone. Movement, duration,
 and average-cycle counts for a later zone begin after its starting boundary and
 include the move into the zone's completion cell. For the signifier zone, the
-previous boundary is the run start. If a run never reaches a zone's start
+previous boundary is initial placement at `cells/0`, which is not counted as a move. If a run never reaches a zone's start
 boundary, that zone has no included rows and reports `completed = no` with empty
 duration and average-cycle fields.
 
@@ -208,7 +209,7 @@ explicitly stated otherwise:
 | `zone_total_moves` | run-zone | Count of included cycle rows for the experiment agent. The completion-cell move is included in the ending zone. | accepted |
 | `zone_average_cycle_duration_ms` | run-zone | Mean of non-empty `duration_ms` from included zone cycle rows. | accepted |
 | `zone_cycle_duration_chart` | zone | SVG chart with one line per run showing cycle duration by local step within the zone. | accepted |
-| `zone_move_optimality` | run-zone | Table columns for optimal moves, actual moves, and delta. `CcrsMazeV1` optimal moves are signifier `19`, stigmergy `24`, mixed `57`, construction site `19`, social `19`. `CcrsMazeV2` optimal moves are signifier `17`, stigmergy `24`, mixed `37`, construction site `19`, social `19`. | accepted |
+| `zone_move_optimality` | run-zone | Table columns for optimal moves, actual moves, and delta. `CcrsMazeV1` optimal moves are signifier `17`, stigmergy `24`, mixed `37`, construction site `19`, social `19`. `CcrsMazeV2` optimal moves are signifier `19`, stigmergy `24`, mixed `57`, construction site `19`, social `19`. | accepted |
 | `zone_cycle_duration_summary` | zone | Same shape as the whole-run cycle-duration summary: baseline average, CCRS average, CCRS opportunistic-count buckets `0`, `1`, `2`, `3+`, and dynamically generated CCRS contingency invocation columns if present in the zone. | accepted |
 | `zone_decision_breakdown` | zone | Same definitions as whole-run decision breakdown, filtered to decisions whose log line falls inside the zone's cycle window. | accepted |
 | `zone_opportunistic_type_overruled_decisions` | zone | Same definition as whole-run `opportunistic_type_overruled_decisions`, filtered to overruled decisions inside the zone and grouped by `selected_type`. | accepted |
@@ -257,8 +258,20 @@ for the same run-agent pair. The duration for step `N` is:
 cycle[N].duration_ms = cycle[N].timestamp_ms - cycle[N-1].timestamp_ms
 ```
 
-The first marker has no previous marker and should be written with an empty
-duration. Summary averages exclude empty durations.
+The initial marker at `cells/0` is retained internally as a timing reference,
+but omitted from `cycle-durations.csv`. The next marker is reported as step 1,
+with duration measured from placement at `cells/0`. Later returns to `cells/0`
+remain regular movement cycles. If the initial placement marker is missing,
+the first available movement marker has an empty duration; averages exclude it.
+
+The initial MASE placement remains in `mase-events.csv` as source evidence, but
+is omitted from `mase-agent-moved.csv` and movement totals. Path Analysis keeps
+`cells/0` as a starting coordinate; its `steps` count excludes that anchor.
+Scenario totals and zone optima are defined centrally in
+[scenario-metadata.ps1](scripts/scenario-metadata.ps1).
+
+The comparison summary intentionally compares one baseline agent with one CCRS
+agent; it does not aggregate repeated experiments.
 
 For the CCRS agent, opportunistic and contingency counts are assigned to the
 cycle window in which their structured log events occur:

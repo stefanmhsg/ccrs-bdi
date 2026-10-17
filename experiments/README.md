@@ -5,6 +5,10 @@
 Use this table as the manual experiment loop. Replace `baseline-vs-ccrs`,
 `001-baseline`, `.jcm`, and agent names with the current run identifiers.
 
+Start each experiment agent only after all setup agents have finished their run or reached their final position.
+
+Use the same explicit `-Scenario CcrsMazeV1` or `-Scenario CcrsMazeV2` on both imports, matching the MASE dataset: V1 has no locks and 116 optimal moves; V2 has three locks and 138 optimal moves, counted from `cells/0`.
+
 | Step | Where | Action | Command or UI action |
 | ---: | --- | --- | --- |
 | 1 | `\ccrs-bdi` | Prepare the staging folder | `New-Item -ItemType Directory -Force experiments\runs\latest` |
@@ -17,13 +21,13 @@ Use this table as the manual experiment loop. Replace `baseline-vs-ccrs`,
 | 6 | `\ccrs-bdi` | **Run the baseline agent** | `gradle run "-Pjcm=dfs_baseline.jcm"` |
 | 7 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-bdi\experiments\runs\latest`; confirm reset |
 | 8 | `\ccrs-bdi` | Stage the JaCaMo log | `Copy-Item log\mas-0.log experiments\runs\latest\ -Force` |
-| 9 | `\ccrs-bdi` | Import the baseline run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 001-baseline -Jcm dfs_baseline.jcm -AgentName dfs_baseline_nesw_1` |
+| 9 | `\ccrs-bdi` | Import the baseline run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 001-baseline -Jcm dfs_baseline.jcm -AgentName dfs_baseline_nesw_1 -Scenario CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 10 | `\mase` | Recreate scenario services for the next run | `docker compose -f docker-compose.ccrs.yml up -d --no-build --force-recreate ccrs-agent keyholder-agent` |
 | 11 | `\ccrs-bdi` | **Run the CCRS agent** | `gradle run "-Pjcm=dfs_ccrs.jcm"` |
 | 12 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-bdi\experiments\runs\latest`; confirm reset |
 | 13 | `\ccrs-bdi` | Stage the JaCaMo log | `Copy-Item log\mas-0.log experiments\runs\latest\ -Force` |
-| 14 | `\ccrs-bdi` | Import the CCRS run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 002-ccrs -Jcm dfs_ccrs.jcm -AgentName dfs_ccrs_1` |
+| 14 | `\ccrs-bdi` | Import the CCRS run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 002-ccrs -Jcm dfs_ccrs.jcm -AgentName dfs_ccrs_1 -Scenario CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 15 | `\ccrs-bdi` | Generate the analysis package | `powershell -ExecutionPolicy Bypass -File experiments/scripts/write-report.ps1 -BatchId baseline-vs-ccrs` |
 | 16 | `\ccrs-bdi` | Open the report | `experiments\reports\baseline-vs-ccrs\summary.md` |
@@ -80,6 +84,7 @@ powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.p
   -RunId 001-baseline `
   -Jcm dfs_baseline.jcm `
   -AgentName dfs_baseline_nesw_1 `
+  -Scenario CcrsMazeV1 `
   -Notes "Manual baseline run after viewer reset"
 ```
 
@@ -95,7 +100,8 @@ powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.p
   -BatchId baseline-vs-ccrs `
   -RunId 002-ccrs `
   -Jcm dfs_ccrs.jcm `
-  -AgentName dfs_ccrs_1
+  -AgentName dfs_ccrs_1 `
+  -Scenario CcrsMazeV1
 ```
 
 Generate or refresh the report package:

@@ -6,17 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Get-ScenarioOptimalMoveCount {
-    param([string]$ScenarioName)
-
-    if ($ScenarioName -match "(?i)(^|[-_])v1($|[-_])") {
-        return 138
-    }
-    if ($ScenarioName -match "(?i)(^|[-_])v2($|[-_])") {
-        return 116
-    }
-    return $null
-}
+. (Join-Path $PSScriptRoot 'scenario-metadata.ps1')
 
 function ConvertTo-TypedValue {
     param([string]$Text)
@@ -535,12 +525,21 @@ function New-CycleDurationRows {
     $orderedEvents = @($Events | Sort-Object @{ Expression = { [int]$_.sequence } })
     $previousMarker = $null
     $previousTimestamp = $null
+    $initialStep = 0
 
     foreach ($marker in $orderedMarkers) {
         $timestamp = Get-CycleAbsoluteTimestampMs $marker
         $duration = $null
         $oppCount = 0
         $contingencyCount = 0
+
+        if ($null -eq $previousMarker -and $marker.cell -match '/cells/0$') {
+            # Retain the placement timestamp as the start of the first evaluated move.
+            $initialStep = [int]$marker.step
+            $previousMarker = $marker
+            $previousTimestamp = $timestamp
+            continue
+        }
 
         if ($null -ne $previousMarker) {
             if ($null -ne $timestamp -and $null -ne $previousTimestamp) {
@@ -565,9 +564,10 @@ function New-CycleDurationRows {
             jcm = $marker.jcm
             ccrs_mode = $marker.ccrs_mode
             agent_label = $marker.agent_label
-            step = $marker.step
+            step = [int]$marker.step - $initialStep
             file = $marker.file
             line = $marker.line
+            previous_line = if ($previousMarker) { $previousMarker.line } else { $null }
             sequence = $marker.sequence
             timestamp_ms = $marker.timestamp_ms
             duration_ms = $duration
@@ -683,7 +683,6 @@ function Add-MaseEvent {
     }
 
     if ($type -eq "AGENT_MOVED") {
-        $Metrics.maseAgentMoved++
         if ($cell) {
             $Metrics.maseUniqueCells["$cell"] = $true
             $Metrics.maseFinalCell = $cell
@@ -691,6 +690,14 @@ function Add-MaseEvent {
         if ($agent) {
             $Metrics.maseFinalAgent = $agent
         }
+        $agentLabel = Get-ResourceLabel -Value $agent -PathPrefix 'agents'
+        $isFirstMovement = -not $Metrics.maseLastCells.ContainsKey($agentLabel)
+        $previousCell = $Metrics.maseLastCells[$agentLabel]
+        $Metrics.maseLastCells[$agentLabel] = $cell
+        if ($isFirstMovement -and $cell -match '/cells/0$') {
+            return
+        }
+        $Metrics.maseAgentMoved++
         $movedRow = [pscustomobject][ordered]@{
             batch_id = $RunMeta.batchId
             run_id = $RunId
@@ -703,6 +710,7 @@ function Add-MaseEvent {
             timestamp = $timestamp
             agent = $agent
             cell = $cell
+            previous_cell = $previousCell
             capture_source = $captureSource
         }
         [void]$AgentMovedRows.Add($movedRow)
@@ -782,6 +790,10 @@ function Write-PathAnalysisInputs {
             ForEach-Object { ConvertTo-PathAnalysisCell $_.cell } |
             Where-Object { $_ })
 
+        if ($orderedRows[0].previous_cell -match '/cells/0$') {
+            $cells = @('/cells/0') + $cells
+        }
+
         if ($cells.Count -eq 0) {
             continue
         }
@@ -807,7 +819,7 @@ function Write-PathAnalysisInputs {
             ccrs_mode = $RunMeta.ccrsMode
             agent = $agent
             agent_label = $agentLabel
-            steps = $cells.Count
+            steps = $orderedRows.Count
             first_cell = $cells[0]
             last_cell = $cells[$cells.Count - 1]
             sequence_format = "newline-separated cell paths"
@@ -1004,10 +1016,12 @@ foreach ($runDir in $runDirs) {
         successDetected = $false
         elapsedSeconds = $null
         elapsedMsRemainder = $null
+        finishedAt = $null
         triplesFound = $null
         metricQuality = "fallback"
         maseEventCount = 0
         maseAgentMoved = 0
+        maseLastCells = @{}
         maseTransactions = 0
         masePostTransactions = 0
         maseStartupTransactions = 0
@@ -1045,6 +1059,12 @@ foreach ($runDir in $runDirs) {
                 $metrics.metricQuality = "structured"
                 $event = [string]$kv["event"]
 
+                if ($event -eq 'agent.run.finished') {
+                    $finishedAt = [datetime]::new([int]$kv.y, [int]$kv.m, [int]$kv.d, [int]$kv.h, [int]$kv.min, [int]$kv.sec).AddMilliseconds([int]$kv.ms)
+                    $metrics.finishedAt = $finishedAt.ToString('yyyy-MM-dd HH:mm:ss.fff', [System.Globalization.CultureInfo]::InvariantCulture)
+                    continue
+                }
+
                 if ($event -eq "agent.cycle.location") {
                     Add-CycleMarker `
                         -Rows $runCycleMarkers `
@@ -1060,7 +1080,7 @@ foreach ($runDir in $runDirs) {
                 if ($event -eq "ccrs.opportunistic.prioritize") {
                     $structuredPrioritize = $true
                     $optionsCount = Get-MapValue $kv "options_count" 0
-                    if ($optionsCount -gt 0) {
+                    if ($optionsCount -ge 0) {
                         Add-Decision `
                             -Rows $decisionRows `
                             -Metrics $metrics `
@@ -1118,7 +1138,7 @@ foreach ($runDir in $runDirs) {
                 }
             }
 
-            if ($line -match "Already at exit:|It took|found .* triples in the KG") {
+            if ($line -match "Already at exit:") {
                 $metrics.successDetected = $true
             }
             if ($line -match "It took (\d+) seconds and (\d+) milliseconds") {
@@ -1219,7 +1239,7 @@ foreach ($runDir in $runDirs) {
         }
     }
 
-    $runCycleDurationRows = New-CycleDurationRows -Markers $runCycleMarkers -Events $runCycleEvents
+    $runCycleDurationRows = @(New-CycleDurationRows -Markers $runCycleMarkers -Events $runCycleEvents)
     if ($runCycleDurationRows.Count -gt 0) {
         foreach ($row in $runCycleDurationRows) {
             [void]$cycleRows.Add($row)
@@ -1306,7 +1326,8 @@ foreach ($runDir in $runDirs) {
     $multiOptionCcrsRate = if ($multiOptionDecisionCount -gt 0) { [math]::Round($metrics.multiOptionWithCcrs / $multiOptionDecisionCount, 4) } else { 0 }
     $multiOptionOverruledRate = if ($multiOptionDecisionCount -gt 0) { [math]::Round($metrics.multiOptionOverruled / $multiOptionDecisionCount, 4) } else { 0 }
     $maseMoveDelta = $metrics.moveAttempts - $metrics.maseAgentMoved
-    $scenarioOptimalMoves = Get-ScenarioOptimalMoveCount -ScenarioName $runMeta.batchId
+    $scenarioMetadata = Get-ScenarioReportMetadata -ScenarioName $runMeta.scenario -BatchName $runMeta.batchId
+    $scenarioOptimalMoves = $scenarioMetadata.optimal_moves
     $optimalMoveDelta = if ($null -ne $metrics.maseAgentMoved -and "$($metrics.maseAgentMoved)" -ne "") {
         if ($null -ne $scenarioOptimalMoves) {
             [int]$metrics.maseAgentMoved - $scenarioOptimalMoves
@@ -1325,7 +1346,7 @@ foreach ($runDir in $runDirs) {
     }
     $runCycleRowsArray = @($runCycleDurationRows)
     $averageCycleDurationMs = Get-CycleAverage -Rows $runCycleRowsArray
-    $averageCycleDurationStatus = if ($runCycleRowsArray.Count -gt 1 -and $null -ne $averageCycleDurationMs) { "" } else { "missing_agent_cycle_location_markers" }
+    $averageCycleDurationStatus = if ($null -ne $averageCycleDurationMs) { "" } else { "missing_agent_cycle_location_markers" }
     $averageCycleOpp0Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 0 }
     $averageCycleOpp1Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 1 }
     $averageCycleOpp2Ms = Get-CycleAverage -Rows $runCycleRowsArray -Filter { param($row) [int]$row.contingency_ccrs_invocation_count -eq 0 -and [int]$row.opp_ccrs_detected_count -eq 2 }
@@ -1362,6 +1383,7 @@ foreach ($runDir in $runDirs) {
         batch_id = $runMeta.batchId
         run_id = $runId
         repetition = $runMeta.repetition
+        scenario = $scenarioMetadata.name
         jcm = $runMeta.jcm
         agent_type = $runMeta.agentType
         ccrs_mode = $runMeta.ccrsMode
@@ -1376,6 +1398,7 @@ foreach ($runDir in $runDirs) {
         failure_category = $failureCategory
         duration_ms = $runMeta.durationMs
         agent_elapsed_total_ms = $agentElapsedTotalMs
+        agent_finished_at = $metrics.finishedAt
         agent_elapsed_seconds = $metrics.elapsedSeconds
         agent_elapsed_ms_remainder = $metrics.elapsedMsRemainder
         move_attempts = $metrics.moveAttempts

@@ -294,6 +294,9 @@ MAIN LOOP
     discovered(Location)[parent (Parent)] & entry_point(Parent)
     <-
         .print("All the way back to http://127.0.1.1:8080/maze. I give up.") ;
+        .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
+        -+finished(Y,M,D,H,Min,Sec,MilSec) ;
+        !report_time ;
         .fail_goal(backtrack_from(Location)) ;
         .fail_goal(select_next(Location)) ;
     .
@@ -449,6 +452,9 @@ HELPER PLANS
         // derive seconds and remaining milliseconds
         DiffSec = DiffMs div 1000 ;
         DiffRemMs = DiffMs mod 1000 ;
+
+        .print("[METRIC] event=agent.run.finished y=", Y2, " m=", M2, " d=", D2,
+               " h=", H2, " min=", Min2, " sec=", S2, " ms=", MilSec2) ;
         
         .print("It took ", DiffSec, " seconds and ", DiffRemMs, " milliseconds") ;
     .

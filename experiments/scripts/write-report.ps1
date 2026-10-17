@@ -754,46 +754,7 @@ function Get-RunRootHelp {
     return $message
 }
 
-function Get-ScenarioReportMetadata {
-    param([string]$BatchName)
-
-    if ($BatchName -match "(?i)(^|[-_])v1($|[-_])") {
-        return [pscustomobject][ordered]@{
-            name = "CcrsMazeV1"
-            description = "Scenario CcrsMazeV1 contains 3 locked cells. The baseline agent cannot complete the maze because it has no recovery mechanism for lock interactions. This scenario tests whether CCRS enables completion through contingency recovery, and separates normal opportunistic guidance from expensive contingency invocations."
-            optimal_moves = 138
-            zone_optimal_moves = @{
-                signifier = 19
-                stigmergy = 24
-                mixed = 57
-                "construction-site" = 19
-                social = 19
-            }
-        }
-    }
-
-    if ($BatchName -match "(?i)(^|[-_])v2($|[-_])") {
-        return [pscustomobject][ordered]@{
-            name = "CcrsMazeV2"
-            description = "Scenario CcrsMazeV2 contains no locked cells. It is the baseline traversal scenario: both agents can reach the exit without contingency recovery, so the comparison focuses on path efficiency, opportunistic CCRS influence, movement count, and normal cycle-time overhead."
-            optimal_moves = 116
-            zone_optimal_moves = @{
-                signifier = 17
-                stigmergy = 24
-                mixed = 37
-                "construction-site" = 19
-                social = 19
-            }
-        }
-    }
-
-    return [pscustomobject][ordered]@{
-        name = "unknown"
-        description = "Scenario metadata is not configured for this batch."
-        optimal_moves = $null
-        zone_optimal_moves = @{}
-    }
-}
+. (Join-Path $PSScriptRoot 'scenario-metadata.ps1')
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 if (-not $RunRoot) {
@@ -830,7 +791,7 @@ $pathAnalysisInputs = @(if (Test-Path -LiteralPath $pathAnalysisCsv) { Import-Cs
 $cycleDurations = @(if (Test-Path -LiteralPath $cycleDurationsCsv) { Import-Csv -Path $cycleDurationsCsv })
 
 $batchName = if ($BatchId) { $BatchId } else { Split-Path -Leaf $RunRoot }
-$scenarioMetadata = Get-ScenarioReportMetadata -BatchName $batchName
+$scenarioMetadata = Get-ScenarioReportMetadata -ScenarioName ($runs | Select-Object -First 1 -ExpandProperty scenario) -BatchName $batchName
 $summaryPath = Join-Path $OutputDir "summary.md"
 $cycleChartPath = Join-Path $OutputDir "cycle-duration-comparison.svg"
 $cycleChartLogScaleThresholdMs = 200
@@ -860,6 +821,7 @@ foreach ($zone in $zoneDefinitions) {
 }
 
 foreach ($run in ($runs | Sort-Object run_id)) {
+    $runScenarioMetadata = Get-ScenarioReportMetadata -ScenarioName $run.scenario -BatchName $run.batch_id
     $runCycleRows = @($cycleDurations | Where-Object { $_.run_id -eq $run.run_id } | Sort-Object @{ Expression = { [int]$_.step } }, @{ Expression = { [int]$_.line } })
     $previousBoundaryIndex = -1
     $previousBoundaryReached = $true
@@ -921,6 +883,9 @@ foreach ($run in ($runs | Sort-Object run_id)) {
         }
 
         $startLine = if ($startIndex -ge 0) { [int]$runCycleRows[$startIndex].line } else { -1 }
+        if ($includeStartRowAsMove -and $startIndex -ge 0 -and "$($runCycleRows[$startIndex].previous_line)" -ne '') {
+            $startLine = [int]$runCycleRows[$startIndex].previous_line
+        }
         $endLine = if ($endIndex -ge $startIndex -and $endIndex -ge 0) { [int]$runCycleRows[$endIndex].line } else { -1 }
         $zoneDecisionRows = @(Get-ZoneDecisionRows `
             -DecisionRows $decisions `
@@ -936,8 +901,8 @@ foreach ($run in ($runs | Sort-Object run_id)) {
         $finalRow = if ($endIndex -ge $startIndex -and $endIndex -ge 0) { $runCycleRows[$endIndex] } elseif ($zoneCycleRows.Count -gt 0) { $zoneCycleRows[-1] } else { $null }
         $startRow = if ($startIndex -ge 0) { $runCycleRows[$startIndex] } else { $null }
 
-        $zoneOptimalMoves = if ($scenarioMetadata.zone_optimal_moves.ContainsKey($zone.name)) {
-            $scenarioMetadata.zone_optimal_moves[$zone.name]
+        $zoneOptimalMoves = if ($runScenarioMetadata.zone_optimal_moves.ContainsKey($zone.name)) {
+            $runScenarioMetadata.zone_optimal_moves[$zone.name]
         } else {
             "tbd"
         }
@@ -1031,12 +996,12 @@ if ($runs.Count -eq 0) {
 
 $lines.Add("## Core Metrics")
 $lines.Add("")
-$lines.Add("| Run | JCM | Reached exit | Total duration ms (source = ASL) | Total moves | Avg agent cycle duration | Final cell |")
-$lines.Add("| --- | --- | --- | ---: | ---: | --- | --- |")
+$lines.Add("| Run | JCM | Reached exit | Finished at (agent local time) | Total duration ms (source = ASL) | Total moves | Avg agent cycle duration | Final cell |")
+$lines.Add("| --- | --- | --- | --- | ---: | ---: | --- | --- |")
 foreach ($row in $runs | Sort-Object run_id) {
     $duration = Format-Value $row.agent_elapsed_total_ms
     $avgCycle = Format-Ms $row.average_agent_cycle_duration_ms
-$lines.Add("| ``$($row.run_id)`` | ``$($row.jcm)`` | $(Format-Bool $row.reached_exit) | $duration | $($row.mase_agent_moved) | $avgCycle | ``$($row.mase_final_cell)`` |")
+$lines.Add("| ``$($row.run_id)`` | ``$($row.jcm)`` | $(Format-Bool $row.reached_exit) | $(Format-Value $row.agent_finished_at) | $duration | $($row.mase_agent_moved) | $avgCycle | ``$($row.mase_final_cell)`` |")
 }
 
 $lines.Add("")

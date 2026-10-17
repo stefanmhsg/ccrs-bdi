@@ -109,7 +109,8 @@ function New-FixtureRun {
         [string]$RunRoot,
         [string]$RunId,
         [string]$Agent,
-        [bool]$Ccrs
+        [bool]$Ccrs,
+        [string]$Scenario = 'ccrs'
     )
 
     $runDir = Join-Path $RunRoot $RunId
@@ -121,7 +122,7 @@ function New-FixtureRun {
         jcm = if ($Ccrs) { "dfs_ccrs.jcm" } else { "dfs_baseline.jcm" }
         agentType = "manual"
         ccrsMode = if ($Ccrs) { "both" } else { "none" }
-        scenario = "ccrs"
+        scenario = $Scenario
         status = "manual_import"
         timeout = $false
         exitCode = $null
@@ -138,6 +139,8 @@ function New-FixtureRun {
     if ($Ccrs) {
         $logLines.Add("[CcrsAgentArch] [CCRS-EVENT] event=ccrs.opportunistic.detected agent_id=$Agent source=http://127.0.1.1:8080/cells/0 target=http://127.0.1.1:8080/cells/999 type=signifier pattern_id=fixture utility=0.9")
         $logLines.Add("[prioritize] [CCRS-EVENT] event=ccrs.opportunistic.prioritize agent_id=$Agent options_count=2 matched_count=1 selected_uri=http://127.0.1.1:8080/cells/999 selected_original_index=1 selected_has_ccrs=true selected_reordered=true selected_origin=opportunistic-ccrs selected_type=signifier selected_utility=0.9 selected_strategy=null")
+        $logLines.Add("[prioritize] [CCRS-EVENT] event=ccrs.opportunistic.prioritize agent_id=$Agent options_count=0 matched_count=0 selected_uri=null selected_original_index=null selected_has_ccrs=false selected_reordered=false")
+        $logLines.Add("[prioritize] [CCRS-EVENT] event=ccrs.opportunistic.prioritize agent_id=$Agent options_count=1 matched_count=0 selected_uri=http://127.0.1.1:8080/cells/999 selected_original_index=0 selected_has_ccrs=false selected_reordered=false")
         $logLines.Add("[evaluate] [CCRS-EVENT] event=ccrs.contingency.evaluate.request agent_id=$Agent trigger=blocked_navigation current_resource=http://127.0.1.1:8080/cells/0 failed_action=get http_status=503 error_type=SERVER_FAILURE error_message=service_unavailable")
         $logLines.Add("[evaluate] [CCRS-EVENT] event=ccrs.contingency.strategy.evaluated agent_id=$Agent strategy_id=backtrack result_type=suggestion action_type=navigate action_target=http://127.0.1.1:8080/cells/999 confidence=0.8 rationale=fixture-recovery")
     }
@@ -224,13 +227,13 @@ try {
         $summary = Get-Content -LiteralPath (Join-Path $outputDir "summary.json") -Raw | ConvertFrom-Json
 
         Assert-Equal -Expected 2 -Actual $summary.runCount -Message "Unexpected run count"
-        Assert-Equal -Expected 1 -Actual $summary.decisionCount -Message "Unexpected decision count"
+        Assert-Equal -Expected 3 -Actual $summary.decisionCount -Message "Unexpected decision count"
         Assert-Equal -Expected 2 -Actual $summary.contingencyRecordCount -Message "Unexpected contingency count"
         Assert-Equal -Expected 8 -Actual $summary.actionRecordCount -Message "Unexpected action count"
         Assert-Equal -Expected 6 -Actual $summary.maseEventCount -Message "Agent filtering produced the wrong MASE count"
-        Assert-Equal -Expected 4 -Actual $summary.maseAgentMovedCount -Message "Unexpected movement count"
+        Assert-Equal -Expected 2 -Actual $summary.maseAgentMovedCount -Message "Initial placements must not count as moves"
         Assert-Equal -Expected 2 -Actual $summary.maseTransactionCount -Message "Unexpected transaction count"
-        Assert-Equal -Expected 4 -Actual $summary.cycleDurationCount -Message "Unexpected cycle count"
+        Assert-Equal -Expected 2 -Actual $summary.cycleDurationCount -Message "Initial placement markers must not count as cycles"
         Assert-Equal -Expected 2 -Actual $summary.pathAnalysisInputCount -Message "Unexpected path input count"
         Assert-Equal -Expected $firstSummary.decisionCount -Actual $summary.decisionCount -Message "Repeated parsing changed the decision count"
         Assert-Equal -Expected $firstSummary.maseEventCount -Actual $summary.maseEventCount -Message "Repeated parsing changed the MASE count"
@@ -244,6 +247,24 @@ try {
         Assert-Equal -Expected 400 -Actual $ccrs.average_agent_cycle_duration_ms -Message "CCRS cycle average is incorrect"
         Assert-Equal -Expected 1 -Actual $ccrs.ccrs_detected -Message "CCRS detection count is incorrect"
         Assert-Equal -Expected 1 -Actual $ccrs.contingency_invocations -Message "Contingency invocation count is incorrect"
+        Assert-Equal -Expected 2 -Actual $ccrs.zero_or_one_option_decisions -Message "Zero-option decisions must be included"
+        Assert-Equal -Expected 1 -Actual $ccrs.multi_option_decisions -Message "Zero-option decisions changed the multi-option denominator"
+        Assert-Equal -Expected 116 -Actual $baseline.optimal_moves -Message "V1 optimum must match MASE"
+        Assert-Equal -Expected 1 -Actual $baseline.actual_moves -Message "Placement was included in actual moves"
+        Assert-Equal -Expected (-115) -Actual $baseline.move_delta_from_optimal -Message "Move delta uses inconsistent counting"
+        Assert-Equal -Expected '' -Actual $baseline.average_agent_cycle_duration_status -Message "One timed move is a valid cycle sample"
+        $cycles = @(Import-Csv -LiteralPath (Join-Path $outputDir 'cycle-durations.csv'))
+        Assert-Equal -Expected 1 -Actual $cycles[0].step -Message "The first evaluated movement must be step 1"
+        $agentRows = @(Import-Csv -LiteralPath (Join-Path $outputDir 'agents.csv'))
+        Assert-Equal -Expected 1 -Actual $agentRows[0].mase_moves -Message "Per-agent count includes placement"
+        $zones = @(Import-Csv -LiteralPath (Join-Path $outputDir 'zone-summary.csv'))
+        $signifier = @($zones | Where-Object { $_.run_id -eq '002-ccrs' -and $_.zone -eq 'signifier' })[0]
+        Assert-Equal -Expected 1 -Actual $signifier.actual_moves -Message "Zone count includes placement"
+        Assert-Equal -Expected 17 -Actual $signifier.optimal_moves -Message "V1 zone optimum must match MASE"
+        Assert-Equal -Expected 1 -Actual $signifier.multi_option_decisions -Message "First-move decision was lost from the zone"
+        $paths = @(Import-Csv -LiteralPath (Join-Path $outputDir 'path-analysis-inputs.csv'))
+        Assert-Equal -Expected 1 -Actual $paths[0].steps -Message "Path steps must exclude the start anchor"
+        Assert-Equal -Expected '/cells/0' -Actual (Get-Content -LiteralPath (Join-Path $outputDir $paths[0].file) -TotalCount 1) -Message "Path lost its start anchor"
 
         $decisions = @(Import-Csv -LiteralPath (Join-Path $outputDir "decisions.csv"))
         Assert-Equal -Expected "True" -Actual $decisions[0].selected_reordered -Message "Decision reordering was not parsed"
@@ -256,6 +277,57 @@ try {
         $markdown = Get-Content -LiteralPath (Join-Path $outputDir "summary.md") -Raw
         Assert-True -Condition $markdown.Contains("# Experiment Summary: fixture-v1") -Message "Report title is missing"
         Assert-True -Condition $markdown.Contains("## Zone Metrics") -Message "Zone report section is missing"
+    }
+
+    Invoke-Test -Name 'explicit V2 scenario overrides the batch suffix' -Body {
+        $runRoot = Join-Path $testRoot 'scenario-runs'
+        $outputDir = Join-Path $testRoot 'scenario-output'
+        New-FixtureRun -RunRoot $runRoot -RunId '001-baseline' -Agent 'baseline' -Ccrs $false -Scenario 'CcrsMazeV2'
+        & (Join-Path $scriptsDir 'write-report.ps1') -BatchId 'neutral-batch' -RunRoot $runRoot -OutputDir $outputDir
+        $run = @(Import-Csv -LiteralPath (Join-Path $outputDir 'runs.csv'))[0]
+        Assert-Equal -Expected 'CcrsMazeV2' -Actual $run.scenario -Message 'Explicit scenario was ignored'
+        Assert-Equal -Expected 138 -Actual $run.optimal_moves -Message 'V2 optimum must match MASE'
+        $zones = @(Import-Csv -LiteralPath (Join-Path $outputDir 'zone-summary.csv'))
+        Assert-Equal -Expected 19 -Actual $zones[0].optimal_moves -Message 'V2 signifier optimum is incorrect'
+        Assert-Equal -Expected 57 -Actual $zones[2].optimal_moves -Message 'V2 mixed optimum is incorrect'
+        $markdown = Get-Content -LiteralPath (Join-Path $outputDir 'summary.md') -Raw
+        Assert-True -Condition $markdown.Contains('Scenario: CcrsMazeV2') -Message 'Report scenario differs from run metrics'
+        Assert-True -Condition $markdown.Contains('contains 3 locked cells') -Message 'V2 scenario description is incorrect'
+    }
+
+    Invoke-Test -Name 'give-up timestamps and return moves appear without success' -Body {
+        $runRoot = Join-Path $testRoot 'give-up-runs'
+        $outputDir = Join-Path $testRoot 'give-up-output'
+        foreach ($case in @(@('001-baseline', $false), @('002-ccrs', $true))) {
+            $agent = $case[0]
+            New-FixtureRun -RunRoot $runRoot -RunId $agent -Agent $agent -Ccrs $case[1]
+            $runDir = Join-Path $runRoot $agent
+            @(
+                "[$agent] [METRIC] event=agent.cycle.location step=1 y=2026 m=1 d=1 h=12 min=0 sec=0 ms=0 t_ms=43200000 previous=http://localhost/maze cell=http://localhost/cells/0"
+                "[$agent] [METRIC] event=agent.cycle.location step=2 y=2026 m=1 d=1 h=12 min=0 sec=0 ms=200 t_ms=43200200 previous=http://localhost/cells/0 cell=http://localhost/cells/1"
+                "[$agent] [METRIC] event=agent.cycle.location step=3 y=2026 m=1 d=1 h=12 min=0 sec=0 ms=400 t_ms=43200400 previous=http://localhost/cells/1 cell=http://localhost/cells/0"
+                "[$agent] All the way back to http://localhost/maze. I give up."
+                "[$agent] [METRIC] event=agent.run.finished y=2026 m=1 d=1 h=12 min=0 sec=1 ms=234"
+                "[$agent] It took 1 seconds and 234 milliseconds"
+                "[$agent] found 42 triples in the KG."
+            ) | Set-Content -LiteralPath (Join-Path $runDir 'mas-0.log') -Encoding UTF8
+            Write-Ndjson -Path (Join-Path $runDir 'mase-events.jsonl') -Records @(
+                (New-MaseEvent -Type 'AGENT_MOVED' -Agent $agent -Cell 'cells/0' -Sequence 1),
+                (New-MaseEvent -Type 'AGENT_MOVED' -Agent $agent -Cell 'cells/1' -Sequence 2),
+                (New-MaseEvent -Type 'AGENT_MOVED' -Agent $agent -Cell 'cells/0' -Sequence 3)
+            )
+        }
+        & (Join-Path $scriptsDir 'write-report.ps1') -BatchId 'give-up-v1' -RunRoot $runRoot -OutputDir $outputDir
+        foreach ($run in @(Import-Csv -LiteralPath (Join-Path $outputDir 'runs.csv'))) {
+            Assert-Equal -Expected 'failure' -Actual $run.outcome -Message 'Elapsed time must not imply success'
+            Assert-Equal -Expected 'False' -Actual $run.reached_exit -Message 'Give-up was reported as reaching exit'
+            Assert-Equal -Expected 1234 -Actual $run.agent_elapsed_total_ms -Message 'Give-up duration is missing'
+            Assert-Equal -Expected '2026-01-01 12:00:01.234' -Actual $run.agent_finished_at -Message 'End timestamp is missing'
+            Assert-Equal -Expected 2 -Actual $run.actual_moves -Message 'A later return to cells/0 must count'
+            Assert-Equal -Expected 200 -Actual $run.average_agent_cycle_duration_ms -Message 'First evaluated move lost its time reference'
+        }
+        $markdown = Get-Content -LiteralPath (Join-Path $outputDir 'summary.md') -Raw
+        Assert-Equal -Expected 2 -Actual ([regex]::Matches($markdown, 'no \| 2026-01-01 12:00:01.234 \| 1234').Count) -Message 'Both give-up results must show end timestamp and duration in the report'
     }
 
     if ($script:failures.Count -gt 0) {
