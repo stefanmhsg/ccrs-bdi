@@ -22,8 +22,11 @@
 
 ## Application Ownership
 
-- Keep `.jcm`, `.asl`, `.env.example`, logging, experiments, and
+- Keep `.jcm`, `.asl`, `.env.example`, logging, system-specific experiment instructions, and
   application-specific Java/XML content in this repository.
+- Shared experiment support/reporting is maintained in
+  [ccrs-experiments](../ccrs-experiments/README.md). Invoke its tools directly;
+  do not add local copies, forwarding scripts or redirect documents here.
 - Keep `src/agt/examples/contingency/examples.asl` application-owned.
 - Do not duplicate CCRS library source, service descriptors, publication logic,
   or library architecture plans here.

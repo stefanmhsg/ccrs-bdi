@@ -1,5 +1,10 @@
 # PLAN_EXPERIMENT_METRICS: Add cycle-duration metrics and consolidate experiment tooling
 
+Historical implementation plan. Current experiment tooling and future shared
+work are maintained in [ccrs-experiments](../../ccrs-experiments/PLAN_EXPERIMENT_TOOLING.md).
+Tool links and commands below use canonical locations; original historical
+progress remains recorded. There are no forwarding files at the old paths.
+
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 This repository does not currently have a checked-in `PLANS.md` guide. This plan follows the local `PLAN_<SCOPE>.md` convention described in the repository guidance.
@@ -27,14 +32,14 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 - [ ] Audit item 6: Reassess zone completion, movement counts and incomplete-run optimality using the actual logs and exports supplied for experiments; establish whether missing-cycle-marker cases are relevant before changing zone fallback or delta semantics.
 - [ ] Audit item 7: Investigate supported real inputs for rotated-log chronology, agent filtering in JaCaMo logs, MASE event ordering, and mixed structured/legacy contingency records before changing parser behaviour.
 
-- [x] (2026-05-23) Defined the structured AgentSpeak cycle timestamp marker in [METRICS.md](METRICS.md).
+- [x] (2026-05-23) Defined the structured AgentSpeak cycle timestamp marker in [METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md).
 - [x] (2026-05-23) Created this plan under `experiments/` and recorded the cycle-duration and directory-consolidation work.
 - [x] (2026-05-23) Updated `.gitignore` exceptions so experiment Markdown files and future `experiments/scripts/` files are not hidden by the generated-artifact ignore rule.
 - [x] (2026-05-23) Added the `[METRIC] event=agent.cycle.location ...` marker to both [dfs_baseline.asl](../src/agt/dfs_baseline.asl) and [dfs_ccrs.asl](../src/agt/dfs_ccrs.asl).
 - [x] (2026-05-23) Moved experiment scripts and documentation under `experiments/`.
 - [x] (2026-05-23) Removed the legacy compatibility wrappers from `scripts/experiments/`.
-- [x] (2026-05-23) Extended [parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) to create `cycle-durations.csv`.
-- [x] (2026-05-23) Extended [write-report.ps1](scripts/write-report.ps1) to add the requested cycle-duration summary table.
+- [x] (2026-05-23) Extended [parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1) to create `cycle-durations.csv`.
+- [x] (2026-05-23) Extended [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) to add the requested cycle-duration summary table.
 - [x] (2026-05-23) Generated `cycle-duration-comparison.svg` when parsed cycle durations are available.
 - [x] (2026-05-23) Moved experiment tooling and documentation into `experiments/` and updated links and commands.
 - [x] (2026-05-23) Added move optimality metrics; later revised to scenario-specific optimal path lengths.
@@ -52,9 +57,9 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 ## Surprises & Discoveries
 
 - Observation: The manual importer accepted `.json` MASE exports by filename but only parsed one JSON object per physical line.
-  Evidence: The black-box fixture supplied a valid JSON array and produced zero events with one parse error per formatted line. [import-manual-run.ps1](scripts/import-manual-run.ps1) now handles JSON arrays and line-oriented NDJSON/JSONL, and the test covers both formats.
+  Evidence: The black-box fixture supplied a valid JSON array and produced zero events with one parse error per formatted line. [import-manual-run.ps1](../../ccrs-experiments/scripts/bdi/import-manual-run.ps1) now handles JSON arrays and line-oriented NDJSON/JSONL, and the test covers both formats.
 - Observation: The parser already supports structured `[METRIC]` lines through the same `key=value` parser used for `[CCRS-EVENT]`.
-  Evidence: [parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) includes `[METRIC]` in `ConvertFrom-KeyValueLine`.
+  Evidence: [parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1) includes `[METRIC]` in `ConvertFrom-KeyValueLine`.
 - Observation: There was no existing `PLAN_*.md` in `ccrs-bdi`, so this plan is the first executable plan for the experiment metrics work.
   Evidence: `rg --files -g "PLAN_*.md" -g "PLANS.md"` returned only the experiment README and metrics docs before this file was added.
 
@@ -90,15 +95,15 @@ Future work should move beyond raw overruled counts toward path-quality attribut
 
 ## Context and Orientation
 
-The repository is `ccrs-bdi`. It contains the JaCaMo agents in [src/agt/](../src/agt/), experiment import and reporting scripts in [experiments/scripts/](scripts/), run archives in [runs/](runs/), and generated reports in [reports/](reports/).
+The repository is `ccrs-bdi`. It contains the JaCaMo agents in [src/agt/](../src/agt/), experiment import and reporting scripts in [experiments/scripts/](../../ccrs-experiments/scripts/bdi), run archives in [runs/](runs/), and generated reports in [reports/](reports/).
 
 The baseline agent is [dfs_baseline.asl](../src/agt/dfs_baseline.asl). The CCRS-enabled agent is [dfs_ccrs.asl](../src/agt/dfs_ccrs.asl). Both agents update their current location in a plan that reacts to RDF cell perceptions and currently print `I'm now at: ...`.
 
-The parser is [parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1). It reads archived run packages from `experiments/runs/<batch-id>/<run-id>/`, parses JaCaMo logs and MASE viewer exports, and writes CSV files under `experiments/reports/<batch-id>/`.
+The parser is [parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1). It reads archived run packages from `experiments/runs/<batch-id>/<run-id>/`, parses JaCaMo logs and MASE viewer exports, and writes CSV files under `experiments/reports/<batch-id>/`.
 
-The report writer is [write-report.ps1](scripts/write-report.ps1). It refreshes the parsed CSV files and creates `summary.md`.
+The report writer is [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1). It refreshes the parsed CSV files and creates `summary.md`.
 
-The current metric definitions are in [METRICS.md](METRICS.md). The manual experiment workflow is in [README.md](README.md). The maintained scripts live in `experiments/scripts/`.
+The current metric definitions are in [METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md). The manual experiment workflow is in [README.md](README.md). The maintained scripts live in `experiments/scripts/`.
 
 ## Milestones
 
@@ -122,11 +127,11 @@ Milestone 8 adds zone-level reporting. At the end of this milestone, `summary.md
 
 First, edit [dfs_baseline.asl](../src/agt/dfs_baseline.asl) and [dfs_ccrs.asl](../src/agt/dfs_ccrs.asl) in the location-update plan directly after `-+at(Target)`. Keep the existing human-readable `I'm now at: ...` print, then emit one structured `[METRIC]` line with date, time, within-day milliseconds, step, previous cell, and current cell. Add a `cycle_step/1` belief that increments once for each location update.
 
-Next, update [parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1). When the structured parser sees `event=agent.cycle.location`, collect rows with run id, agent label, source file, line number, step, date fields, `t_ms`, previous cell, and current cell. After all logs for a run are read, sort cycle markers by source order and compute `duration_ms` from adjacent markers. Count structured `ccrs.opportunistic.detected` and `ccrs.contingency.evaluate.request` records in each cycle window and write the result as `cycle-durations.csv`.
+Next, update [parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1). When the structured parser sees `event=agent.cycle.location`, collect rows with run id, agent label, source file, line number, step, date fields, `t_ms`, previous cell, and current cell. After all logs for a run are read, sort cycle markers by source order and compute `duration_ms` from adjacent markers. Count structured `ccrs.opportunistic.detected` and `ccrs.contingency.evaluate.request` records in each cycle window and write the result as `cycle-durations.csv`.
 
 Then update run-level aggregates in `runs.csv`. Add average cycle duration for every run. For CCRS runs, add average cycle duration grouped by `opp_ccrs_detected_count` buckets `0`, `1`, `2`, and `3_plus`, and by `contingency_ccrs_invocation_count` buckets `1`, `2`, and `3_plus`.
 
-Then update [write-report.ps1](scripts/write-report.ps1). Add a cycle-duration summary table under the existing core metrics or directly after it. The table should have one row per batch comparison or one row per CCRS run paired with the baseline run in the same batch. Use blank cells when a run has no cycle markers.
+Then update [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1). Add a cycle-duration summary table under the existing core metrics or directly after it. The table should have one row per batch comparison or one row per CCRS run paired with the baseline run in the same batch. Use blank cells when a run has no cycle markers.
 
 Then add static chart generation. Prefer an SVG generated by PowerShell from `cycle-durations.csv` because it has no new dependency and can be committed or regenerated with the report. The SVG should include axes labels, a baseline line, a CCRS line, and a legend. If PowerShell SVG generation becomes too cumbersome, use a small self-contained HTML file with inline SVG, but keep the generated artifact in the report directory.
 
@@ -138,9 +143,9 @@ The first accepted version of this attribution should be deliberately traceable 
 
 For the suboptimal-overrule metric, count opportunistic CCRS overrules where the selected path is classified as moving off the optimal path or increasing distance from the next optimal transition. Report this by CCRS type and subtype, with example rows linking to the detailed decision table.
 
-For cycle-duration chart scaling, update the SVG generation in [write-report.ps1](scripts/write-report.ps1) to use a split y-axis transform. Durations from 0 through 200 ms should get 82% of the plot height. Durations above 200 ms should be compressed into the remaining space with a log-base-100 scale, drawn with a distinct marker, and labeled with the true millisecond value. The x-axis should show 25-step interval markers and also include the observed maximum step even when it is not a multiple of 25. The summary should mention the split scale near the chart.
+For cycle-duration chart scaling, update the SVG generation in [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) to use a split y-axis transform. Durations from 0 through 200 ms should get 82% of the plot height. Durations above 200 ms should be compressed into the remaining space with a log-base-100 scale, drawn with a distinct marker, and labeled with the true millisecond value. The x-axis should show 25-step interval markers and also include the observed maximum step even when it is not a multiple of 25. The summary should mention the split scale near the chart.
 
-For zone-level reporting, first add a fixed zone definition table in [write-report.ps1](scripts/write-report.ps1) or a small helper loaded by it:
+For zone-level reporting, first add a fixed zone definition table in [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) or a small helper loaded by it:
 
 | Zone | Completion cell | Notes |
 | --- | --- | --- |
@@ -175,8 +180,8 @@ After adding the AgentSpeak marker, compile the agents:
 
 Run or import a manual batch using the workflow in [README.md](README.md). Then regenerate reports:
 
-    powershell -ExecutionPolicy Bypass -File experiments\scripts\parse-experiment-logs.ps1 -BatchId baseline-vs-ccrs
-    powershell -ExecutionPolicy Bypass -File experiments\scripts\write-report.ps1 -BatchId baseline-vs-ccrs
+    powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs
+    powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/write-report.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs
 
 ## Validation and Acceptance
 
@@ -184,7 +189,7 @@ Validation starts with a syntax and compilation check. The modified give-up and 
 
 A manually imported batch with fresh logs should produce `experiments/reports/<batch-id>/cycle-durations.csv`. Initial placement is excluded; step 1 is the first move leaving `cells/0` and its duration uses the placement timestamp. A later return to `cells/0` must remain counted. If no initial placement marker was supplied, the first available movement duration stays empty.
 
-Run `powershell -ExecutionPolicy Bypass -File experiments/tests/test-report-generation.ps1` to verify import, repeatable reports, MASE-aligned scenario and zone optima, explicit scenario precedence, zero-option decisions, placement exclusion, and give-up timestamps/durations without false success. The four test groups passed on 2026-10-17. Tests use temporary fixtures and do not start agents or services.
+Run `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/tests/bdi_report_generation.ps1` to verify import, repeatable reports, MASE-aligned scenario and zone optima, explicit scenario precedence, zero-option decisions, placement exclusion, and give-up timestamps/durations without false success. The four test groups passed on 2026-10-17. Tests use temporary fixtures and do not start agents or services.
 
 The regenerated `summary.md` should include a cycle-duration table with these columns: baseline average, CCRS average, CCRS average with zero opportunistic detections, one opportunistic detection, two opportunistic detections, three-or-more opportunistic detections, one contingency invocation, two contingency invocations, and three-or-more contingency invocations.
 
@@ -232,7 +237,7 @@ Example log line after JaCaMo logging prefixes:
 
 ## Interfaces and Dependencies
 
-[parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) already exposes `ConvertFrom-KeyValueLine`, which returns a map for `[CCRS-EVENT]` and `[METRIC]` records. Extend that path instead of adding regex parsing for timestamp strings.
+[parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1) already exposes `ConvertFrom-KeyValueLine`, which returns a map for `[CCRS-EVENT]` and `[METRIC]` records. Extend that path instead of adding regex parsing for timestamp strings.
 
 The new `cycle-durations.csv` should include at least these fields: `batch_id`, `run_id`, `jcm`, `agent_label`, `step`, `file`, `line`, `timestamp_ms`, `duration_ms`, `previous_cell`, `cell`, `opp_ccrs_detected_count`, and `contingency_ccrs_invocation_count`.
 
@@ -267,3 +272,6 @@ Revision note 2026-06-06 / Codex: Implemented the zone-level report section, `zo
 Revision note 2026-06-06 / Codex: Replaced the placeholder zone optimal move counts with scenario-specific totals and zone counts for `CcrsMazeV1` and `CcrsMazeV2`.
 
 Revision note 2026-10-17 / Codex: Applied the approved BDI audit corrections to scenario metadata, movement counting, zero-option decisions and give-up timing; documented the setup prerequisite and retained audit items 3, 6 and 7 as investigation TODOs. Pairwise comparison and the remaining deferred behaviours are unchanged.
+
+Revision note (2026-10-27): Removed obsolete forwarding entry points and redirect
+documents; updated links and operational commands to the canonical tooling.

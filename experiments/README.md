@@ -1,5 +1,10 @@
 # Experiment Log Analysis
 
+The current import/report implementation and guided runner are maintained in
+[ccrs-experiments](../../ccrs-experiments/README.md). The commands below invoke
+that implementation directly. This document retains the BDI-specific operational
+procedure; existing archives and system configuration remain in this repository.
+
 ## Quick Start Checklist
 
 Use this table as the manual experiment loop. Replace `baseline-vs-ccrs`,
@@ -21,15 +26,15 @@ Use the same explicit `-Scenario CcrsMazeV1` or `-Scenario CcrsMazeV2` on both i
 | 6 | `\ccrs-bdi` | **Run the baseline agent** | `gradle run "-Pjcm=dfs_baseline.jcm"` |
 | 7 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-bdi\experiments\runs\latest`; confirm reset |
 | 8 | `\ccrs-bdi` | Stage the JaCaMo log | `Copy-Item log\mas-0.log experiments\runs\latest\ -Force` |
-| 9 | `\ccrs-bdi` | Import the baseline run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 001-baseline -Jcm dfs_baseline.jcm -AgentName dfs_baseline_nesw_1 -Scenario CcrsMazeV1` |
+| 9 | `\ccrs-bdi` | Import the baseline run | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/import-manual-run.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs -RunId 001-baseline -Jcm dfs_baseline.jcm -AgentName dfs_baseline_nesw_1 -Scenario CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
 | 10 | `\mase` | Recreate scenario services for the next run | `docker compose -f docker-compose.ccrs.yml up -d --no-build --force-recreate ccrs-agent keyholder-agent` |
 | 11 | `\ccrs-bdi` | **Run the CCRS agent** | `gradle run "-Pjcm=dfs_ccrs.jcm"` |
 | 12 | Browser | Export and reset after the run | `Reset Store` -> `Export logs`; save the NDJSON file into `S:\dev\ma\ccrs-bdi\experiments\runs\latest`; confirm reset |
 | 13 | `\ccrs-bdi` | Stage the JaCaMo log | `Copy-Item log\mas-0.log experiments\runs\latest\ -Force` |
-| 14 | `\ccrs-bdi` | Import the CCRS run | `powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 -BatchId baseline-vs-ccrs -RunId 002-ccrs -Jcm dfs_ccrs.jcm -AgentName dfs_ccrs_1 -Scenario CcrsMazeV1` |
+| 14 | `\ccrs-bdi` | Import the CCRS run | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/import-manual-run.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs -RunId 002-ccrs -Jcm dfs_ccrs.jcm -AgentName dfs_ccrs_1 -Scenario CcrsMazeV1` |
 | - | ********** | ********************** | ********************** |
-| 15 | `\ccrs-bdi` | Generate the analysis package | `powershell -ExecutionPolicy Bypass -File experiments/scripts/write-report.ps1 -BatchId baseline-vs-ccrs` |
+| 15 | `\ccrs-bdi` | Generate the analysis package | `powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/write-report.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs` |
 | 16 | `\ccrs-bdi` | Open the report | `experiments\reports\baseline-vs-ccrs\summary.md` |
 
 This README covers the local experiment analysis workflow for comparing DFS
@@ -41,7 +46,7 @@ run the agent you want to evaluate, export viewer logs into a staging folder,
 then let the scripts import, normalize, parse, and report the logs.
 
 Metric vocabulary and current caveats are tracked in
-[METRICS.md](METRICS.md).
+[BDI_METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md).
 
 ## Manual Run Workflow
 
@@ -79,7 +84,7 @@ Put these files in that directory:
 Then import the staged files into a durable run package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 `
+powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/import-manual-run.ps1 -RepositoryRoot . `
   -BatchId baseline-vs-ccrs `
   -RunId 001-baseline `
   -Jcm dfs_baseline.jcm `
@@ -96,7 +101,7 @@ Import the next manually executed run with the same `-BatchId` and a different
 `-RunId`, for example:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.ps1 `
+powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/import-manual-run.ps1 -RepositoryRoot . `
   -BatchId baseline-vs-ccrs `
   -RunId 002-ccrs `
   -Jcm dfs_ccrs.jcm `
@@ -107,7 +112,7 @@ powershell -ExecutionPolicy Bypass -File experiments/scripts/import-manual-run.p
 Generate or refresh the report package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File experiments/scripts/write-report.ps1 -BatchId baseline-vs-ccrs
+powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/write-report.ps1 -RepositoryRoot . -BatchId baseline-vs-ccrs
 ```
 
 The main report is:
@@ -126,18 +131,18 @@ The most important CSVs for the new manual workflow are:
 
 ## Analysis Scripts
 
-[import-manual-run.ps1](scripts/import-manual-run.ps1) consumes the
+[import-manual-run.ps1](../../ccrs-experiments/scripts/bdi/import-manual-run.ps1) consumes the
 manual staging folder, writes `run.json`, normalizes viewer exports into
 `mase-events.jsonl`, preserves original exports under `source-exports/`, and
 updates the batch `manifest.json`.
 
-[parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1)
+[parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1)
 converts run packages into normalized CSV files. It accepts both structured
 `[CCRS-EVENT]` records and older fallback free-text markers. For MASE viewer
 exports, it keeps only events whose `agent` matches the run's `-AgentName`
 metadata so scenario-service logs do not enter the report.
 
-[write-report.ps1](scripts/write-report.ps1) creates `summary.md`
+[write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) creates `summary.md`
 from those CSV files. It invokes the parser automatically so the CSV tables are
 refreshed before the Markdown report is written.
 
@@ -146,10 +151,10 @@ refreshed before the Markdown report is written.
 Run the dependency-free black-box suite from the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File experiments/tests/test-report-generation.ps1
+powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/tests/bdi_report_generation.ps1
 ```
 
-[test-report-generation.ps1](tests/test-report-generation.ps1) creates temporary
+[test-report-generation.ps1](../../ccrs-experiments/tests/bdi_report_generation.ps1) creates temporary
 JaCaMo and MASE fixtures, exercises manual import and report generation through
 their public script entry points, verifies generated metrics and artifacts, and
 removes the fixtures afterward. It does not start JaCaMo, MASE, or an LLM.
@@ -159,11 +164,11 @@ removes the fixtures afterward. It does not start JaCaMo, MASE, or an LLM.
 After a batch exists, generate the Markdown report and CSV/JSON tables:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File experiments/scripts/write-report.ps1 -BatchId smoke
+powershell -ExecutionPolicy Bypass -File ../ccrs-experiments/scripts/bdi/write-report.ps1 -RepositoryRoot . -BatchId smoke
 ```
 
-[write-report.ps1](scripts/write-report.ps1) invokes
-[parse-experiment-logs.ps1](scripts/parse-experiment-logs.ps1) before writing
+[write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1) invokes
+[parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/parse-experiment-logs.ps1) before writing
 the report.
 
 ## Result Locations
