@@ -32,7 +32,7 @@ The work also consolidates experiment-related scripts, reports, run archives, an
 - [ ] Audit item 6: Reassess zone completion, movement counts and incomplete-run optimality using the actual logs and exports supplied for experiments; establish whether missing-cycle-marker cases are relevant before changing zone fallback or delta semantics.
 - [ ] Audit item 7: Investigate supported real inputs for rotated-log chronology, agent filtering in JaCaMo logs, MASE event ordering, and mixed structured/legacy contingency records before changing parser behaviour.
 
-- [x] (2026-05-23) Defined the structured AgentSpeak cycle timestamp marker in [METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md).
+- [x] (2026-05-23) Defined the structured AgentSpeak cycle timestamp marker in [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md).
 - [x] (2026-05-23) Created this plan under `experiments/` and recorded the cycle-duration and directory-consolidation work.
 - [x] (2026-05-23) Updated `.gitignore` exceptions so experiment Markdown files and future `experiments/scripts/` files are not hidden by the generated-artifact ignore rule.
 - [x] (2026-05-23) Added the `[METRIC] event=agent.cycle.location ...` marker to both [dfs_baseline.asl](../src/agt/dfs_baseline.asl) and [dfs_ccrs.asl](../src/agt/dfs_ccrs.asl).
@@ -103,7 +103,7 @@ The parser is [parse-experiment-logs.ps1](../../ccrs-experiments/scripts/bdi/par
 
 The report writer is [write-report.ps1](../../ccrs-experiments/scripts/bdi/write-report.ps1). It refreshes the parsed CSV files and creates `summary.md`.
 
-The current metric definitions are in [METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md). The manual experiment workflow is in [README.md](README.md). The maintained scripts live in `experiments/scripts/`.
+The current metric definitions are in [MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md). The manual experiment workflow is in [README.md](README.md). The maintained scripts live in `experiments/scripts/`.
 
 ## Milestones
 
@@ -275,3 +275,7 @@ Revision note 2026-10-17 / Codex: Applied the approved BDI audit corrections to 
 
 Revision note (2026-10-27): Removed obsolete forwarding entry points and redirect
 documents; updated links and operational commands to the canonical tooling.
+
+Revision note (2026-10-30): Metric-document links now target the shared measurement
+contract after removing the redundant BDI/ReAct metric documents. Historical
+implementation descriptions above remain historical, not current report claims.

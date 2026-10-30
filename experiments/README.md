@@ -51,7 +51,7 @@ run the agent you want to evaluate, export viewer logs into a staging folder,
 then let the scripts import, normalize, parse, and report the logs.
 
 Metric vocabulary and current caveats are tracked in
-[BDI_METRICS.md](../../ccrs-experiments/docs/BDI_METRICS.md).
+[MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md).
 
 ## Manual Run Workflow
 
@@ -138,7 +138,7 @@ navigation-intervals.csv, decisions.csv, guidance.csv, strategy-durations.csv,
 events.csv and zone-summary.csv. Full source references, case accounts and missing-
 evidence reasons are in metrics.json. See the
 [measurement contract](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) and
-[BDI metrics](../../ccrs-experiments/docs/BDI_METRICS.md) for definitions.
+[MEASUREMENT_CONTRACT.md](../../ccrs-experiments/docs/MEASUREMENT_CONTRACT.md) for definitions.
 
 Both [dfs_baseline.asl](../src/agt/dfs_baseline.asl) and
 [dfs_ccrs.asl](../src/agt/dfs_ccrs.asl) emit agent.run.finished with timestamp_ms
