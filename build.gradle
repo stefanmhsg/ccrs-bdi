@@ -87,6 +87,11 @@ tasks.register('printCcrsCapabilities') {
 }
 
 sourceSets {
+    audit {
+        java.srcDir 'src/audit/java'
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += sourceSets.main.output + configurations.runtimeClasspath
+    }
     main {
         java {
             srcDir 'src/env'
@@ -224,9 +229,19 @@ tasks.register('verifyAgentSpeakTestFixtures') {
     }
 }
 
+tasks.register('verifyTerminalAudit', JavaExec) {
+    group = 'verification'
+    description = 'Checks application ASL syntax and UTC terminal action offline; starts no agent.'
+    dependsOn tasks.named('auditClasses')
+    classpath = sourceSets.audit.runtimeClasspath
+    mainClass = 'TerminalAuditCheck'
+}
+
 tasks.named('test') {
     dependsOn tasks.named('verifyAgentSpeakTestFixtures')
+    dependsOn tasks.named('verifyTerminalAudit')
 }
+
 
 clean {
     delete 'bin'

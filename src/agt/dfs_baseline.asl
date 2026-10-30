@@ -63,6 +63,8 @@ MAIN LOOP
         .succeed_goal(escape) ;
         .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
         +finished(Y,M,D,H,Min,Sec,MilSec) ;
+        jia.epoch_millis(FinishedEpochMs) ;
+        -+finished_clock(FinishedEpochMs, "exit_recognized") ;
         !!stop ;
     .
 
@@ -192,6 +194,8 @@ MAIN LOOP
         .print("All the way back to http://127.0.1.1:8080/maze. I give up.") ;
         .date(Y,M,D); .time(H,Min,Sec,MilSec) ;
         -+finished(Y,M,D,H,Min,Sec,MilSec) ;
+        jia.epoch_millis(FinishedEpochMs) ;
+        -+finished_clock(FinishedEpochMs, "give_up") ;
         !report_time ;
         .fail_goal(backtrack_from(Location)) ;
         .fail_goal(select_next(Location)) ;
@@ -349,8 +353,10 @@ HELPER PLANS
         DiffSec = DiffMs div 1000 ;
         DiffRemMs = DiffMs mod 1000 ;
 
+        ?finished_clock(FinishedEpochMs, FinishedReason) ;
         .print("[METRIC] event=agent.run.finished y=", Y2, " m=", M2, " d=", D2,
-               " h=", H2, " min=", Min2, " sec=", S2, " ms=", MilSec2) ;
+               " h=", H2, " min=", Min2, " sec=", S2, " ms=", MilSec2,
+               " timestamp_ms=", FinishedEpochMs, " reason=", FinishedReason) ;
         
         .print("It took ", DiffSec, " seconds and ", DiffRemMs, " milliseconds") ;
     .
