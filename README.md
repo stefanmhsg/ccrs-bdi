@@ -54,12 +54,19 @@ https://maven.pkg.github.com/stefanmhsg/ccrs
 There is no Maven Local, sibling-source, composite-build, or filesystem
 fallback.
 
+[build.gradle](build.gradle) disables caching of changing dependency versions
+across builds. Each online build or run that resolves CCRS dependencies checks
+for the latest published snapshot of the selected `ccrsVersion` (default:
+`0.1.0-SNAPSHOT`); `--refresh-dependencies` is not required. This does not select
+a newer version number. Offline runs use cached packages, and already running
+agents or previously built fat JARs retain their existing library code.
+
 ## Build And Test
 
 Compile the default application without starting agents:
 
 ```powershell
-.\gradlew.bat --refresh-dependencies clean test classes
+.\gradlew.bat clean test classes
 ```
 
 Verify a minimal package profile:

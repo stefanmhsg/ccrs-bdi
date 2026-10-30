@@ -30,6 +30,11 @@ tasks.withType(JavaCompile).configureEach {
 def ccrsVersion = providers.gradleProperty('ccrsVersion')
     .getOrElse('0.1.0-SNAPSHOT')
 
+configurations.configureEach {
+    // Check for newly published snapshots whenever dependencies are resolved.
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+}
+
 def knownCcrsCapabilities = ['hypermedea', 'langchain4j', 'a2a'] as Set
 def requestedCcrsCapabilities = providers.gradleProperty('ccrsCapabilities')
     .getOrElse('all')
